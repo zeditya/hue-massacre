@@ -60,6 +60,17 @@ static func border_walls() -> Array:
 	]
 
 
+## The one source of truth for "where are the walls in this room".
+## Both the game (room.gd) and the test suite call this, so a level can never
+## be tested against different geometry from the geometry it actually runs with
+## - which is the classic way a "passing" level test becomes meaningless.
+static func walls_for(room: Dictionary) -> Array:
+	var walls: Array = border_walls()
+	for extra in room.get("walls", []):
+		walls.append(extra)
+	return walls
+
+
 ## Every room in play order. Room index 3 is the boss room.
 const ROOMS: Array = [
 	# -----------------------------------------------------------------------
@@ -206,7 +217,7 @@ const ROOMS: Array = [
 		"name": "ROOM 04",
 		"title": "THE COLLECTOR",
 		"lesson": "Complementary cancellation",
-		"hint": "He drinks the wheel and spins it. You can only cut him while YOUR hue sits on his exact complement - watch the wheel bar and strike inside the band.",
+		"hint": "BOSS ROOM: He drinks the wheel and spins it. Cut him while YOUR hue is on his exact complement (opposite on the colour wheel). Strike inside the gold band!",
 		"walls": [
 			Rect2(400.0, 180.0, 40.0, 360.0),
 			Rect2(840.0, 180.0, 40.0, 360.0),

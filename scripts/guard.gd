@@ -84,6 +84,12 @@ var _lost_timer: float = 0.0
 var _sight_quality: float = 0.0
 var _death_left: float = 0.0
 var _time: float = 0.0
+## Walk cycle position, 0..TAU. Driven by the guard's ACTUAL speed, so the
+## stride length can never disagree with how fast it is really moving.
+var _walk_phase: float = 0.0
+## 0..1, a short pop when detection jumps. Purely the "I've been spotted"
+## reaction - it gives the player a fraction of a second of warning.
+var _alert_pop: float = 0.0
 
 
 func _ready() -> void:
@@ -108,6 +114,23 @@ func _process(delta: float) -> void:
 		_death_left = maxf(_death_left - delta, 0.0)
 		if _death_left <= 0.0:
 			queue_free()
+		queue_redraw()
+		return
+
+	# --- walk cycle ------------------------------------------------------
+	# Stride frequency is speed / stride-length, which is what makes a walking
+	# guard and a sprinting guard look like different animations instead of the
+	# same one played faster. Idle guards get a slow breathing sway so they are
+	# never a completely static sprite.
+	var spd: float = velocity.length()
+	if spd > 1.0:
+		_walk_phase = fposmod(_walk_phase + delta * (TAU * spd / 110.0), TAU)
+	else:
+		_walk_phase = fposmod(_walk_phase + delta * 1.6, TAU)
+
+	# --- spotted reaction -------------------------------------------------
+	# Pops up the instant detection starts filling, then eases back down.
+	_alert_pop = maxf(_alert_pop - delta * 3.0, 0.0)
 	queue_redraw()
 
 
@@ -165,7 +188,12 @@ func _perceive(delta: float) -> void:
 	var awake: bool = room == null or room.time_in_room >= LevelData.SPAWN_GRACE
 
 	if sees and awake:
+		var was: float = detection
 		detection = clampf(detection + delta * (_sight_quality / maxf(detect_time, 0.01)), 0.0, 1.0)
+		# The first frame the meter actually moves is the moment to flinch, so
+		# the player gets told they have been seen before the chase begins.
+		if was <= 0.001 and detection > 0.001:
+			_alert_pop = 1.0
 		if detection >= 1.0:
 			state = State.CHASE
 			_lost_timer = 0.0
@@ -308,7 +336,7 @@ func die() -> void:
 	dead = true
 	detection = 0.0
 	velocity = Vector2.ZERO
-	_death_left = 0.26
+	_death_left = 0.30
 	# Stop colliding with anything the moment we are dead.
 	set_physics_process(false)
 	for child in get_children():

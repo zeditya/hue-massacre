@@ -166,9 +166,10 @@ func _test_levels() -> void:
 	check(rooms.size() == 4, "there are 4 rooms (3 teaching + boss)", "found %d" % rooms.size())
 
 	for room in rooms:
-		var walls: Array = LevelData.border_walls()
-		for extra in room["walls"]:
-			walls.append(extra)
+		# Read the walls through LevelData.walls_for() - the SAME function
+		# room.gd builds the level with. Testing against a different wall list
+		# than the game runs with would make every check below meaningless.
+		var walls: Array = LevelData.walls_for(room)
 
 		var name: String = room["name"]
 

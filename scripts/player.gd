@@ -64,6 +64,10 @@ var _dash_dir: Vector2 = Vector2.RIGHT
 var _facing: float = 0.0
 var _trail: Array = []
 var _trail_timer: float = 0.0
+## Walk cycle position, 0..1. Creates a bobbing squash feeling when moving.
+var _walk_cycle: float = 0.0
+## Squash factor when moving (0 = normal, 0.2 = squashed).
+var _squash: float = 0.0
 
 
 func _ready() -> void:
@@ -126,6 +130,15 @@ func _physics_process(delta: float) -> void:
 			_facing = input.angle()
 		else:
 			velocity = velocity.move_toward(Vector2.ZERO, friction * delta)
+
+	# --- walk cycle ------------------------------------------------------
+	# Creates a bobbing squash feeling. Faster movement = faster cycle.
+	var spd: float = velocity.length()
+	if spd > 50.0:
+		_walk_cycle = fposmod(_walk_cycle + delta * spd / 80.0, 1.0)
+		_squash = 0.2 * _walk_cycle
+	else:
+		_squash = 0.0
 
 	move_and_slide()
 
