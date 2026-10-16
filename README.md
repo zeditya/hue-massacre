@@ -195,6 +195,12 @@ central lane and cover blocks. Guard routes are authored against this geometry,
 and the test suite re-measures every route against every wall, so a layout that
 traps a guard simply fails the build.
 
+![Floor plans for all four rooms, with every guard patrol route](docs/level_plans.png)
+
+*All four floor plans. Grey blocks are walls; the coloured lines are the guard
+patrol routes (each drawn in that guard's own hue); the green ring is the
+player's spawn.*
+
 ### Score
 
 | Event | Points |
@@ -215,7 +221,7 @@ res://
 ├─ project.godot          main scene + input map + renderer
 ├─ export_presets.cfg     Web export preset (single-threaded)
 ├─ LICENSE                MIT — covers the code, NOT the art in assets/
-├─ docs/                  assignment artefacts (the AI chat history PDF)
+├─ docs/                  assignment artefacts (AI chat history PDF, floor plans)
 ├─ assets/
 │  ├─ characters/
 │  │  └─ adventurer/      free top-down character sheets
