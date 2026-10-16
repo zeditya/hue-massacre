@@ -12,10 +12,8 @@ assignment.
 
 | | |
 |---|---|
-| **Playable build** | `https://github.com/zeditya/hue-massacre` |
+| **Playable build** | `https://zeditya.github.io/hue-massacre/` |
 | **AI chat history (PDF)** | `docs/AI_CHAT_HISTORY.pdf` |
-| **Video walkthrough (20+ min)** | `[[PASTE YOUTUBE LINK HERE]]` |
-| **AI chat history (PDF)** | `[[PASTE LINK TO AI_CHAT_HISTORY.pdf HERE]]` |
 | **Video walkthrough (20+ min)** | `[[PASTE YOUTUBE LINK HERE]]` |
 | **Source** | `https://github.com/zeditya/hue-massacre` |
 

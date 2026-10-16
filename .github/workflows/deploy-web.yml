@@ -1,0 +1,117 @@
+# Deploy the Godot web build to GitHub Pages.
+#
+# What this does, in order:
+#   1. downloads the exact Godot editor release the project targets,
+#   2. installs the matching export templates,
+#   3. exports the "Web" preset from export_presets.cfg to build/web/,
+#   4. publishes build/web/ to GitHub Pages.
+#
+# ONE-TIME SETUP (the workflow cannot do this for you):
+#   Repository -> Settings -> Pages -> Build and deployment -> Source:
+#   choose "GitHub Actions". Without that the deploy step has no Pages site
+#   to publish to.
+#
+# The resulting URL is https://<owner>.github.io/<repo>/ and is linked from the
+# README's "Play it" table.
+#
+# The version below must stay in step with:
+#   - project.godot's config/features ("4.7")
+#   - export_presets.cfg's preset
+#   - the version named in HOW_TO_RUN.md
+
+name: Deploy web build to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# Allow the deploy job to publish to Pages via an OIDC token.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only ever run one Pages deployment at a time. A newer push supersedes an
+# older one that is still building.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  # Full release tag, e.g. "4.7.2-stable" - used to build the download URLs.
+  GODOT_TAG: 4.7.2-stable
+  # Version string, e.g. "4.7.2" - the export templates folder is "4.7.2.stable".
+  GODOT_VERSION: 4.7.2
+
+jobs:
+  build:
+    name: Export web build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # The editor is ~150 MB and the export templates are ~1.3 GB. Caching
+      # both keeps repeat runs to a few seconds instead of a long download.
+      - name: Cache Godot editor and export templates
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_TAG }}
+
+      - name: Download Godot editor
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot
+          curl -fsSL -o /tmp/godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_linux.x86_64.zip"
+          unzip -q -o /tmp/godot.zip -d ~/godot
+          chmod +x ~/godot/Godot_v${GODOT_TAG}_linux.x86_64
+
+      - name: Download and install export templates
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL -o /tmp/templates.tpz \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_export_templates.tpz"
+          mkdir -p /tmp/templates
+          unzip -q -o /tmp/templates.tpz -d /tmp/templates
+          # Godot looks for templates under export_templates/<version>.stable/.
+          mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          mv /tmp/templates/templates/* ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
+
+      # Godot does NOT create the output folder for you; if it is missing the
+      # export fails with "Target folder does not exist". It re-imports assets
+      # on its own in a clean checkout, so no separate import step is needed.
+      - name: Export the Web preset
+        run: |
+          mkdir -p build/web
+          ~/godot/Godot_v${GODOT_TAG}_linux.x86_64 \
+            --headless --path . \
+            --export-release "Web" build/web/index.html
+
+      # The exported files are loaded by relative path, so the site works from
+      # the /<repo>/ subpath. .nojekyll stops GitHub from ever treating the
+      # folder as a Jekyll site and stripping files.
+      - name: Add .nojekyll
+        run: touch build/web/.nojekyll
+
+      - name: Upload the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

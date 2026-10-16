@@ -182,7 +182,20 @@ These are properties of the web export, not bugs in the game:
    zip → tick **"This file will be played in the browser"**.
 3. Suggested viewport: **1280 × 720**. Then **Save & view page**.
 
-**GitHub Pages:**
+**GitHub Pages (automated — recommended):**
+
+`.github/workflows/deploy-web.yml` builds the Web preset and publishes it to
+GitHub Pages on every push to `master`, so there is nothing to export or upload
+by hand.
+
+1. **Settings → Pages → Build and deployment → Source: GitHub Actions.** This
+   one-time switch is required; without it the deploy step has nothing to
+   publish to.
+2. Push to `master` (or run the workflow from the **Actions** tab).
+3. Wait for the workflow to finish, then open
+   `https://<owner>.github.io/<repo>/`.
+
+**GitHub Pages (manual):**
 
 1. Commit `build/web/` to your repo, or push it to a `gh-pages` branch.
 2. **Settings → Pages** → Source: your branch, folder `/` (or `/build/web`).
