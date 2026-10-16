@@ -55,6 +55,9 @@ var time_in_room: float = 0.0
 
 var spawn_point: Vector2 = Vector2.ZERO
 var _walls: Array = []
+## Per-room wall tint, from the room's "wall_color", so the four rooms do not
+## all read as the same grey box.
+var _wall_tint: Color = Color(0.09, 0.09, 0.12)
 var _player_gone: bool = false
 var _cleared: bool = false
 var _last_boss_vulnerable: bool = false
@@ -69,6 +72,7 @@ func _ready() -> void:
 	_walls = LevelData.border_walls()
 	for extra in data["walls"]:
 		_walls.append(extra)
+	_wall_tint = data.get("wall_color", wall_colour)
 
 	_build_wall_bodies()
 
@@ -326,8 +330,7 @@ func _draw() -> void:
 
 	# Walls, drawn on top of the floor.
 	for r in _walls:
-		draw_rect(r, wall_colour, true)
-		draw_rect(r, wall_edge_colour, false, 1.5)
+		_draw_wall(r)
 
 	# The spawn ring: a visible countdown telling you the guards are still
 	# waking up, so the first second of a level is never a surprise death.
@@ -335,6 +338,25 @@ func _draw() -> void:
 		var left: float = 1.0 - time_in_room / LevelData.SPAWN_GRACE
 		draw_arc(spawn_point, 30.0 + 26.0 * (1.0 - left), 0.0, TAU, 48,
 			Color(1.0, 1.0, 1.0, 0.45 * left), 2.0, true)
+
+
+## One wall block, given a little height: a lit top band, the body, and a
+## shadow along the bottom edge. Three cheap `draw_rect` calls turn what used to
+## be a flat grey rectangle into something that reads as a solid object, which
+## matters when the whole room is built out of them.
+func _draw_wall(r: Rect2) -> void:
+	var body: Color = _wall_tint
+	var lit: Color = body.lightened(0.22)
+	var cap: float = minf(6.0, r.size.y * 0.4)
+
+	draw_rect(r, body, true)
+	# Lit top band - the face pointing at the "camera" is brighter.
+	draw_rect(Rect2(r.position, Vector2(r.size.x, cap)), lit, true)
+	# Shadowed lower lip, so blocks look like they have thickness.
+	var lip: float = minf(4.0, r.size.y * 0.3)
+	draw_rect(Rect2(r.position + Vector2(0.0, r.size.y - lip), Vector2(r.size.x, lip)),
+		Color(0.0, 0.0, 0.0, 0.35), true)
+	draw_rect(r, wall_edge_colour, false, 1.5)
 
 
 ## The floor under everything. Prefers the baked tiled floor and falls back to

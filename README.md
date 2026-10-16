@@ -178,14 +178,22 @@ Four rooms, in order, each teaching exactly one idea:
 
 | Room | Lesson | What it teaches |
 |---|---|---|
-| **01 — MATCHING** | Simultaneous contrast | Kill, stand in the paint of your own hue, and hide. Two guards, grey floor, no cover. |
-| **02 — MIXING** | Additive hue blending | Red and Blue cross at one point. Overlap their puddles to make Violet — and make yourself Violet. |
+| **01 — MATCHING** | Simultaneous contrast | Kill, stand in the paint of your own hue, and hide. An open plaza with a colonnade and almost no real cover — until you paint some. |
+| **02 — MIXING** | Additive hue blending | A horizontal lane and a vertical lane crossing at one point. Overlap the two puddles there to make Violet — and make yourself Violet. |
 | **03 — COMPLEMENTS** | Complementary contrast | Five guards including two true complement pairs. Land Yellow→Blue or Green→Purple inside 3s for the multiplier. |
 | **04 — THE COLLECTOR** | Complementary cancellation | The boss. Hue rotates; you may only cut him on his complement. Two small guards exist so you can shift your own hue. |
 
 Rooms are plain data in `scripts/level_data.gd` — no scene files to click around
 in. Clearing all guards completes a room; the floor's **"restored" bar** fills as
 your paint covers the level, and hitting 100% of the room plus the boss wins.
+
+Each room is a **different kind of space**, and the architecture is doing work:
+Room 1 is an open plaza (you are exposed, so paint is your only cover), Room 2 is
+two crossing lanes (the junction is where mixing happens), Room 3 is split into
+wings by a broken central spine with two doorways, and Room 4 is an arena with a
+central lane and cover blocks. Guard routes are authored against this geometry,
+and the test suite re-measures every route against every wall, so a layout that
+traps a guard simply fails the build.
 
 ### Score
 
