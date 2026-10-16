@@ -7,7 +7,7 @@ shader_type canvas_item;
 // BELOW the HUD, so the interface stays fully legible while the world goes dim.
 // It is additive night, not a hard blackout: three lights lift it.
 //
-//   1. The player's light cone - a wide forward wedge that follows WASD.
+//   1. The player's light cone - a torch beam that follows WASD.
 //   2. A soft AMBIENT pool around the player, so the ground near you is always
 //      readable even when you are not pointing at it. This is what makes the
 //      rooms navigable instead of a keyhole.
@@ -25,19 +25,19 @@ uniform vec2 player_pos = vec2(640.0, 360.0);
 // Direction the cone points, in radians.
 uniform float facing = 0.0;
 // Half-width of the cone, in degrees.
-uniform float cone_deg : hint_range(0.0, 180.0) = 62.0;
+uniform float cone_deg : hint_range(0.0, 180.0) = 50.0;
 // How far the cone reaches, in pixels.
-uniform float light_range : hint_range(0.0, 2048.0) = 640.0;
+uniform float light_range : hint_range(0.0, 2048.0) = 720.0;
 // A small always-lit circle around the player so they never lose themselves.
-uniform float near_radius : hint_range(0.0, 512.0) = 150.0;
+uniform float near_radius : hint_range(0.0, 512.0) = 95.0;
 // A dim pool around the player that is visible in EVERY direction. Keeps the
 // immediate area readable so the dark is atmospheric, not disorienting.
-uniform float ambient_range : hint_range(0.0, 1024.0) = 300.0;
-uniform float ambient_strength : hint_range(0.0, 1.0) = 0.55;
+uniform float ambient_range : hint_range(0.0, 1024.0) = 150.0;
+uniform float ambient_strength : hint_range(0.0, 1.0) = 0.30;
 // How far a guard's own lantern reaches.
-uniform float lantern_range : hint_range(0.0, 512.0) = 190.0;
+uniform float lantern_range : hint_range(0.0, 512.0) = 150.0;
 // 0 = daylight, 1 = pitch black outside the light.
-uniform float darkness_amount : hint_range(0.0, 1.0) = 0.62;
+uniform float darkness_amount : hint_range(0.0, 1.0) = 0.74;
 // A very dark cool blue, matching the drained world rather than pure black.
 uniform vec4 dark_colour : source_color = vec4(0.02, 0.02, 0.04, 1.0);
 

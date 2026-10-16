@@ -10,7 +10,7 @@ The game code is finished and tested. Everything below is packaging.
 
 - [ ] Open the project in Godot 4.7 and press **F5**. It should play start to finish.
 - [ ] Run the automated suite and confirm it is still green:
-      `.. --headless --path . res://tests/test_runner.tscn` → `179 passed, 0 failed`
+      `.. --headless --path . res://tests/test_runner.tscn` → `187 passed, 0 failed`
       (full command in [HOW_TO_RUN.md §4](HOW_TO_RUN.md))
 - [ ] Play one complete run: start menu → story → 4 rooms → win screen. Time it.
 - [ ] Walk through the manual checklist in [TESTING.md §4](TESTING.md), especially

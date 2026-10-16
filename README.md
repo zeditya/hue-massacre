@@ -196,22 +196,24 @@ Four rooms, in order, each teaching exactly one idea:
 
 | Room | Lesson | What it teaches |
 |---|---|---|
-| **01 — MATCHING** | Simultaneous contrast | Kill, stand in the paint of your own hue, and hide. An open plaza with a colonnade and almost no real cover — until you paint some. |
-| **02 — MIXING** | Additive hue blending | A horizontal lane and a vertical lane crossing at one point. Overlap the two puddles there to make Violet — and make yourself Violet. |
-| **03 — COMPLEMENTS** | Complementary contrast | Five guards including two true complement pairs. Land Yellow→Blue or Green→Purple inside 3s for the multiplier. |
-| **04 — THE COLLECTOR** | Complementary cancellation | The boss. Hue rotates; you may only cut him on his complement. Two small guards exist so you can shift your own hue. |
+| **01 — MATCHING** | Simultaneous contrast | Kill, stand in the paint of your own hue, and hide. A colonnaded atrium: two rows of pillars and an alcove in each corner, but almost no real cover — until you paint some. |
+| **02 — MIXING** | Additive hue blending | Two walled hallways crossing at one wide junction. Overlap the two puddles there to make Violet — and make yourself Violet. |
+| **03 — COMPLEMENTS** | Complementary contrast | A central spine with two doorways splits the map into two wings, each laid out as rooms. Five guards including two true complement pairs. Land Yellow→Blue or Green→Purple inside 3s for the multiplier. |
+| **04 — THE COLLECTOR** | Complementary cancellation | The boss. Two long flanks stake out his lane, with side yards and corner alcoves to duck into. Hue rotates; you may only cut him on his complement. Two small guards exist so you can shift your own hue. |
 
 Rooms are plain data in `scripts/level_data.gd` — no scene files to click around
 in. Clearing all guards completes a room; the floor's **"restored" bar** fills as
 your paint covers the level, and clearing the boss room wins.
 
 Each room is a **different kind of space**, and the architecture is doing work:
-Room 1 is an open plaza (you are exposed, so paint is your only cover), Room 2 is
-two crossing lanes (the junction is where mixing happens), Room 3 is split into
-wings by a broken central spine with two doorways, and Room 4 is an arena with a
-central lane and cover blocks. Guard routes are authored against this geometry,
-and the test suite re-measures every route against every wall, so a layout that
-traps a guard simply fails the build.
+Room 1 is a colonnaded atrium (you are exposed, so paint is your only cover),
+Room 2 is two walled hallways crossing at one junction (the junction is where
+mixing happens), Room 3 is split into wings by a central spine with two doorways,
+each wing laid out as rooms, and Room 4 is an arena with two long flanks, side
+yards and corner alcoves. Guard routes are authored against this geometry, and the
+test suite re-measures every route against every wall **and flood-fills the floor
+from the spawn**, so a layout that traps a guard — or seals a mote behind a wall —
+simply fails the build.
 
 ![Floor plans for all four rooms, with every guard patrol route](docs/level_plans.png)
 
@@ -268,10 +270,12 @@ res://
 │  ├─ hud.gd              score, combo, your colour swatch, restored bar, boss wheel
 │  └─ screens.gd          start menu, story scene, intro cards, pause, death, win
 ├─ tests/
-│  ├─ test_runner.gd      179 automated checks
+│  ├─ test_runner.gd      187 automated checks
 │  └─ test_runner.tscn    tiny scene to run them
 └─ tools/
-   └─ make_input_map.gd   one-off generator for project.godot's input map
+   ├─ make_input_map.gd    one-off generator for project.godot's input map
+   ├─ make_floor_plans.gd  draws docs/level_plans.png straight from level_data.gd
+   └─ capture.gd           renders a frame of each room, for a by-eye look
 ```
 
 **Almost nothing is built in the editor.** The game is one scene containing one
@@ -310,8 +314,8 @@ it can be tweaked live in the editor. The ones you are most likely to want:
 | `blob_lifetime` | `paint_layer.gd` | 10.0s |
 | `absorb_amount` | `player.gd` | 0.5 (50% blend) |
 | `hue_speed` | boss entry in `level_data.gd` | 28°/s |
-| `darkness_amount` | `game.gd` | 0.55 (1.0 = pitch black) |
-| `light_cone_deg` / `light_range` | `game.gd` | 62° / 640px |
+| `darkness_amount` | `game.gd` | 0.74 (1.0 = pitch black) |
+| `light_cone_deg` / `light_range` | `game.gd` | 50° / 720px |
 | `guard_lantern_range` | `game.gd` | 190px |
 
 The whole atmosphere is tunable in one place: set `darkness_enabled` to `false` in
@@ -352,19 +356,21 @@ palette in one place; `ui/hud.gd` and `ui/screens.gd` use it.
 
 ### The dark city
 
-The drained world is dim, and the only light is colour. `scripts/darkness.gdshader`
+The drained world is dark, and the only light is colour. `scripts/darkness.gdshader`
 lays a semi-transparent night over the world (above the game, below the HUD) and
 cuts it open in three places:
 
-- a **light cone** in front of the spark, pointing wherever WASD steers;
+- a **torch beam** in front of the spark, pointing wherever WASD steers — tight
+  (a 50° half-beam) and long (720px) so it reaches down a hallway, and it flickers
+  gently like a held flame;
 - a soft **ambient pool** around the spark, so the ground you are standing on is
   always readable — the dark is atmosphere, never an obstacle;
 - a **lantern pool** around every guard, tinted with the colour that guard stole,
   so threats read as pools of light at the edge of your vision.
 
-It is deliberately gentle (default `darkness_amount = 0.55`) and fully tunable in
-`game.gd`; the shader falls back to a transparent overlay, so even a shader failure
-cannot black out the screen.
+It is genuinely dark (`darkness_amount = 0.74`) and fully tunable in `game.gd`;
+the shader falls back to a transparent overlay, so even a shader failure cannot
+black out the screen.
 
 Fonts: the project uses Godot's built-in default font, styled with themed colours
 and sizes, so there is **no font file to download or place**. (If you want a pixel
@@ -413,7 +419,7 @@ This project was built with an AI coding agent (this is required to be disclosed
 Things that are **not** verified, stated plainly:
 
 - **The AI could not see the game render** through the automated suite. The build
-  is verified by compiling and by **179 automated logic tests** run in a *headless*
+  is verified by compiling and by **187 automated logic tests** run in a *headless*
   engine, which does not execute `_draw()`. So: the rules, the maths, the state
   machine, the room geometry and the win/lose flow are all machine-verified. The
   **visual output was checked by rendering frames during development**, but no

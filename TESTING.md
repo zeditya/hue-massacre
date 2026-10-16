@@ -2,7 +2,7 @@
 
 Two kinds of verification are recorded here:
 
-- **Automated** — 179 checks in `tests/test_runner.gd`, run in a headless Godot
+- **Automated** — 187 checks in `tests/test_runner.gd`, run in a headless Godot
   engine. Reproducible by you in one command.
 - **Manual** — a checklist for the things a script cannot judge, mostly *feel* and
   *visuals*, each with the expected result so you can tick it off.
@@ -38,18 +38,18 @@ Godot 4.7.2-stable (official)
 --- A. COLOUR THEORY MATHS
   ... 30 checks ...
 --- B. LEVEL GEOMETRY
-  ... 43 checks ...
+  ... 51 checks ...
 --- C. INTEGRATION (real scene, scripted playthrough)
   ... 74 checks ...
 --- D. STEALTH, DARKNESS AND LEVEL ELEMENTS
   ... 32 checks ...
 =========================================================
-RESULT: 179 passed, 0 failed
+RESULT: 187 passed, 0 failed
 =========================================================
 ```
 
 **Verified on:** Godot 4.7.2-stable (official Linux build), headless renderer.
-**Result:** `179 passed, 0 failed`, process exit code `0`.
+**Result:** `187 passed, 0 failed`, process exit code `0`.
 
 ### What each section proves
 
@@ -74,7 +74,7 @@ re-deriving every hue constant from its RGB value, so the comments in
 | `YELLOW on BLUE paint is fully exposed` | Contrasting hue → seen |
 | `bare grey floor always exposes you` | The starting condition is not accidentally safe |
 
-#### B. Level geometry (43 checks)
+#### B. Level geometry (51 checks)
 
 All 4 rooms, every guard route, and every colour mote. This section caught several
 real bugs during development, so it earns its place.
@@ -87,6 +87,8 @@ real bugs during development, so it earns its place.
 | `<ROOM>: guard N route clears every wall` | **No guard patrol clips through a wall.** Each path segment is checked against every wall rectangle inflated by the guard's radius |
 | `<ROOM>: guard N has a real patrol route` | Routes have at least 2 distinct points, so no guard paces on the spot |
 | `<ROOM>: mote at (x, y) is reachable` | **No colour mote is buried inside a wall** — every pickup sits in open ground |
+| `<ROOM>: every colour mote can be walked to` | **No pickup is sealed behind geometry** — the floor is flood-filled from the spawn, so a mote in a closed pocket fails |
+| `<ROOM>: every guard waypoint can be walked to` | Every patrol point is genuinely reachable on foot, not just clear of walls |
 
 #### C. Integration — scripted playthrough (74 checks)
 
@@ -347,8 +349,8 @@ result, so a failure is unambiguous.
 
 | # | Step | Expected |
 |---|---|---|
-| 48 | Look at the room when it loads | The world is **dim but readable** — you can see the floor near you and the guards' coloured lanterns. It is never a black screen you have to guess through. |
-| 49 | Move with W A S D | The **light cone sweeps the way you steer.** Turning changes what is lit, with no mouse involved. |
+| 48 | Look at the room when it loads | The world is **dark but readable** — it reads like a torch in a dark hallway: a pool of light at your feet, a beam ahead, and the guards' coloured lanterns at the edges. It is never a black screen you have to guess through. |
+| 49 | Move with W A S D | The **torch beam sweeps the way you steer** and flickers gently. Turning changes what is lit, with no mouse involved. |
 | 50 | Walk onto a coloured mote (a glowing shard inside a gold ring) | You **drink it**: the swatch snaps to that mote's hue, and the mote fades away. |
 | 51 | Find a guard at the edge of the dark | Each guard glows in the colour he stole, so a threat reads before it reaches you. |
 | 52 | Pause, choose RESTART ROOM, then pause and choose QUIT TO MENU | The room rebuilds from the top, then the menu returns cleanly. |
@@ -390,9 +392,11 @@ for the video.
 6. **The story prompt could pulse fully invisible and overlapped the figure.**
    Found in the same render check; the prompt and the character were repositioned.
 7. **The dark was too dark to navigate.** At `darkness_amount = 0.90` the world was
-   a keyhole. It is now 0.55 with an ambient pool around the spark. An
-   *extreme-value* render (amount 0.99, tiny cone) proved the shader was compositing
-   correctly all along — the problem was the tuning, not the code.
+   a keyhole. It was dropped to 0.55 with an ambient pool around the spark; a later
+   pass, wanting a genuine "torch in a dark hallway" feel, tuned it to **0.74** with
+   a tighter beam and a shorter ambient pool. An *extreme-value* render (amount 0.99,
+   tiny cone) proved the shader was compositing correctly all along — the problem was
+   always the tuning, not the code.
 8. **Guards could investigate a spot forever**, pressing into a wall they could not
    reach. Fixed with a give-up timeout, and covered by a test.
 

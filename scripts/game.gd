@@ -63,26 +63,29 @@ enum State { TITLE, INTRO, PLAY, PAUSED, DEAD, WIN }
 @export var world_origin: Vector2 = Vector2.ZERO
 
 @export_group("Darkness")
-## The drained city is dark; the spark's own light cone shows the way. The dark
-## is deliberately gentle - atmospheric, never a keyhole - so the levels stay
-## navigable. Set this false for the original daylight look.
+## The drained city is dark; the spark's own light cone shows the way, like a
+## torch in a blacked-out hallway. It is dark, but the ground at your feet and
+## the guards' lanterns stay readable - the dark is atmosphere, never a keyhole.
+## Set this false for the original daylight look.
 @export var darkness_enabled: bool = true
-## Half-width of the player's light cone, in degrees. The cone follows WASD.
-@export var light_cone_deg: float = 62.0
-## How far the light cone reaches, in pixels.
-@export var light_range: float = 640.0
+## Half-width of the player's light cone, in degrees. A torch throws a fairly
+## narrow beam, so this is deliberately tighter than a full floodlight. The cone
+## follows WASD.
+@export var light_cone_deg: float = 50.0
+## How far the light cone reaches, in pixels. Long enough to see down a hallway.
+@export var light_range: float = 720.0
 ## A small always-lit circle around the spark so they never lose themselves.
-@export var light_near_radius: float = 150.0
+@export var light_near_radius: float = 95.0
 ## A dim pool of visibility around the spark in every direction, so the ground
 ## right next to you is always readable even when you are not pointing at it.
-## Kept shorter than `light_range` so the forward cone still reads as a beam.
-@export var light_ambient_range: float = 260.0
-@export_range(0.0, 1.0) var light_ambient_strength: float = 0.55
+## Kept short and weak so the forward cone still reads as a torch beam.
+@export var light_ambient_range: float = 150.0
+@export_range(0.0, 1.0) var light_ambient_strength: float = 0.30
 ## How far each guard's lantern reaches. Guards glow with their stolen colour.
-@export var guard_lantern_range: float = 190.0
-## 0 = daylight, 1 = pitch black outside the light. Kept gentle on purpose:
-## the dark is atmosphere, not an obstacle, and the rooms must stay readable.
-@export_range(0.0, 1.0) var darkness_amount: float = 0.55
+@export var guard_lantern_range: float = 150.0
+## 0 = daylight, 1 = pitch black outside the light. Set high enough that the
+## world genuinely reads as a dark hallway, but the ambient pool keeps it fair.
+@export_range(0.0, 1.0) var darkness_amount: float = 0.74
 ## How many guards get a lantern (nearest first). Must match MAX_LIGHTS in the
 ## shader. Extra guards simply go unlit.
 @export var guard_light_count: int = 8
@@ -122,6 +125,9 @@ var _last_kill_time: float = -100.0
 var _spotted_this_room: bool = false
 var _busy: bool = false    # true while a room-clear or death sequence is running
 
+## Advances forever; drives the torch flicker in the darkness shader.
+var _torch_time: float = 0.0
+
 
 func _ready() -> void:
 	# Keeps working even if the window loses focus, and keeps the run smooth.
@@ -137,6 +143,7 @@ func _process(delta: float) -> void:
 	_update_shake(delta)
 	_update_hit_stop()
 	_update_flash(delta)
+	_torch_time += delta
 
 	if state == State.PLAY:
 		run_time += delta
@@ -715,7 +722,11 @@ func _sync_darkness() -> void:
 	mat.set_shader_parameter("player_pos", player.global_position + world_root.position)
 	mat.set_shader_parameter("facing", player.aim_angle())
 	mat.set_shader_parameter("cone_deg", light_cone_deg)
-	mat.set_shader_parameter("light_range", light_range)
+	# A small, slow flicker so the beam reads as a flame rather than a lamp.
+	# Only the range flickers: the cone width and the darkness level are
+	# asserted by the test suite, so they must stay exactly as exported.
+	var flicker: float = 0.93 + 0.05 * sin(_torch_time * 9.0) + 0.03 * sin(_torch_time * 23.0 + 1.3)
+	mat.set_shader_parameter("light_range", light_range * flicker)
 	mat.set_shader_parameter("near_radius", light_near_radius)
 	mat.set_shader_parameter("ambient_range", light_ambient_range)
 	mat.set_shader_parameter("ambient_strength", light_ambient_strength)

@@ -16,17 +16,18 @@ extends RefCounted
 ##   Rooms are not four variations of an empty box. Architecture is used to
 ##   change how far a guard can SEE and how the player has to move:
 ##
-##     ROOM 01  AN OPEN PLAZA      four pillars and two low walls, so there is
-##                                 almost nowhere to break line of sight. The
-##                                 lesson is that paint, not furniture, is
-##                                 your cover.
-##     ROOM 02  TWO LONG LANES     a horizontal lane and a vertical lane crossing
-##                                 at one point, so their paint meets.
-##     ROOM 03  A SPLIT SPINE      a broken central wall divides the room into
-##                                 wings with two doorways, giving five guards
-##                                 room to work and the player somewhere to run.
-##     ROOM 04  THE ARENA          two long flanking walls and a pair of cover
-##                                 blocks in the middle lane.
+##     ROOM 01  THE COLONNADE     two rows of pillars make a central aisle, and
+##                                 an L-shaped alcove sits in each corner. The
+##                                 middle is still open, so there is nowhere to
+##                                 hide without paint - that is the lesson.
+##     ROOM 02  CROSSED HALLWAYS  a walled horizontal hallway and a walled
+##                                 vertical hallway meet at one wide junction, so
+##                                 the two guards' paint can only meet there.
+##     ROOM 03  THE SPLIT HOUSE   a central spine with two doorways divides the
+##                                 room into two wings, each laid out as rooms so
+##                                 five guards have space to work.
+##     ROOM 04  THE ARENA         two long flanks stake out the boss's lane,
+##                                 with side yards and corner alcoves to duck in.
 ##
 ## THE COLOUR WHEEL.
 ## The six guard colours are exact HSV hues, written out as RGB because a
@@ -109,46 +110,49 @@ const ROOMS: Array = [
 		"hint": "Kill a guard and the floor remembers its colour. Stand in that paint and your hue matches the ground, so their eyes slide straight past you.",
 		"wall_color": Color(0.09, 0.09, 0.12),
 		"walls": [
-			# The colonnade: a 2x2 grid of pillars around the centre.
-			Rect2(496.0, 246.0, 56.0, 56.0),
-			Rect2(728.0, 246.0, 56.0, 56.0),
-			Rect2(496.0, 418.0, 56.0, 56.0),
-			Rect2(728.0, 418.0, 56.0, 56.0),
-			# Two low walls pinned to opposite corners.
-			Rect2(110.0, 110.0, 210.0, 34.0),
-			Rect2(960.0, 576.0, 210.0, 34.0),
-			# Two walls hanging down from the ceiling, so the top of the room
-			# has alcoves to break a sightline without giving real cover.
-			Rect2(400.0, 26.0, 40.0, 140.0),
-			Rect2(800.0, 26.0, 40.0, 140.0),
-			# A few crates so the plaza has objects in it: still nowhere to
-			# truly hide, but enough to break a sightline for half a second.
-			Rect2(180.0, 560.0, 80.0, 70.0),
-			Rect2(600.0, 560.0, 80.0, 70.0),
-			Rect2(360.0, 300.0, 70.0, 70.0),
+			# The colonnade: two rows of three pillars, so the middle of the
+			# plaza is an aisle you can be seen straight down.
+			Rect2(440.0, 210.0, 44.0, 44.0),
+			Rect2(440.0, 338.0, 44.0, 44.0),
+			Rect2(440.0, 466.0, 44.0, 44.0),
+			Rect2(796.0, 210.0, 44.0, 44.0),
+			Rect2(796.0, 338.0, 44.0, 44.0),
+			Rect2(796.0, 466.0, 44.0, 44.0),
+			# An L in each corner, so the plaza has alcoves to break a sightline
+			# without ever giving real cover.
+			Rect2(96.0, 96.0, 32.0, 132.0),
+			Rect2(96.0, 96.0, 132.0, 32.0),
+			Rect2(1152.0, 96.0, 32.0, 132.0),
+			Rect2(1052.0, 96.0, 132.0, 32.0),
+			Rect2(96.0, 492.0, 32.0, 132.0),
+			Rect2(96.0, 592.0, 132.0, 32.0),
+			Rect2(1152.0, 492.0, 32.0, 132.0),
+			Rect2(1052.0, 592.0, 132.0, 32.0),
+			# A low plinth in the middle of the aisle, so it reads as a place.
+			Rect2(612.0, 330.0, 56.0, 56.0),
 		],
-		"start": Vector2(150.0, 580.0),
+		"start": Vector2(170.0, 560.0),
 		"start_color": Color(1.0, 1.0, 1.0),
 		"motes": [
 			# A pair of drifting shards: one near the spawn, one across the room.
-			{ "pos": Vector2(320.0, 620.0), "color": Color(0.0, 1.0, 0.0) },
-			{ "pos": Vector2(1050.0, 640.0), "color": Color(0.75, 0.0, 1.0) },
+			{ "pos": Vector2(360.0, 620.0), "color": Color(0.0, 1.0, 0.0) },
+			{ "pos": Vector2(960.0, 620.0), "color": Color(0.75, 0.0, 1.0) },
 		],
 		"guards": [
 			{
 				"color": Color(1.0, 0.0, 0.0),
-				# RED walks the right-hand side, top to bottom, a wide loop.
-				"pos": Vector2(1148.0, 150.0),
-				"path": [Vector2(1148.0, 150.0), Vector2(1148.0, 520.0), Vector2(880.0, 520.0), Vector2(880.0, 150.0)],
+				# RED walks a wide loop down the right-hand aisle.
+				"pos": Vector2(1100.0, 150.0),
+				"path": [Vector2(1100.0, 150.0), Vector2(1100.0, 570.0), Vector2(880.0, 570.0), Vector2(880.0, 150.0)],
 				"speed": 72.0,
 				"cone": 300.0,
 			},
 			{
-				# YELLOW 60 deg. A big loop AROUND the colonnade, so it keeps
+				# YELLOW 60 deg. Circles the central aisle, so it keeps
 				# re-appearing on the far side of the pillars.
 				"color": Color(1.0, 1.0, 0.0),
-				"pos": Vector2(300.0, 200.0),
-				"path": [Vector2(300.0, 200.0), Vector2(900.0, 200.0), Vector2(900.0, 520.0), Vector2(300.0, 520.0)],
+				"pos": Vector2(520.0, 160.0),
+				"path": [Vector2(520.0, 160.0), Vector2(760.0, 160.0), Vector2(760.0, 560.0), Vector2(520.0, 560.0)],
 				"speed": 78.0,
 				"cone": 300.0,
 			},
@@ -169,42 +173,47 @@ const ROOMS: Array = [
 		"hint": "Red and blue patrol across each other. Kill both where their paint can meet: two puddles averaging on the wheel make VIOLET, and so do you.",
 		"wall_color": Color(0.10, 0.09, 0.11),
 		"walls": [
-			# Vertical baffles that define the lanes without sealing them.
-			Rect2(300.0, 420.0, 40.0, 240.0),
-			Rect2(480.0, 60.0, 40.0, 200.0),
-			Rect2(904.0, 420.0, 40.0, 240.0),
-			Rect2(760.0, 60.0, 40.0, 200.0),
-			# One small block, deliberately off the crossing, so the centre reads
-			# as an open junction rather than a corridor.
-			Rect2(544.0, 176.0, 48.0, 48.0),
-			# Cover squares in the dead space between the lanes, so the lanes
-			# themselves stay clean but the room is not two bare corridors.
-			Rect2(300.0, 360.0, 80.0, 80.0),
-			Rect2(760.0, 520.0, 90.0, 90.0),
+			# A horizontal hallway, walled above and below, with one wide
+			# doorway where the vertical hallway crosses it.
+			Rect2(150.0, 232.0, 410.0, 36.0),
+			Rect2(684.0, 232.0, 446.0, 36.0),
+			Rect2(150.0, 352.0, 410.0, 36.0),
+			Rect2(684.0, 352.0, 446.0, 36.0),
+			# The vertical hallway, walled left and right, with the same wide
+			# crossing. The two puddles can only meet in that crossing.
+			Rect2(560.0, 60.0, 36.0, 190.0),
+			Rect2(684.0, 60.0, 36.0, 190.0),
+			Rect2(560.0, 370.0, 36.0, 260.0),
+			Rect2(684.0, 370.0, 36.0, 260.0),
+			# Cover in the four dead quadrants, so no quadrant is a bare box.
+			Rect2(300.0, 470.0, 70.0, 70.0),
+			Rect2(880.0, 470.0, 70.0, 70.0),
+			Rect2(300.0, 110.0, 70.0, 70.0),
+			Rect2(880.0, 110.0, 70.0, 70.0),
 		],
 		"start": Vector2(150.0, 580.0),
 		"start_color": Color(1.0, 1.0, 1.0),
 		"motes": [
-			# Motes sit in the dead ground beside each lane: a detour you can
+			# Motes sit in the dead ground beside each hallway: a detour you can
 			# choose to make instead of walking the crossing.
 			{ "pos": Vector2(430.0, 610.0), "color": Color(0.0, 1.0, 0.0) },
-			{ "pos": Vector2(880.0, 200.0), "color": Color(1.0, 0.5, 0.0) },
+			{ "pos": Vector2(820.0, 200.0), "color": Color(1.0, 0.5, 0.0) },
 		],
 		"guards": [
 			{
 				"color": Color(1.0, 0.0, 0.0),
-				# RED sweeps the horizontal lane straight through the junction.
-				"pos": Vector2(140.0, 300.0),
-				"path": [Vector2(140.0, 300.0), Vector2(1140.0, 300.0)],
+				# RED sweeps the horizontal hallway straight through the junction.
+				"pos": Vector2(160.0, 310.0),
+				"path": [Vector2(160.0, 310.0), Vector2(1120.0, 310.0)],
 				"speed": 80.0,
 				"cone": 320.0,
 			},
 			{
-				# BLUE 240 deg. Crosses RED's patrol at (640, 300), which is exactly
+				# BLUE 240 deg. Crosses RED's patrol at (640, 310), which is exactly
 				# where the two puddles can overlap and average to VIOLET.
 				"color": Color(0.0, 0.0, 1.0),
-				"pos": Vector2(640.0, 120.0),
-				"path": [Vector2(640.0, 120.0), Vector2(640.0, 640.0)],
+				"pos": Vector2(640.0, 90.0),
+				"path": [Vector2(640.0, 90.0), Vector2(640.0, 630.0)],
 				"speed": 80.0,
 				"cone": 320.0,
 			},
@@ -212,8 +221,8 @@ const ROOMS: Array = [
 				# ORANGE 30 deg: close to BLUE, but 30 degrees short of the 180
 				# needed for a combo. Room 2 cannot combo by accident.
 				"color": Color(1.0, 0.50, 0.0),
-				"pos": Vector2(1150.0, 600.0),
-				"path": [Vector2(1150.0, 600.0), Vector2(1150.0, 120.0), Vector2(1000.0, 120.0), Vector2(1000.0, 600.0)],
+				"pos": Vector2(740.0, 70.0),
+				"path": [Vector2(740.0, 70.0), Vector2(1090.0, 70.0), Vector2(1090.0, 200.0), Vector2(740.0, 200.0)],
 				"speed": 85.0,
 				"cone": 300.0,
 			},
@@ -234,34 +243,36 @@ const ROOMS: Array = [
 		"hint": "Opposite hues on the wheel cancel out. Kill YELLOW then BLUE, or GREEN then PURPLE, inside three seconds and the score doubles.",
 		"wall_color": Color(0.09, 0.10, 0.12),
 		"walls": [
-			# The spine: a wall from the ceiling, a central block, and a floating
-			# stub below it. The gaps between them are the two doorways.
-			Rect2(610.0, 30.0, 60.0, 220.0),
-			Rect2(600.0, 320.0, 80.0, 80.0),
-			Rect2(610.0, 470.0, 60.0, 150.0),
-			# Two staging blocks along the bottom, and stubs on the top corners.
-			Rect2(180.0, 520.0, 140.0, 40.0),
-			Rect2(960.0, 520.0, 140.0, 40.0),
-			Rect2(150.0, 26.0, 180.0, 40.0),
-			Rect2(950.0, 26.0, 180.0, 40.0),
-			# Two low blocks in the bottom corridor, so the fifth guard's long
-			# run is not a completely straight, readable line.
-			Rect2(420.0, 580.0, 70.0, 40.0),
-			Rect2(790.0, 580.0, 70.0, 40.0),
+			# The spine: three segments with a doorway above the middle one and
+			# a bottom corridor below the last, splitting the room into wings.
+			Rect2(612.0, 26.0, 56.0, 150.0),
+			Rect2(612.0, 250.0, 56.0, 190.0),
+			Rect2(612.0, 500.0, 56.0, 120.0),
+			# An L-shaped inner room in each corner of the left wing, so the
+			# wing is rooms to clear, not an empty box.
+			Rect2(170.0, 120.0, 240.0, 34.0),
+			Rect2(170.0, 120.0, 34.0, 160.0),
+			Rect2(170.0, 520.0, 240.0, 34.0),
+			Rect2(170.0, 360.0, 34.0, 160.0),
+			# Mirror on the right wing.
+			Rect2(870.0, 120.0, 240.0, 34.0),
+			Rect2(1076.0, 120.0, 34.0, 160.0),
+			Rect2(870.0, 520.0, 240.0, 34.0),
+			Rect2(1076.0, 360.0, 34.0, 160.0),
 		],
 		"start": Vector2(70.0, 180.0),
 		"start_color": Color(1.0, 1.0, 1.0),
 		"motes": [
 			# One in each doorway of the spine: taking a mote means stepping
 			# into the gap that the wings are watching.
-			{ "pos": Vector2(640.0, 285.0), "color": Color(1.0, 1.0, 0.0) },
-			{ "pos": Vector2(640.0, 435.0), "color": Color(0.75, 0.0, 1.0) },
+			{ "pos": Vector2(640.0, 215.0), "color": Color(1.0, 1.0, 0.0) },
+			{ "pos": Vector2(640.0, 470.0), "color": Color(0.75, 0.0, 1.0) },
 		],
 		"guards": [
 			{
 				"color": Color(1.0, 0.0, 0.0),
-				"pos": Vector2(150.0, 120.0),
-				"path": [Vector2(150.0, 120.0), Vector2(560.0, 120.0), Vector2(560.0, 260.0), Vector2(150.0, 260.0)],
+				"pos": Vector2(130.0, 90.0),
+				"path": [Vector2(130.0, 90.0), Vector2(560.0, 90.0), Vector2(560.0, 310.0), Vector2(130.0, 310.0)],
 				"speed": 85.0,
 				"cone": 300.0,
 			},
@@ -269,23 +280,23 @@ const ROOMS: Array = [
 				# GREEN 120 deg. Its complement PURPLE (285) is also in this room,
 				# so GREEN -> PURPLE is a valid chain (165 apart, inside tolerance).
 				"color": Color(0.0, 1.0, 0.0),
-				"pos": Vector2(150.0, 360.0),
-				"path": [Vector2(150.0, 360.0), Vector2(560.0, 360.0), Vector2(560.0, 480.0), Vector2(150.0, 480.0)],
+				"pos": Vector2(130.0, 335.0),
+				"path": [Vector2(130.0, 335.0), Vector2(130.0, 640.0), Vector2(560.0, 640.0), Vector2(560.0, 335.0)],
 				"speed": 85.0,
 				"cone": 300.0,
 			},
 			{
 				# BLUE 240 deg: exactly opposite YELLOW (60), the other combo pair.
 				"color": Color(0.0, 0.0, 1.0),
-				"pos": Vector2(1120.0, 120.0),
-				"path": [Vector2(1120.0, 120.0), Vector2(720.0, 120.0), Vector2(720.0, 260.0), Vector2(1120.0, 260.0)],
+				"pos": Vector2(1150.0, 90.0),
+				"path": [Vector2(1150.0, 90.0), Vector2(720.0, 90.0), Vector2(720.0, 310.0), Vector2(1150.0, 310.0)],
 				"speed": 85.0,
 				"cone": 300.0,
 			},
 			{
 				"color": Color(0.75, 0.0, 1.0),
-				"pos": Vector2(1120.0, 380.0),
-				"path": [Vector2(1120.0, 380.0), Vector2(720.0, 380.0), Vector2(720.0, 480.0), Vector2(1120.0, 480.0)],
+				"pos": Vector2(1150.0, 335.0),
+				"path": [Vector2(1150.0, 335.0), Vector2(1150.0, 640.0), Vector2(720.0, 640.0), Vector2(720.0, 335.0)],
 				"speed": 85.0,
 				"cone": 300.0,
 			},
@@ -314,16 +325,20 @@ const ROOMS: Array = [
 		"hint": "BOSS ROOM: He drinks the wheel and spins it. Cut him while YOUR hue is on his exact complement (opposite on the colour wheel). Strike inside the gold band!",
 		"wall_color": Color(0.12, 0.08, 0.13),
 		"walls": [
-			# The two long flanks of the central lane.
-			Rect2(400.0, 180.0, 40.0, 360.0),
-			Rect2(840.0, 180.0, 40.0, 360.0),
+			# The two long flanks of the central boss lane.
+			Rect2(410.0, 150.0, 44.0, 420.0),
+			Rect2(826.0, 150.0, 44.0, 420.0),
 			# Cover inside the lane, left and right of the boss's patrol line.
-			Rect2(470.0, 300.0, 80.0, 80.0),
-			Rect2(730.0, 300.0, 80.0, 80.0),
-			# Two outer cover blocks in the side yards, so the arena has wings
-			# to duck into while you wait for the wheel to come round.
+			Rect2(480.0, 320.0, 70.0, 70.0),
+			Rect2(730.0, 320.0, 70.0, 70.0),
+			# Side-yard cover, so the arena has wings to duck into.
 			Rect2(200.0, 300.0, 60.0, 60.0),
-			Rect2(1020.0, 300.0, 60.0, 60.0),
+			Rect2(1050.0, 300.0, 60.0, 60.0),
+			# Corner alcoves along the top and bottom.
+			Rect2(90.0, 90.0, 150.0, 34.0),
+			Rect2(1040.0, 90.0, 150.0, 34.0),
+			Rect2(90.0, 596.0, 150.0, 34.0),
+			Rect2(1040.0, 596.0, 150.0, 34.0),
 		],
 		"start": Vector2(70.0, 180.0),
 		# The spark enters the last room burning pure red, so the boss window is
@@ -333,15 +348,15 @@ const ROOMS: Array = [
 			# Far from the boss's lap and from the spawn, so grabbing one is a
 			# deliberate trip to the side yard in the middle of the fight.
 			{ "pos": Vector2(250.0, 460.0), "color": Color(0.75, 0.0, 1.0) },
-			{ "pos": Vector2(1030.0, 200.0), "color": Color(0.0, 1.0, 0.0) },
+			{ "pos": Vector2(1010.0, 200.0), "color": Color(0.0, 1.0, 0.0) },
 		],
 		"guards": [
 			{
 				# The two small guards exist so the player can SHIFT their own hue:
 				# kill one and your complement target moves on the wheel bar.
 				"color": Color(1.0, 1.0, 0.0),
-				"pos": Vector2(140.0, 600.0),
-				"path": [Vector2(140.0, 600.0), Vector2(340.0, 600.0), Vector2(340.0, 140.0), Vector2(140.0, 140.0)],
+				"pos": Vector2(150.0, 150.0),
+				"path": [Vector2(150.0, 150.0), Vector2(150.0, 560.0), Vector2(340.0, 560.0), Vector2(340.0, 150.0)],
 				"speed": 90.0,
 				"cone": 280.0,
 			},
@@ -354,8 +369,8 @@ const ROOMS: Array = [
 			},
 			{
 				"color": Color(1.0, 0.0, 0.0),
-				"pos": Vector2(1140.0, 150.0),
-				"path": [Vector2(1140.0, 150.0), Vector2(1140.0, 590.0), Vector2(620.0, 590.0), Vector2(620.0, 150.0)],
+				"pos": Vector2(1000.0, 110.0),
+				"path": [Vector2(1000.0, 110.0), Vector2(1000.0, 610.0), Vector2(620.0, 610.0), Vector2(620.0, 110.0)],
 				"speed": 62.0,
 				"chase": 118.0,
 				"cone": 380.0,

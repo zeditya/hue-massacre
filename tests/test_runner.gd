@@ -161,6 +161,68 @@ static func _point_rect_distance(p: Vector2, r: Rect2) -> float:
 	return p.distance_to(closest)
 
 
+## Grid resolution used by the reachability flood-fill, in pixels.
+const CELL: float = 6.0
+
+
+static func _cell_key(p: Vector2) -> Vector2i:
+	return Vector2i(int(p.x / CELL), int(p.y / CELL))
+
+
+static func _clear_of_walls(p: Vector2, walls: Array, clearance: float) -> bool:
+	for r in walls:
+		if _point_rect_distance(p, r) < clearance:
+			return false
+	return true
+
+
+## Every grid cell the player can actually walk to, starting from the spawn and
+## treating anything within the player's radius of a wall as solid. This is what
+## catches content sealed behind geometry - a mote or a waypoint the player can
+## see but never reach, which no per-point clearance check can detect.
+static func _reachable_cells(room: Dictionary, walls: Array) -> Dictionary:
+	var cols: int = int(LevelData.PLAYFIELD.x / CELL)
+	var rows: int = int(LevelData.PLAYFIELD.y / CELL)
+	var clearance: float = LevelData.PLAYER_RADIUS
+	var free: Array = []
+	for rr in rows:
+		var row: Array = []
+		for cc in cols:
+			var p := Vector2((float(cc) + 0.5) * CELL, (float(rr) + 0.5) * CELL)
+			row.append(_clear_of_walls(p, walls, clearance))
+		free.append(row)
+
+	var start: Vector2 = room["start"]
+	var sc: int = clampi(int(start.x / CELL), 0, cols - 1)
+	var sr: int = clampi(int(start.y / CELL), 0, rows - 1)
+
+	var seen: Dictionary = {}
+	var queue: Array = []
+	# Seed a small patch around the spawn so the fill starts from open ground
+	# even if the spawn's own cell centre happens to sit near a wall.
+	for dy in range(-2, 3):
+		for dx in range(-2, 3):
+			var c: int = sc + dx
+			var r: int = sr + dy
+			if c < 0 or r < 0 or c >= cols or r >= rows:
+				continue
+			if free[r][c]:
+				seen[Vector2i(c, r)] = true
+				queue.append(Vector2i(c, r))
+
+	while not queue.is_empty():
+		var cur: Vector2i = queue.pop_back()
+		for off in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var nxt: Vector2i = cur + off
+			if nxt.x < 0 or nxt.y < 0 or nxt.x >= cols or nxt.y >= rows:
+				continue
+			if seen.has(nxt) or not free[nxt.y][nxt.x]:
+				continue
+			seen[nxt] = true
+			queue.append(nxt)
+	return seen
+
+
 func _test_levels() -> void:
 	var rooms: Array = LevelData.ROOMS
 	check(rooms.size() == 4, "there are 4 rooms (3 teaching + boss)", "found %d" % rooms.size())
@@ -236,6 +298,26 @@ func _test_levels() -> void:
 			check(in_field and clear >= 18.0,
 				"%s: mote at %s is reachable" % [name, str(mp)],
 				"clearance %.1f" % clear)
+
+		# --- and nothing is sealed off behind a wall ----------------------
+		# Clearance proves a point is not inside a wall; it does NOT prove the
+		# player can walk there. Flood-fill the floor from the spawn so a mote
+		# or a waypoint hidden in a sealed pocket fails loudly.
+		var reach: Dictionary = _reachable_cells(room, walls)
+		var motes_ok: bool = true
+		for mote in room.get("motes", []):
+			if not reach.has(_cell_key(Vector2(mote["pos"]))):
+				motes_ok = false
+		check(motes_ok, "%s: every colour mote can be walked to" % name)
+
+		var routes_ok: bool = true
+		for spec in spec_list:
+			if not reach.has(_cell_key(Vector2(spec["pos"]))):
+				routes_ok = false
+			for p in spec["path"]:
+				if not reach.has(_cell_key(Vector2(p))):
+					routes_ok = false
+		check(routes_ok, "%s: every guard waypoint can be walked to" % name)
 
 
 # ---------------------------------------------------------------------------
