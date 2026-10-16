@@ -79,7 +79,7 @@ If all five steps happen, the build is good.
 
 ## 4. Run the automated tests
 
-The project ships with a 117-check test suite. It runs in a headless engine (no
+The project ships with a 129-check test suite. It runs in a headless engine (no
 window) and prints a pass/fail line for every check.
 
 **From the editor:** open `tests/test_runner.tscn` in the FileSystem panel and
@@ -99,7 +99,7 @@ You should see the checks scroll past and then:
 
 ```
 =========================================================
-RESULT: 117 passed, 0 failed
+RESULT: 129 passed, 0 failed
 =========================================================
 ```
 

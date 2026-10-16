@@ -68,6 +68,10 @@ var _trail_timer: float = 0.0
 var _walk_cycle: float = 0.0
 ## Squash factor when moving (0 = normal, 0.2 = squashed).
 var _squash: float = 0.0
+## The character sprite, built in _ready() from the Adventurer sheets.
+var _sprite: AnimatedSprite2D = null
+## Which way the character faces: "down" / "up" / "left" / "right".
+var _dir: String = "down"
 
 
 func _ready() -> void:
@@ -84,6 +88,16 @@ func _ready() -> void:
 	add_child(shape)
 	# Top of the room's draw order so the spark is never hidden by a cone.
 	z_index = 3
+
+	# The character itself: a real animated figure instead of the old dot, with
+	# a hue-tint shader so the artwork can show the player's current colour.
+	_sprite = AnimatedSprite2D.new()
+	_sprite.name = "Sprite"
+	_sprite.sprite_frames = SpriteBank.adventurer()
+	_sprite.centered = true
+	_sprite.material = SpriteBank.tint_material(colour)
+	add_child(_sprite)
+	_update_animation()
 
 
 func _physics_process(delta: float) -> void:
@@ -152,9 +166,35 @@ func _physics_process(delta: float) -> void:
 		if float(_trail[i]["age"]) > 0.25:
 			_trail.remove_at(i)
 
+	_update_animation()
+
 
 func _process(_delta: float) -> void:
 	queue_redraw()
+
+
+## Pick the animation that matches what the character is doing right now:
+##   dashing -> attack_<dir>    moving -> run_<dir>    still -> idle_<dir>
+func _update_animation() -> void:
+	if _sprite == null:
+		return
+	var want: String
+	if is_dashing():
+		_dir = SpriteBank.dir_from_angle(_dash_dir.angle())
+		want = "attack_%s" % _dir
+	elif velocity.length() > 30.0:
+		_dir = SpriteBank.dir_from_vector(velocity)
+		want = "run_%s" % _dir
+	else:
+		want = "idle_%s" % _dir
+	if _sprite.animation != want:
+		_sprite.play(want)
+
+
+## Point the tint shader at the current hue. Called whenever colour changes.
+func _apply_tint() -> void:
+	if _sprite != null:
+		SpriteBank.set_tint(_sprite.material, colour)
 
 
 # ---------------------------------------------------------------------------
@@ -174,6 +214,8 @@ func get_blade_direction() -> Vector2:
 ## Take on `guard_colour` using HSV hue blending.
 func absorb_colour(guard_colour: Color) -> void:
 	colour = ColorTheory.absorb(colour, guard_colour, absorb_amount)
+	# The sprite is tinted by `colour`, so it has to be told the hue changed.
+	_apply_tint()
 
 
 ## Called once by the room on touching a hostile guard.
@@ -202,47 +244,15 @@ func _draw() -> void:
 		var local: Vector2 = (t["pos"] as Vector2) - global_position
 		draw_circle(local, body_radius * (1.0 - 0.3 * (1.0 - fade)), Color(colour.r, colour.g, colour.b, fade * 0.35))
 
+	# --- ground shadow -----------------------------------------------------
+	# Drawn UNDER the sprite so the figure does not look like it is floating.
+	draw_circle(Vector2(0.0, body_radius * 1.1), body_radius * 0.95, Color(0.0, 0.0, 0.0, 0.30))
+
 	# --- glow --------------------------------------------------------------
 	# The glow fades out when camouflaged, which is the player's clearest
 	# "I am safe right now" signal. This is colour theory as game feedback.
+	# It sits behind the sprite, so it reads as an aura around the figure.
 	if not is_hidden:
-		draw_circle(Vector2.ZERO, body_radius * 2.6, Color(colour.r, colour.g, colour.b, 0.14))
-		draw_circle(Vector2.ZERO, body_radius * 1.7, Color(colour.r, colour.g, colour.b, 0.20))
+		draw_circle(Vector2.ZERO, body_radius * 3.1, Color(colour.r, colour.g, colour.b, 0.13))
 	else:
-		draw_circle(Vector2.ZERO, body_radius * 1.35, Color(colour.r, colour.g, colour.b, 0.10))
-
-	# --- body --------------------------------------------------------------
-	draw_circle(Vector2.ZERO, body_radius + 2.0, Color(0.03, 0.03, 0.05, 0.9))
-	draw_circle(Vector2.ZERO, body_radius, colour)
-	# A bright core so the spark always reads as "light", whatever its hue.
-	draw_circle(Vector2.ZERO, body_radius * 0.35, Color(1.0, 1.0, 1.0, 0.95))
-
-	# --- rim ---------------------------------------------------------------
-	# White rim = exposed. Grey rim = camouflaged. Readable at a glance.
-	var rim: Color = Color(0.62, 0.62, 0.70, 0.55) if is_hidden else Color(1.0, 1.0, 1.0, 0.95)
-	draw_arc(Vector2.ZERO, body_radius + 1.0, 0.0, TAU, 28, rim, 2.0, true)
-
-	# --- facing wedge ------------------------------------------------------
-	var fwd: Vector2 = Vector2.RIGHT.rotated(_facing)
-	var side: Vector2 = fwd.orthogonal()
-	draw_colored_polygon(PackedVector2Array([
-		fwd * (body_radius + 7.0),
-		fwd * (body_radius - 1.0) + side * 4.5,
-		fwd * (body_radius - 1.0) - side * 4.5,
-	]), Color(1.0, 1.0, 1.0, 0.9))
-
-	# --- the blade ---------------------------------------------------------
-	# Only drawn during the lunge, so it doubles as the cooldown indicator.
-	if is_dashing():
-		var blade_dir: Vector2 = _dash_dir
-		var blade_side: Vector2 = blade_dir.orthogonal()
-		var tip: Vector2 = blade_dir * (body_radius + 26.0)
-		draw_colored_polygon(PackedVector2Array([
-			tip,
-			blade_dir * (body_radius + 2.0) + blade_side * 7.0,
-			blade_dir * (body_radius + 2.0) - blade_side * 7.0,
-		]), Color(0.92, 0.96, 1.0, 0.95))
-		# A thin white slash arc sells the swing.
-		draw_arc(Vector2.ZERO, body_radius + 20.0,
-			blade_dir.angle() - 0.65, blade_dir.angle() + 0.65, 14,
-			Color(1.0, 1.0, 1.0, 0.55), 3.0, true)
+		draw_circle(Vector2.ZERO, body_radius * 1.7, Color(colour.r, colour.g, colour.b, 0.09))

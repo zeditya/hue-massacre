@@ -238,6 +238,32 @@ func _physics_frames(count: int) -> void:
 
 
 func _test_integration() -> void:
+	# --- the character sprite system -------------------------------------
+	# The characters are real animated figures now, not coloured dots, so the
+	# sheet layout and the facing maths are worth checking explicitly.
+	var bank: SpriteFrames = SpriteBank.adventurer()
+	check(bank != null, "the character sprite bank builds")
+	if bank != null:
+		check(bank.get_animation_names().size() == 12,
+			"the character has 12 animations (idle/run/attack x 4 facings)",
+			"found %d" % bank.get_animation_names().size())
+		var faces_ok: bool = true
+		var frames_ok: bool = true
+		for dir in SpriteBank.DIRECTIONS:
+			for prefix in ["idle_", "run_", "attack_"]:
+				var anim: String = prefix + dir
+				if not bank.has_animation(anim):
+					faces_ok = false
+					continue
+				if bank.get_frame_count(anim) != SpriteBank.FRAME_COUNT:
+					frames_ok = false
+		check(faces_ok, "every facing has idle, run and attack animations")
+		check(frames_ok, "every animation is 8 frames (the sheet layout)")
+	check(SpriteBank.dir_from_angle(0.0) == "right", "facing angle 0 points right")
+	check(SpriteBank.dir_from_angle(PI * 0.5) == "down", "facing angle 90 points down")
+	check(SpriteBank.dir_from_angle(PI) == "left", "facing angle 180 points left")
+	check(SpriteBank.dir_from_angle(-PI * 0.5) == "up", "facing angle 270 points up")
+
 	var scene: PackedScene = load("res://scenes/main.tscn")
 	check(scene != null, "main.tscn loads")
 	if scene == null:
@@ -273,6 +299,18 @@ func _test_integration() -> void:
 	check(_game.room != null, "room 1 is built")
 	check(_game.room.guards.size() == 2, "room 1 has 2 guards", "found %d" % _game.room.guards.size())
 	check(_game.room.player.colour == Color(1.0, 1.0, 1.0), "the spark starts colourless (white)")
+
+	# --- the characters are real sprites, not dots -----------------------
+	var player_sprite: AnimatedSprite2D = _game.room.player.get_node_or_null("Sprite")
+	check(player_sprite != null, "the player is drawn as an animated character sprite")
+	if player_sprite != null:
+		check(player_sprite.animation == "idle_down",
+			"and idles facing down when the room starts",
+			"animation=%s" % player_sprite.animation)
+		check(player_sprite.material is ShaderMaterial,
+			"and is re-coloured by the hue-tint shader (colour theory stays the core)")
+	var guard_sprite: AnimatedSprite2D = _game.room.guards[0].get_node_or_null("Sprite")
+	check(guard_sprite != null, "guards are drawn as animated character sprites too")
 
 	# --- colour absorption through a real kill ---------------------------
 	var first_guard: Guard = _game.room.guards[0]

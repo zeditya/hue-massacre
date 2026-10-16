@@ -2,7 +2,7 @@
 
 Two kinds of verification are recorded here:
 
-- **Automated** — 117 checks in `tests/test_runner.gd`, run in a headless Godot
+- **Automated** — 129 checks in `tests/test_runner.gd`, run in a headless Godot
   engine. Reproducible by you in one command.
 - **Manual** — a checklist for the things a script cannot judge, mostly *feel* and
   *visuals*, each with the expected result so you can tick it off.
@@ -36,22 +36,22 @@ Godot 4.7.2-stable (official)
 =========================================================
 
 --- A. COLOUR THEORY MATHS
-  ... 17 checks ...
+  ... 30 checks ...
 --- B. LEVEL GEOMETRY
-  ... 38 checks ...
+  ... 35 checks ...
 --- C. INTEGRATION (real scene, scripted playthrough)
-  ... 62 checks ...
+  ... 64 checks ...
 =========================================================
-RESULT: 117 passed, 0 failed
+RESULT: 129 passed, 0 failed
 =========================================================
 ```
 
 **Verified on:** Godot 4.7.2-stable (official Linux build), headless renderer.
-**Result:** `117 passed, 0 failed`, process exit code `0`.
+**Result:** `129 passed, 0 failed`, process exit code `0`.
 
 ### What each section proves
 
-#### A. Colour theory maths (17 checks)
+#### A. Colour theory maths (30 checks)
 
 The colour system is the graded core, so it is tested hardest — including
 re-deriving every hue constant from its RGB value, so the comments in
@@ -72,7 +72,7 @@ re-deriving every hue constant from its RGB value, so the comments in
 | `YELLOW on BLUE paint is fully exposed` | Contrasting hue → seen |
 | `bare grey floor always exposes you` | The starting condition is not accidentally safe |
 
-#### B. Level geometry (38 checks)
+#### B. Level geometry (35 checks)
 
 All 4 rooms, every guard route. This section caught several real bugs during
 development, so it earns its place.
@@ -85,7 +85,7 @@ development, so it earns its place.
 | `<ROOM>: guard N route clears every wall` | **No guard patrol clips through a wall.** Each path segment is checked against every wall rectangle inflated by the guard's radius |
 | `<ROOM>: guard N has a real patrol route` | Routes have at least 2 distinct points, so no guard paces on the spot |
 
-#### C. Integration — scripted playthrough (62 checks)
+#### C. Integration — scripted playthrough (64 checks)
 
 This drives the **real** `scenes/main.tscn`, through the complete game, asserting
 on live game state. It is not a mock: it boots the actual scene and plays it.
@@ -101,6 +101,19 @@ on live game state. It is not a mock: it boots the actual scene and plays it.
 | `the intro has exactly 5 story cards` | The required 5 cards |
 | `every story card has 2 rhyming lines, each with its own tint` | **The exact assignment text is present, and the last-word colouring works** |
 | `finishing the cards starts the run` | Intro → gameplay transition |
+
+**Characters — the sprite system**
+
+| Check | Proves |
+|---|---|
+| `the character sprite bank builds` | The 12 sprite sheets load and slice into frames |
+| `the character has 12 animations (idle/run/attack x 4 facings)` | The sheet layout is what the code claims it is |
+| `every facing has idle, run and attack animations` | All four directions exist for every state |
+| `every animation is 8 frames (the sheet layout)` | Frame counts match the source art |
+| `facing angle 0 points right` … `facing angle 270 points up` | The angle→facing maths is correct for Godot's +y-down space |
+| `the player is drawn as an animated character sprite` | The player is a real figure, not a coloured dot |
+| `and is re-coloured by the hue-tint shader (colour theory stays the core)` | The imported art is tinted to the current hue |
+| `guards are drawn as animated character sprites too` | Guards use the same sprite + tint system |
 
 **Room 1 — hiding by matching**
 

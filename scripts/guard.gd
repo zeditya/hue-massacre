@@ -90,6 +90,10 @@ var _walk_phase: float = 0.0
 ## 0..1, a short pop when detection jumps. Purely the "I've been spotted"
 ## reaction - it gives the player a fraction of a second of warning.
 var _alert_pop: float = 0.0
+## The character sprite, built in _ready() and tinted to this guard's hue.
+var _sprite: AnimatedSprite2D = null
+## Which way the guard faces: "down" / "up" / "left" / "right".
+var _dir: String = "down"
 
 
 func _ready() -> void:
@@ -106,6 +110,17 @@ func _ready() -> void:
 	# Face the first waypoint so the cone does not start pointing at nothing.
 	if patrol_points.size() >= 2:
 		_facing = (patrol_points[1] - patrol_points[0]).angle()
+
+	# A real human figure, tinted to the stolen colour this guard carries. The
+	# hue is the whole point of the game, so the art is recoloured rather than
+	# drawn in its own fixed palette.
+	_sprite = AnimatedSprite2D.new()
+	_sprite.name = "Sprite"
+	_sprite.sprite_frames = SpriteBank.adventurer()
+	_sprite.centered = true
+	_sprite.material = SpriteBank.tint_material(colour)
+	add_child(_sprite)
+	_update_animation()
 
 
 func _process(delta: float) -> void:
@@ -131,7 +146,23 @@ func _process(delta: float) -> void:
 	# --- spotted reaction -------------------------------------------------
 	# Pops up the instant detection starts filling, then eases back down.
 	_alert_pop = maxf(_alert_pop - delta * 3.0, 0.0)
+	_update_animation()
+	# The Collector drags its hue around the wheel, so its sprite has to be
+	# re-tinted as the hue moves. Only the boss does this.
+	if not is_zero_approx(hue_speed):
+		SpriteBank.set_tint(_sprite.material, colour)
 	queue_redraw()
+
+
+## Pick the animation for what the guard is doing. A moving guard runs, a
+## standing one idles, and either way it faces where its vision cone points.
+func _update_animation() -> void:
+	if _sprite == null:
+		return
+	_dir = SpriteBank.dir_from_angle(_facing)
+	var want: String = ("run_%s" if velocity.length() > 5.0 else "idle_%s") % _dir
+	if _sprite.animation != want:
+		_sprite.play(want)
 
 
 func _physics_process(delta: float) -> void:
@@ -382,15 +413,10 @@ func _draw() -> void:
 	outline.append(Vector2.ZERO)
 	draw_polyline(outline, cone_edge, 1.5)
 
-	# --- body -------------------------------------------------------------
-	draw_circle(Vector2.ZERO, body_radius + 2.0, Color(0.03, 0.03, 0.05, 0.92))
-	draw_circle(Vector2.ZERO, body_radius, body)
-	# A darker inner disc keeps the guard distinct from its own cone.
-	draw_circle(Vector2.ZERO, body_radius * 0.45, Color(0.05, 0.05, 0.07, 0.75))
-
-	# --- facing nub -------------------------------------------------------
-	var fwd: Vector2 = Vector2.RIGHT.rotated(_facing)
-	draw_line(fwd * body_radius, fwd * (body_radius + 9.0), Color(1.0, 1.0, 1.0, 0.85), 2.0)
+	# --- ground shadow ----------------------------------------------------
+	# The body itself is the character sprite (built in _ready). This just stops
+	# the figure from looking like it is floating above the floor.
+	draw_circle(Vector2(0.0, body_radius * 1.1), body_radius * 1.05, Color(0.0, 0.0, 0.0, 0.30))
 
 	# --- detection meter --------------------------------------------------
 	if detection > 0.01:

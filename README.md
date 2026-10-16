@@ -206,6 +206,13 @@ screen.
 res://
 ├─ project.godot          main scene + input map + renderer
 ├─ export_presets.cfg     Web export preset (single-threaded)
+├─ assets/
+│  ├─ characters/
+│  │  └─ adventurer/      free top-down character sheets
+│  ├─ tiles/
+│  │  └─ room_builder_16x16.png   floor tiles (Modern Interiors — non-commercial)
+│  ├─ LICENSES/           the licence text for each art pack
+│  └─ ATTRIBUTION.md      where every asset came from, and its terms
 ├─ scenes/
 │  └─ main.tscn           the ONLY scene in the game: one Node + game.gd
 ├─ scripts/
@@ -216,13 +223,16 @@ res://
 │  ├─ player.gd           movement, lunge dash, colour absorption
 │  ├─ guard.gd            patrol / investigate / chase, vision cone, boss rotation
 │  ├─ paint_layer.gd      splatters, fading, "what colour is the floor here?"
+│  ├─ tile_bank.gd        bakes the tiled floor into one ImageTexture
+│  ├─ sprite_bank.gd      slices the character sheets into SpriteFrames
+│  ├─ hue_tint.gdshader   recolours a character to ANY hue (colour theory on art)
 │  └─ audio_bank.gd       procedural sound effects (no audio files needed)
 ├─ ui/
 │  ├─ ui_style.gd         fonts + themed colours in one place
 │  ├─ hud.gd              score, combo, your colour swatch, restored bar, boss wheel
 │  └─ screens.gd          title, 5 rhyming intro cards, death prompt, win screen
 ├─ tests/
-│  ├─ test_runner.gd      117 automated checks
+│  ├─ test_runner.gd      129 automated checks
 │  └─ test_runner.tscn    tiny scene to run them
 └─ tools/
    └─ make_input_map.gd   one-off generator for project.godot's input map
@@ -230,10 +240,22 @@ res://
 
 **Almost nothing is built in the editor.** The game is one scene containing one
 node; everything else — the rooms, the guards, the player, the HUD, the menus — is
-constructed in code and drawn with `_draw()`. There is no art to import, no
-textures, no audio files. That is a deliberate choice: it makes the project
-impossible to break by mis-clicking in the editor, and it means every visual is
-readable as source code.
+constructed in code at runtime. The world, the UI and the effects are drawn with
+`_draw()`, and every sound is synthesised procedurally, so there are no audio
+files to ship.
+
+The one imported asset is the character art. A single free top-down sprite pack
+(credited in `assets/ATTRIBUTION.md`) is sliced into animations by
+`scripts/sprite_bank.gd` and recoloured to *any* hue by
+`scripts/hue_tint.gdshader`, so the same figure becomes the player or any of the
+six guard colours. That keeps the "everything is a colour" idea intact even
+though the artwork ships with its own fixed palette.
+
+The floor is the second imported asset: `scripts/tile_bank.gd` bakes the tiled
+"Modern Interiors" floor into a single 1280×720 texture, darkened until its
+average colour *is* `ColorTheory.FLOOR_GREY`. So the drained world gains real
+texture without the picture ever disagreeing with the colour rules. Building the
+rest in code makes the project impossible to break by mis-clicking in the editor.
 
 ### Tunable values
 
@@ -333,7 +355,7 @@ This project was built with an AI coding agent (this is required to be disclosed
 Things that are **not** verified, stated plainly:
 
 - **The AI could not see the game render.** The build was verified by compiling
-  and by 117 automated logic tests run in a *headless* engine, which does not
+  and by 129 automated logic tests run in a *headless* engine, which does not
   execute `_draw()`. So: the rules, the maths, the state machine, the room
   geometry and the win/lose flow are all machine-verified, but the **visual
   output has been confirmed by running it, not by automated test.** Treat the

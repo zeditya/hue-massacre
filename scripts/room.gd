@@ -37,6 +37,10 @@ signal boss_vulnerable_changed(is_vulnerable: bool)
 @export var wall_colour: Color = Color(0.09, 0.09, 0.12)
 @export var wall_edge_colour: Color = Color(0.24, 0.24, 0.30)
 @export var grid_step: float = 64.0
+## Draw the tiled Modern Interiors floor instead of the flat grey wash. Turn it
+## off for the original flat-grey look. This only changes the PICTURE: collision
+## and the colour rules are identical either way.
+@export var tiled_floor: bool = true
 
 ## Which entry of LevelData.ROOMS to build. Set this before adding the room.
 var room_index: int = 0
@@ -318,18 +322,7 @@ func freeze() -> void:
 func _draw() -> void:
 	var size: Vector2 = LevelData.PLAYFIELD
 
-	# Bare grey floor. This is the colour the camera sees when nothing matches.
-	draw_rect(Rect2(Vector2.ZERO, size), floor_colour)
-
-	# A faint grid gives the eye something to measure contrast against.
-	var x: float = grid_step
-	while x < size.x:
-		draw_line(Vector2(x, 0.0), Vector2(x, size.y), floor_grid_colour, 1.0)
-		x += grid_step
-	var y: float = grid_step
-	while y < size.y:
-		draw_line(Vector2(0.0, y), Vector2(size.x, y), floor_grid_colour, 1.0)
-		y += grid_step
+	_draw_floor(size)
 
 	# Walls, drawn on top of the floor.
 	for r in _walls:
@@ -342,3 +335,28 @@ func _draw() -> void:
 		var left: float = 1.0 - time_in_room / LevelData.SPAWN_GRACE
 		draw_arc(spawn_point, 30.0 + 26.0 * (1.0 - left), 0.0, TAU, 48,
 			Color(1.0, 1.0, 1.0, 0.45 * left), 2.0, true)
+
+
+## The floor under everything. Prefers the baked tiled floor and falls back to
+## the original flat grey wash if the tileset is missing.
+func _draw_floor(size: Vector2) -> void:
+	if tiled_floor:
+		var tex: Texture2D = TileBank.floor_texture()
+		if tex != null:
+			# FLOOR_MODULATE darkens the tile to ColorTheory.FLOOR_GREY, so the
+			# picture still shows the exact grey the rules measure against.
+			draw_texture(tex, Vector2.ZERO, TileBank.FLOOR_MODULATE)
+			return
+
+	# Bare grey floor. This is the colour the camera sees when nothing matches.
+	draw_rect(Rect2(Vector2.ZERO, size), floor_colour)
+
+	# A faint grid gives the eye something to measure contrast against.
+	var x: float = grid_step
+	while x < size.x:
+		draw_line(Vector2(x, 0.0), Vector2(x, size.y), floor_grid_colour, 1.0)
+		x += grid_step
+	var y: float = grid_step
+	while y < size.y:
+		draw_line(Vector2(0.0, y), Vector2(size.x, y), floor_grid_colour, 1.0)
+		y += grid_step
