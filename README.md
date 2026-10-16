@@ -44,7 +44,7 @@ You have no health bar and no gun. Everything is one hit.
 - **Guards kill you on touch.** Any contact, any colour, instant death.
 - **You kill guards with the lunge.** A short dash with a blade. Contact kills.
 - Death costs you nothing but tempo: **the room restarts instantly**, with your
-  score and combo reset but the room number kept.
+  combo reset (your score and the room number are kept).
 
 The loop is: *watch the cone → pick your moment → lunge → take the colour →
 hide in your own paint → repeat.*
@@ -53,13 +53,31 @@ hide in your own paint → repeat.*
 
 | Input | Action |
 |---|---|
-| **W A S D** or **Arrow keys** | Move |
-| **Space** or **Left mouse button** | Lunge-dash with the blade (kills on contact) |
+| **W A S D** or **Arrow keys** | Move — this also aims your light cone and your lunge |
+| **Space** or **Left mouse button** | Lunge-dash the way you are steering (kills on contact) |
 | **R** | Restart the current room immediately |
-| **Esc** | Back to the title screen |
+| **Esc** | Pause — Resume / Restart room / Quit to menu |
+| **W / S** on a menu | Move the highlight; **Space / Enter / click** selects |
 
-Left mouse aims the lunge toward the cursor, which is the comfortable way to play.
-Space lunges in the direction you are already moving.
+There is deliberately **no separate mouse aim.** The way you steer is the way you
+face, the way you lunge, and the way your light cone points — one input, one
+direction, so the keyboard never fights the mouse. A thin ring around the spark
+fills back in as the lunge recharges.
+
+### The shell: menu, story, pause
+
+- **Start menu.** The game opens on a real, keyboard-driven menu — *Start game /
+  How to play / Quit* — with a moving highlight, plus a strip of the whole hue
+  wheel as the title graphic.
+- **Story scene.** Choosing *Start* plays one held shot: the spark standing alone
+  in the grey city, thinking *“We have to bring the colours back.”* before the
+  five rhyming cards and the first room.
+- **Pause.** **Esc** during play freezes the room and offers *Resume / Restart
+  room / Quit to menu* — no more losing a run for tapping Esc.
+- **Colour motes.** Every room hides a few drifting shards of stolen colour.
+  Walk into one to **drink a whole hue** — a second, quieter way to move your
+  colour on the wheel besides absorbing a guard, and a small light to steer by
+  in the dark.
 
 ---
 
@@ -123,9 +141,9 @@ the other look more intense. In this game they cancel: a complement pair is a
 **cancellation**, and that is worth points.
 
 Kill two guards whose hues are within **25° of exactly 180° apart**, within
-**3 seconds** of each other, and you trigger a **combo**: the screen flashes in
-the two colours, the camera kicks, and your score multiplier climbs (x2, x3, up
-to x8 with a long enough chain).
+**3 seconds** of each other, and you trigger a **combo**: the screen flashes
+white (two complementary colours average to white), the camera kicks, and your
+score multiplier climbs (x2, x3, up to x8 with a long enough chain).
 
 The pairs that exist in the game are deliberate:
 
@@ -185,7 +203,7 @@ Four rooms, in order, each teaching exactly one idea:
 
 Rooms are plain data in `scripts/level_data.gd` — no scene files to click around
 in. Clearing all guards completes a room; the floor's **"restored" bar** fills as
-your paint covers the level, and hitting 100% of the room plus the boss wins.
+your paint covers the level, and clearing the boss room wins.
 
 Each room is a **different kind of space**, and the architecture is doing work:
 Room 1 is an open plaza (you are exposed, so paint is your only cover), Room 2 is
@@ -209,8 +227,8 @@ player's spawn.*
 | The Collector | +1000 |
 | Room cleared without ever being spotted | +500 |
 
-Your final **rank** (S / A / B / C) is derived from score and deaths on the win
-screen.
+Your final **rank** (S / A / B / C / D) is derived from your deaths on the win
+screen — an S is a deathless run, and only the deaths move it.
 
 ---
 
@@ -239,16 +257,18 @@ res://
 │  ├─ player.gd           movement, lunge dash, colour absorption
 │  ├─ guard.gd            patrol / investigate / chase, vision cone, boss rotation
 │  ├─ paint_layer.gd      splatters, fading, "what colour is the floor here?"
+│  ├─ mote.gd             floating colour shards you can drink for a whole hue
 │  ├─ tile_bank.gd        bakes the tiled floor into one ImageTexture
 │  ├─ sprite_bank.gd      slices the character sheets into SpriteFrames
 │  ├─ hue_tint.gdshader   recolours a character to ANY hue (colour theory on art)
+│  ├─ darkness.gdshader   the dark city: the spark's light cone + guard lanterns
 │  └─ audio_bank.gd       procedural sound effects (no audio files needed)
 ├─ ui/
 │  ├─ ui_style.gd         fonts + themed colours in one place
 │  ├─ hud.gd              score, combo, your colour swatch, restored bar, boss wheel
-│  └─ screens.gd          title, 5 rhyming intro cards, death prompt, win screen
+│  └─ screens.gd          start menu, story scene, intro cards, pause, death, win
 ├─ tests/
-│  ├─ test_runner.gd      129 automated checks
+│  ├─ test_runner.gd      179 automated checks
 │  └─ test_runner.tscn    tiny scene to run them
 └─ tools/
    └─ make_input_map.gd   one-off generator for project.godot's input map
@@ -290,6 +310,12 @@ it can be tweaked live in the editor. The ones you are most likely to want:
 | `blob_lifetime` | `paint_layer.gd` | 10.0s |
 | `absorb_amount` | `player.gd` | 0.5 (50% blend) |
 | `hue_speed` | boss entry in `level_data.gd` | 28°/s |
+| `darkness_amount` | `game.gd` | 0.55 (1.0 = pitch black) |
+| `light_cone_deg` / `light_range` | `game.gd` | 62° / 640px |
+| `guard_lantern_range` | `game.gd` | 190px |
+
+The whole atmosphere is tunable in one place: set `darkness_enabled` to `false` in
+`game.gd` to play the bright, unlit version the game started as.
 
 ---
 
@@ -318,11 +344,27 @@ palette in one place; `ui/hud.gd` and `ui/screens.gd` use it.
 - **Colour-aware text.** The combo readout is drawn in the *complement of the
   current floor colour*, so the score literally demonstrates complementary contrast
   while you play. The player's own swatch is labelled with its **hue name**
-  (RED / VIOLET / SPRING GREEN…), so the HSV measurement is legible mid-run rather
+  (RED / VIOLET / SPRING…), so the HSV measurement is legible mid-run rather
   than hidden inside a number.
 - **Story cards.** Each of the five intro couplets fades in, and the **last word of
   each couplet is drawn in that line's own colour** — `dead` in red, `sight` in
   blue, and so on — so the typography itself teaches the colour wheel.
+
+### The dark city
+
+The drained world is dim, and the only light is colour. `scripts/darkness.gdshader`
+lays a semi-transparent night over the world (above the game, below the HUD) and
+cuts it open in three places:
+
+- a **light cone** in front of the spark, pointing wherever WASD steers;
+- a soft **ambient pool** around the spark, so the ground you are standing on is
+  always readable — the dark is atmosphere, never an obstacle;
+- a **lantern pool** around every guard, tinted with the colour that guard stole,
+  so threats read as pools of light at the edge of your vision.
+
+It is deliberately gentle (default `darkness_amount = 0.55`) and fully tunable in
+`game.gd`; the shader falls back to a transparent overlay, so even a shader failure
+cannot black out the screen.
 
 Fonts: the project uses Godot's built-in default font, styled with themed colours
 and sizes, so there is **no font file to download or place**. (If you want a pixel
@@ -370,12 +412,12 @@ This project was built with an AI coding agent (this is required to be disclosed
 
 Things that are **not** verified, stated plainly:
 
-- **The AI could not see the game render.** The build was verified by compiling
-  and by 129 automated logic tests run in a *headless* engine, which does not
-  execute `_draw()`. So: the rules, the maths, the state machine, the room
-  geometry and the win/lose flow are all machine-verified, but the **visual
-  output has been confirmed by running it, not by automated test.** Treat the
-  first playthrough as the real art check.
+- **The AI could not see the game render** through the automated suite. The build
+  is verified by compiling and by **179 automated logic tests** run in a *headless*
+  engine, which does not execute `_draw()`. So: the rules, the maths, the state
+  machine, the room geometry and the win/lose flow are all machine-verified. The
+  **visual output was checked by rendering frames during development**, but no
+  automated test can judge it, so treat the first playthrough as the real art check.
 - **Colour mixing blends hue only.** Saturation and value are mostly preserved
   rather than properly blended, so mixing two dark colours does not darken them
   the way real pigment would. This is a deliberate simplification for clarity.

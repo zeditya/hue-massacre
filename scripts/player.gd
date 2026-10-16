@@ -20,11 +20,16 @@ signal dashed(direction: Vector2)
 @export_group("Movement")
 ## Walking speed in pixels/second. Guards patrol slower than this but chase
 ## faster than this for the first moment, so you must commit to a dash.
-@export var move_speed: float = 235.0
+@export var move_speed: float = 240.0
 ## How quickly the spark reaches walking speed (pixels/second/second).
-@export var acceleration: float = 2800.0
-## How quickly the spark stops.
-@export var friction: float = 2400.0
+## High values = the spark answers the keys on the same frame you press them,
+## which is what keeps the stealth feel tight instead of floaty.
+@export var acceleration: float = 4200.0
+## How quickly the spark stops when you let go of the keys.
+@export var friction: float = 3800.0
+## Below this speed with no keys held, the spark snaps to a dead stop so it
+## never drifts a few pixels past where you meant to stand.
+@export var stop_snap_speed: float = 14.0
 ## Physics radius. Must match the collision shape built in _ready().
 @export var body_radius: float = 12.0
 
@@ -113,14 +118,16 @@ func _physics_process(delta: float) -> void:
 	var input: Vector2 = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 
 	# --- starting a lunge --------------------------------------------------
+	# ONE input, ONE direction: the lunge goes the way you are STEERING, so the
+	# light cone, the walk and the blade all agree. If you are standing still it
+	# goes where you last faced. There is deliberately no separate mouse aim -
+	# the controls stay entirely on the keyboard so they never fight each other.
 	var wants_dash: bool = Input.is_action_just_pressed("dash") or Input.is_action_just_pressed("dash_aim")
 	if wants_dash and dash_left <= 0.0 and dash_cooldown_left <= 0.0:
-		if Input.is_action_just_pressed("dash_aim"):
-			# Left click lunges TOWARDS THE MOUSE. This is the precise option.
-			var to_mouse: Vector2 = get_global_mouse_position() - global_position
-			_dash_dir = to_mouse.normalized() if to_mouse.length() > 4.0 else Vector2.RIGHT.rotated(_facing)
+		if input.length() > 0.01:
+			_dash_dir = input.normalized()
+			_facing = _dash_dir.angle()
 		else:
-			# Space lunges the way you are already facing. This is the fast option.
 			_dash_dir = Vector2.RIGHT.rotated(_facing)
 		dash_left = dash_duration
 		dash_cooldown_left = dash_cooldown
@@ -141,16 +148,21 @@ func _physics_process(delta: float) -> void:
 		var target: Vector2 = input * move_speed
 		if input.length() > 0.01:
 			velocity = velocity.move_toward(target, acceleration * delta)
+			# Face the way you steer. This is also the direction the light cone
+			# shines, so WASD alone drives movement, facing AND sight.
 			_facing = input.angle()
 		else:
 			velocity = velocity.move_toward(Vector2.ZERO, friction * delta)
+			if velocity.length() <= stop_snap_speed:
+				velocity = Vector2.ZERO
 
 	# --- walk cycle ------------------------------------------------------
-	# Creates a bobbing squash feeling. Faster movement = faster cycle.
+	# Creates a bobbing squash feeling. Faster movement = faster cycle. The
+	# cosine keeps the bob smooth and seamless as the phase wraps back to 0.
 	var spd: float = velocity.length()
 	if spd > 50.0:
 		_walk_cycle = fposmod(_walk_cycle + delta * spd / 80.0, 1.0)
-		_squash = 0.2 * _walk_cycle
+		_squash = 0.5 - 0.5 * cos(_walk_cycle * TAU)
 	else:
 		_squash = 0.0
 
@@ -178,6 +190,11 @@ func _process(_delta: float) -> void:
 func _update_animation() -> void:
 	if _sprite == null:
 		return
+	# Apply the walk bob: a subtle vertical squash plus a small lift, so the
+	# spark reads as walking even now that it is a real sprite and not a dot.
+	var squash: float = _squash * 0.16
+	_sprite.scale = Vector2(1.0 + squash, 1.0 - squash)
+	_sprite.position = Vector2(0.0, -2.0 * _squash)
 	var want: String
 	if is_dashing():
 		_dir = SpriteBank.dir_from_angle(_dash_dir.angle())
@@ -230,6 +247,22 @@ func get_facing() -> float:
 	return _facing
 
 
+## Direction the light cone points. This is simply the way the spark faces,
+## which is driven entirely by WASD: the torch IS your movement direction, so
+## there is no separate aiming to learn and nothing to fight the keyboard.
+func aim_angle() -> float:
+	return _facing
+
+
+## Take on the whole hue of a colour mote. Unlike a kill, a mote is a full
+## drink of colour rather than a 50% blend, because the mote is already made of
+## pure hue and there is nothing to mix it with.
+func drink(mote_colour: Color) -> void:
+	colour = Color.from_hsv(mote_colour.h, clampf(maxf(mote_colour.s, 0.85), 0.0, 1.0),
+		clampf(maxf(mote_colour.v, 0.92), 0.0, 1.0), 1.0)
+	_apply_tint()
+
+
 # ---------------------------------------------------------------------------
 # Drawing - everything is vector shapes so there are no art assets
 # ---------------------------------------------------------------------------
@@ -256,3 +289,14 @@ func _draw() -> void:
 		draw_circle(Vector2.ZERO, body_radius * 3.1, Color(colour.r, colour.g, colour.b, 0.13))
 	else:
 		draw_circle(Vector2.ZERO, body_radius * 1.7, Color(colour.r, colour.g, colour.b, 0.09))
+
+	# --- dash readiness ring ----------------------------------------------
+	# A thin ring that fills as the lunge recharges and closes into a full circle
+	# when it is ready again. Without it the only feedback is "nothing happened".
+	var ready: float = 1.0 - clampf(dash_cooldown_left / maxf(dash_cooldown, 0.01), 0.0, 1.0)
+	if ready < 1.0:
+		draw_arc(Vector2.ZERO, body_radius * 2.0, -PI * 0.5, -PI * 0.5 + TAU * ready, 24,
+			Color(1.0, 1.0, 1.0, 0.40), 2.0, true)
+	else:
+		draw_arc(Vector2.ZERO, body_radius * 2.0, 0.0, TAU, 24,
+			Color(colour.r, colour.g, colour.b, 0.22), 1.5, true)

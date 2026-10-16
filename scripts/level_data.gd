@@ -121,9 +121,19 @@ const ROOMS: Array = [
 			# has alcoves to break a sightline without giving real cover.
 			Rect2(400.0, 26.0, 40.0, 140.0),
 			Rect2(800.0, 26.0, 40.0, 140.0),
+			# A few crates so the plaza has objects in it: still nowhere to
+			# truly hide, but enough to break a sightline for half a second.
+			Rect2(180.0, 560.0, 80.0, 70.0),
+			Rect2(600.0, 560.0, 80.0, 70.0),
+			Rect2(360.0, 300.0, 70.0, 70.0),
 		],
-		"start": Vector2(150.0, 640.0),
+		"start": Vector2(150.0, 580.0),
 		"start_color": Color(1.0, 1.0, 1.0),
+		"motes": [
+			# A pair of drifting shards: one near the spawn, one across the room.
+			{ "pos": Vector2(320.0, 620.0), "color": Color(0.0, 1.0, 0.0) },
+			{ "pos": Vector2(1050.0, 640.0), "color": Color(0.75, 0.0, 1.0) },
+		],
 		"guards": [
 			{
 				"color": Color(1.0, 0.0, 0.0),
@@ -167,9 +177,19 @@ const ROOMS: Array = [
 			# One small block, deliberately off the crossing, so the centre reads
 			# as an open junction rather than a corridor.
 			Rect2(544.0, 176.0, 48.0, 48.0),
+			# Cover squares in the dead space between the lanes, so the lanes
+			# themselves stay clean but the room is not two bare corridors.
+			Rect2(300.0, 360.0, 80.0, 80.0),
+			Rect2(760.0, 520.0, 90.0, 90.0),
 		],
-		"start": Vector2(150.0, 640.0),
+		"start": Vector2(150.0, 580.0),
 		"start_color": Color(1.0, 1.0, 1.0),
+		"motes": [
+			# Motes sit in the dead ground beside each lane: a detour you can
+			# choose to make instead of walking the crossing.
+			{ "pos": Vector2(430.0, 610.0), "color": Color(0.0, 1.0, 0.0) },
+			{ "pos": Vector2(880.0, 200.0), "color": Color(1.0, 0.5, 0.0) },
+		],
 		"guards": [
 			{
 				"color": Color(1.0, 0.0, 0.0),
@@ -224,9 +244,19 @@ const ROOMS: Array = [
 			Rect2(960.0, 520.0, 140.0, 40.0),
 			Rect2(150.0, 26.0, 180.0, 40.0),
 			Rect2(950.0, 26.0, 180.0, 40.0),
+			# Two low blocks in the bottom corridor, so the fifth guard's long
+			# run is not a completely straight, readable line.
+			Rect2(420.0, 580.0, 70.0, 40.0),
+			Rect2(790.0, 580.0, 70.0, 40.0),
 		],
-		"start": Vector2(70.0, 100.0),
+		"start": Vector2(70.0, 180.0),
 		"start_color": Color(1.0, 1.0, 1.0),
+		"motes": [
+			# One in each doorway of the spine: taking a mote means stepping
+			# into the gap that the wings are watching.
+			{ "pos": Vector2(640.0, 285.0), "color": Color(1.0, 1.0, 0.0) },
+			{ "pos": Vector2(640.0, 435.0), "color": Color(0.75, 0.0, 1.0) },
+		],
 		"guards": [
 			{
 				"color": Color(1.0, 0.0, 0.0),
@@ -290,11 +320,21 @@ const ROOMS: Array = [
 			# Cover inside the lane, left and right of the boss's patrol line.
 			Rect2(470.0, 300.0, 80.0, 80.0),
 			Rect2(730.0, 300.0, 80.0, 80.0),
+			# Two outer cover blocks in the side yards, so the arena has wings
+			# to duck into while you wait for the wheel to come round.
+			Rect2(200.0, 300.0, 60.0, 60.0),
+			Rect2(1020.0, 300.0, 60.0, 60.0),
 		],
-		"start": Vector2(70.0, 70.0),
+		"start": Vector2(70.0, 180.0),
 		# The spark enters the last room burning pure red, so the boss window is
 		# always reachable - this room can never soft-lock.
 		"start_color": Color(1.0, 0.0, 0.0),
+		"motes": [
+			# Far from the boss's lap and from the spawn, so grabbing one is a
+			# deliberate trip to the side yard in the middle of the fight.
+			{ "pos": Vector2(250.0, 460.0), "color": Color(0.75, 0.0, 1.0) },
+			{ "pos": Vector2(1030.0, 200.0), "color": Color(0.0, 1.0, 0.0) },
+		],
 		"guards": [
 			{
 				# The two small guards exist so the player can SHIFT their own hue:

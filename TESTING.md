@@ -2,7 +2,7 @@
 
 Two kinds of verification are recorded here:
 
-- **Automated** — 129 checks in `tests/test_runner.gd`, run in a headless Godot
+- **Automated** — 179 checks in `tests/test_runner.gd`, run in a headless Godot
   engine. Reproducible by you in one command.
 - **Manual** — a checklist for the things a script cannot judge, mostly *feel* and
   *visuals*, each with the expected result so you can tick it off.
@@ -38,16 +38,18 @@ Godot 4.7.2-stable (official)
 --- A. COLOUR THEORY MATHS
   ... 30 checks ...
 --- B. LEVEL GEOMETRY
-  ... 35 checks ...
+  ... 43 checks ...
 --- C. INTEGRATION (real scene, scripted playthrough)
-  ... 64 checks ...
+  ... 74 checks ...
+--- D. STEALTH, DARKNESS AND LEVEL ELEMENTS
+  ... 32 checks ...
 =========================================================
-RESULT: 129 passed, 0 failed
+RESULT: 179 passed, 0 failed
 =========================================================
 ```
 
 **Verified on:** Godot 4.7.2-stable (official Linux build), headless renderer.
-**Result:** `129 passed, 0 failed`, process exit code `0`.
+**Result:** `179 passed, 0 failed`, process exit code `0`.
 
 ### What each section proves
 
@@ -72,10 +74,10 @@ re-deriving every hue constant from its RGB value, so the comments in
 | `YELLOW on BLUE paint is fully exposed` | Contrasting hue → seen |
 | `bare grey floor always exposes you` | The starting condition is not accidentally safe |
 
-#### B. Level geometry (35 checks)
+#### B. Level geometry (43 checks)
 
-All 4 rooms, every guard route. This section caught several real bugs during
-development, so it earns its place.
+All 4 rooms, every guard route, and every colour mote. This section caught several
+real bugs during development, so it earns its place.
 
 | Check | Proves |
 |---|---|
@@ -84,8 +86,9 @@ development, so it earns its place.
 | `<ROOM>: has guards` | No room is accidentally empty (which would be an unwinnable dead end) |
 | `<ROOM>: guard N route clears every wall` | **No guard patrol clips through a wall.** Each path segment is checked against every wall rectangle inflated by the guard's radius |
 | `<ROOM>: guard N has a real patrol route` | Routes have at least 2 distinct points, so no guard paces on the spot |
+| `<ROOM>: mote at (x, y) is reachable` | **No colour mote is buried inside a wall** — every pickup sits in open ground |
 
-#### C. Integration — scripted playthrough (64 checks)
+#### C. Integration — scripted playthrough (74 checks)
 
 This drives the **real** `scenes/main.tscn`, through the complete game, asserting
 on live game state. It is not a mock: it boots the actual scene and plays it.
@@ -97,6 +100,12 @@ on live game state. It is not a mock: it boots the actual scene and plays it.
 | `main.tscn loads` | The shipped entry point is valid |
 | `the game boots to the title screen` | Correct initial state |
 | `no room is built while on the title screen` | No work leaked before the player asks for it |
+| `the start menu has three rows` | Start / How to play / Quit is a real menu |
+| `moving up from the top row wraps to the bottom` | The highlight wraps around |
+| `the HOW TO PLAY row opens the rules page` | The how-to page is reachable from the menu |
+| `start first shows the story scene (the spark in the grey city)` | *Start* plays a scene before the cards |
+| `the story line is the one the brief asked for` | The line is exactly *“We have to bring the colours back.”* |
+| `the story scene leads into the rhyme cards` | Scene → cards transition |
 | `requesting start moves to the intro` | Title → intro transition |
 | `the intro has exactly 5 story cards` | The required 5 cards |
 | `every story card has 2 rhyming lines, each with its own tint` | **The exact assignment text is present, and the last-word colouring works** |
@@ -182,6 +191,35 @@ on live game state. It is not a mock: it boots the actual scene and plays it.
 | `restarting from the win screen begins a fresh run at room 1` | The loop is replayable |
 | `and resets the score and the death count` | A new run really is new |
 
+#### D. Stealth, darkness and level elements (32 checks)
+
+The atmosphere and UX layer: the light cone, guard hearing and speech, the pause
+menu, and the new colour motes. Everything here is live game state, so it is
+testable even though the *look* is not.
+
+| Check | Proves |
+|---|---|
+| `the darkness layer exists` / `runs the light-cone shader` | The dark city is wired in |
+| `darkness is drawn during play` | It is on during play, off on the menus |
+| `the shader receives the player's cone width` / `darkness level` | The tunables actually reach the shader |
+| `the lantern array is always the fixed 8 the shader expects` | The guard-light array never has the wrong length (a classic uniform crash) |
+| `the light cone follows the spark's facing (WASD), not the mouse` | **The cone is keyboard-driven** |
+| `a heard noise sends a guard to investigate` | Guard hearing works |
+| `a guard already chasing the player ignores a mere noise` | Hearing does not override a live chase |
+| `a guard abandons an unreachable search instead of walking into a wall forever` | Investigate has a give-up timeout |
+| `when one guard locks on, nearby allies come to help` | The alarm spreads |
+| `a lunge is heard by a guard standing nearby` | Your dash is a noise |
+| `a guard says a line when it spots the player` / `the line is real words` | Guard speech |
+| `a spoken line has a lifetime on screen` / `the spoken line fades over time` | Speech is transient, not permanent |
+| `every room has colour motes to find` | Motes are part of every room |
+| `room 1 builds its motes into the world` | Mote data reaches the world |
+| `standing on a mote drinks it` / `drinking a mote gives the spark a colour` / `and it is the mote's own hue` | **The pickup changes your hue correctly** |
+| `all four enriched rooms still build with guards present` | The richer geometry still loads |
+| `the pause menu has three rows` / `ESC pauses the run` / `the tree really is paused` | Pause freezes the game |
+| `the pause page is on screen` | And shows the menu |
+| `RESTART ROOM resumes the game` / `rebuilds the room from the top` | The restart-room option works |
+| `ESC from the pause page resumes` / `clears the page` | Pause is escapable |
+
 ---
 
 ## 3. What the automated tests can NOT check — stated honestly
@@ -194,7 +232,12 @@ on live game state. It is not a mock: it boots the actual scene and plays it.
 - The vision cones, the splatter blobs, the player/guard shapes
 - The HUD layout, the restored bar, the boss wheel
 - **Font sizes, spacing, and whether text is readable**
+- The start menu, the how-to page, the story scene and the pause page layouts
 - The intro card fade-in and the coloured last words
+- **The darkness itself** — that the light cone reads as a beam, that the guard
+  lanterns glow, and that the world is *dim but navigable* (the shader runs; only
+  an eye can judge the mood)
+- The mote glow and the dash-readiness ring
 - Screen flash, camera shake, hit-stop
 - Sound
 
@@ -222,22 +265,22 @@ result, so a failure is unambiguous.
 
 | # | Step | Expected |
 |---|---|---|
-| 1 | Press F5 | A 1280×720 window opens on the **title screen**. No black window, no error text. |
-| 2 | Look at the title | "HUE MASSACRE" is large and legible; the tagline sits below it. |
-| 3 | Press a key | Five story cards appear **one at a time**, each fading in. |
-| 4 | Read each card | Two lines each, and the **last word of each line is a different colour** from the rest. |
-| 5 | Compare to the assignment text | All five couplets match the specified text **exactly**. |
+| 1 | Press F5 | A 1280×720 window opens on the **start menu** (START GAME / HOW TO PLAY / QUIT) with a hue-wheel strip above it. No black window, no error text. |
+| 2 | Move with W / S, then pick HOW TO PLAY | The gold highlight moves and wraps top↔bottom; HOW TO PLAY opens the rules page, and Esc returns to the menu. |
+| 3 | Choose START GAME | A **story scene** plays: the spark standing alone in the grey city, thinking *“We have to bring the colours back.”* |
+| 4 | Press a key | Five story cards appear **one at a time**, each fading in. |
+| 5 | Read each card, compare to the assignment text | Two lines each, the **last word of each line is a different colour**, and all five couplets match the specified text **exactly**. |
 | 6 | Wait for the last card / press a key | Room 1 loads with a ~1.4s grace period before guards can detect you. |
 
 ### Room 1 — movement, dash, hiding
 
 | # | Step | Expected |
 |---|---|---|
-| 7 | Press W A S D | The white spark moves smoothly and stops when released. |
+| 7 | Press W A S D | The spark moves smoothly and stops when released; it moves the way you press, with no drift. |
 | 8 | Walk into a wall | You **stop** — no passing through, no jitter. |
-| 9 | Press Space | A short, fast lunge. You **cannot** spam it: there is a visible cooldown. |
-| 10 | Click the left mouse button | The lunge goes **toward the cursor**. |
-| 11 | Watch during the lunge | Fading after-images follow the spark. |
+| 9 | Press Space | A short, fast lunge in the direction you are steering. You **cannot** spam it: there is a visible cooldown. |
+| 10 | Click the left mouse button | The lunge goes the **way you are steering** — the same as Space, **not** toward the cursor. |
+| 11 | Watch during and after the lunge | Fading after-images follow the spark, and a thin ring around it fills back in as the lunge recharges. |
 | 12 | Get seen: stand in a cone in the open | The guard's cone turns toward you and he **chases**. |
 | 13 | Let a guard touch you | Instant death; screen shakes; a restart prompt appears. |
 | 14 | Wait ~1s, do nothing | The **same room restarts by itself** — no button needed. |
@@ -285,8 +328,8 @@ result, so a failure is unambiguous.
 |---|---|---|
 | 37 | Beat the Collector | The **win screen** appears with the specified couplet, your score, time and a rank. |
 | 38 | Press the restart option on the win screen | A fresh run starts at Room 1 with score 0 and deaths 0. |
-| 39 | Press Esc during play | You return to the title screen. |
-| 40 | Press Esc, then start again | A clean run from the beginning. |
+| 39 | Press Esc during play | The **pause menu** appears (RESUME / RESTART ROOM / QUIT TO MENU) and the room freezes behind it. |
+| 40 | Choose RESUME (or press Esc again) | You are back in the same room, exactly where you left it — nothing was lost. |
 
 ### Edge cases
 
@@ -300,14 +343,24 @@ result, so a failure is unambiguous.
 | 46 | Resize the window | The game **scales** rather than cropping, with no letterbox tearing. |
 | 47 | Die on the boss repeatedly | Each restart puts you back in the boss room as red, ready to try again. |
 
+### Atmosphere, motes and the dark city
+
+| # | Step | Expected |
+|---|---|---|
+| 48 | Look at the room when it loads | The world is **dim but readable** — you can see the floor near you and the guards' coloured lanterns. It is never a black screen you have to guess through. |
+| 49 | Move with W A S D | The **light cone sweeps the way you steer.** Turning changes what is lit, with no mouse involved. |
+| 50 | Walk onto a coloured mote (a glowing shard inside a gold ring) | You **drink it**: the swatch snaps to that mote's hue, and the mote fades away. |
+| 51 | Find a guard at the edge of the dark | Each guard glows in the colour he stole, so a threat reads before it reaches you. |
+| 52 | Pause, choose RESTART ROOM, then pause and choose QUIT TO MENU | The room rebuilds from the top, then the menu returns cleanly. |
+
 ### Web build (after exporting — see HOW_TO_RUN.md §5)
 
 | # | Step | Expected |
 |---|---|---|
-| 48 | Serve `build/web/` over HTTP and open it | A loading bar, then the title screen. |
-| 49 | Click the page | Sound begins (browsers block autoplay until you interact). |
-| 50 | Play through Room 1 | Controls and framerate are acceptable. |
-| 51 | Tab away for a minute, come back | The game resumes without a crash. |
+| 53 | Serve `build/web/` over HTTP and open it | A loading bar, then the start menu. |
+| 54 | Click the page | Sound begins (browsers block autoplay until you interact). |
+| 55 | Play through Room 1 | Controls and framerate are acceptable. |
+| 56 | Tab away for a minute, come back | The game resumes without a crash. |
 
 ---
 
@@ -330,7 +383,31 @@ for the video.
    the tests re-derive every value from RGB.
 4. **Guard patrol routes clipping walls.** Found and fixed by the geometry section,
    which checks each path segment against every wall rectangle.
+5. **The player spawned underneath the HUD.** In rooms 1 and 2 the spawn point sat
+   behind the bottom-left “your hue” panel, so at the very start of the game you
+   could not see your own character. Found by *rendering a frame and looking at
+   it* — a reminder that the automated suite cannot catch layout. Spawns moved.
+6. **The story prompt could pulse fully invisible and overlapped the figure.**
+   Found in the same render check; the prompt and the character were repositioned.
+7. **The dark was too dark to navigate.** At `darkness_amount = 0.90` the world was
+   a keyhole. It is now 0.55 with an ambient pool around the spark. An
+   *extreme-value* render (amount 0.99, tiny cone) proved the shader was compositing
+   correctly all along — the problem was the tuning, not the code.
+8. **Guards could investigate a spot forever**, pressing into a wall they could not
+   reach. Fixed with a give-up timeout, and covered by a test.
 
 Lesson worth stating plainly: **a test that passes is not the same as a test that
-is meaningful.** Two of these four were found by noticing that an assertion was
-passing for the wrong reason.
+is meaningful.** Several of these were found by noticing that an assertion was
+passing for the wrong reason — and three were found only by *looking at a frame*.
+
+---
+
+## 6. A note for future runs
+
+The project uses global `class_name`s (`Game`, `Guard`, `Mote`, …). A **brand-new**
+script with a `class_name` is only visible to a headless run *after the editor has
+scanned it once*, because that scan writes Godot's script-class cache (inside the
+git-ignored `.godot/`). If you ever add a new `class_name` and a headless run
+reports `Could not find type …`, open the project in the editor once (or run
+`godot --headless --editor --path . --quit`) to refresh the cache, then re-run the
+tests. This is a Godot quirk, not a bug in the game.

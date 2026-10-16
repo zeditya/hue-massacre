@@ -41,6 +41,10 @@ var restore: float = 0.0
 var player_colour: Color = Color(1.0, 1.0, 1.0)
 var player_hidden: bool = false
 var player_visibility: float = 1.0
+## The blended floor colour under the player, written by game.gd. The combo
+## readout is drawn in its complement, so the score demonstrates complementary
+## contrast while you play rather than merely describing it.
+var floor_colour: Color = ColorTheory.FLOOR_GREY
 
 ## Degrees of the boss's hue, or -1.0 when there is no boss in the room.
 var boss_hue: float = -1.0
@@ -64,6 +68,12 @@ var banner_total: float = 2.0
 var hint_text: String = ""
 var hint_left: float = 0.0
 var hint_total: float = 8.0
+
+## Speech bubbles pushed in by game.gd every frame. Each entry is a Dictionary:
+## { "pos": Vector2, "text": String, "alpha": float, "colour": Color }. Drawn
+## here (above the darkness layer) so a guard's line is readable even when the
+## guard itself is outside the player's light cone.
+var barks: Array = []
 
 var _time: float = 0.0
 
@@ -129,8 +139,40 @@ func _draw() -> void:
 	_draw_top_left()
 	_draw_top_right()
 	_draw_player_panel()
+	_draw_barks()
 	_draw_centre_messages()
 	_draw_threat_vignette()
+
+
+## Speech bubbles for any guard that is talking. Positioned in world space, so
+## the world's shake offset is added by game.gd when it fills this list.
+func _draw_barks() -> void:
+	var f: Font = ThemeDB.fallback_font
+	if f == null:
+		return
+	for entry in barks:
+		var text: String = str(entry.get("text", ""))
+		if text == "":
+			continue
+		var alpha: float = clampf(float(entry.get("alpha", 0.0)), 0.0, 1.0)
+		if alpha <= 0.0:
+			continue
+		var pos: Vector2 = entry.get("pos", Vector2.ZERO)
+		var colour: Color = entry.get("colour", UiStyle.PAPER)
+		var size: int = 13
+		var text_w: float = f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		var pad: float = 9.0
+		var bubble := Rect2(pos.x - text_w * 0.5 - pad, pos.y - 66.0, text_w + pad * 2.0, 24.0)
+		draw_rect(bubble, Color(0.02, 0.02, 0.04, 0.88 * alpha), true)
+		draw_rect(bubble, Color(colour.r, colour.g, colour.b, 0.95 * alpha), false, 1.5)
+		# A little tail pointing down at the speaker.
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(pos.x - 5.0, bubble.end.y),
+			Vector2(pos.x + 5.0, bubble.end.y),
+			Vector2(pos.x, bubble.end.y + 8.0),
+		]), Color(0.02, 0.02, 0.04, 0.88 * alpha))
+		draw_string(f, Vector2(bubble.position.x + pad, bubble.position.y + 16.0), text,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(1.0, 1.0, 1.0, alpha))
 
 
 func _draw_top_left() -> void:
@@ -163,14 +205,16 @@ func _draw_top_right() -> void:
 		HORIZONTAL_ALIGNMENT_RIGHT, 356.0)
 
 	# Multiplier plus the shrinking window in which the next complement counts.
+	# Drawn in the complement of the floor colour under the player, which is
+	# complementary contrast used as a live readout.
 	var mult_text: String = "MULTIPLIER  x%d" % multiplier
-	var mult_colour: Color = UiStyle.GOLD if multiplier > 1 else UiStyle.DIM
+	var mult_colour: Color = ColorTheory.complement(floor_colour) if multiplier > 1 else UiStyle.DIM
 	UiStyle.text(self, UiStyle.tracked(mult_text), Vector2(box_x, 76.0), 13, mult_colour,
 		HORIZONTAL_ALIGNMENT_RIGHT, 356.0)
 	if combo_time_left > 0.0 and multiplier > 1:
 		var ratio: float = clampf(combo_time_left / maxf(combo_window, 0.01), 0.0, 1.0)
 		var bar_rect := Rect2(TOP_RIGHT_EDGE - 176.0, 84.0, 176.0, 6.0)
-		UiStyle.bar(self, bar_rect, ratio, UiStyle.GOLD)
+		UiStyle.bar(self, bar_rect, ratio, mult_colour)
 
 	# Status counts.
 	var status: String = "GUARDS LEFT %d   /   DEATHS %d" % [guards_left, deaths]

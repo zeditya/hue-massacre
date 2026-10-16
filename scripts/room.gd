@@ -42,6 +42,11 @@ signal boss_vulnerable_changed(is_vulnerable: bool)
 ## and the colour rules are identical either way.
 @export var tiled_floor: bool = true
 
+## Guards within this range hear a lunge and come to investigate.
+@export var hear_radius: float = 260.0
+## Guards within this range react when an ally shouts that it has spotted you.
+@export var shout_radius: float = 360.0
+
 ## Which entry of LevelData.ROOMS to build. Set this before adding the room.
 var room_index: int = 0
 ## The dictionary this room was built from.
@@ -50,6 +55,9 @@ var paint: PaintLayer = null
 var player: Player = null
 var guards: Array[Guard] = []
 var boss: Guard = null
+## Floating colour shards the player can drink to change hue. Built from the
+## room's "motes" list; each one is consumed on touch.
+var motes: Array[Mote] = []
 ## Seconds since the room was built. Guards stay blind for SPAWN_GRACE.
 var time_in_room: float = 0.0
 
@@ -64,6 +72,12 @@ var _last_boss_vulnerable: bool = false
 
 
 func _ready() -> void:
+	# Resolve contacts AFTER the actors have moved. Godot processes a parent
+	# before its children, so without this the room would read last frame's dash
+	# state and a lunge that starts on the contact frame would wrongly kill the
+	# player instead of the guard.
+	process_physics_priority = 1
+
 	var all_rooms: Array = LevelData.ROOMS
 	room_index = clampi(room_index, 0, all_rooms.size() - 1)
 	data = all_rooms[room_index]
@@ -84,6 +98,7 @@ func _ready() -> void:
 
 	_build_player()
 	_build_guards()
+	_build_motes()
 
 	spawn_point = player.position
 	queue_redraw()
@@ -125,6 +140,8 @@ func _build_player() -> void:
 	# The room sits at the origin, so position and global_position agree here.
 	player.position = data["start"]
 	player.died.connect(_on_player_died)
+	# A lunge is loud: nearby guards hear it and come to look.
+	player.dashed.connect(_on_player_dashed)
 	add_child(player)
 
 
@@ -151,10 +168,21 @@ func _build_guards() -> void:
 		guard.position = spec["pos"]
 		guard.room = self
 		guard.killed.connect(_on_guard_killed)
+		guard.spotted.connect(_on_guard_spotted)
 		guards.append(guard)
 		add_child(guard)
 		if guard.is_boss:
 			boss = guard
+
+
+func _build_motes() -> void:
+	for spec in data.get("motes", []):
+		var mote := Mote.new()
+		mote.name = "Mote"
+		mote.colour = spec["color"]
+		mote.position = spec["pos"]
+		motes.append(mote)
+		add_child(mote)
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +196,7 @@ func _physics_process(delta: float) -> void:
 	_update_camouflage()
 	_update_boss_windows()
 	_resolve_contacts()
+	_resolve_motes()
 
 
 ## Work out how visible the spark is right now, and store it on the player so
@@ -234,9 +263,41 @@ func _on_guard_killed(guard: Guard) -> void:
 		room_cleared.emit()
 
 
+## Touching a mote drinks it: the spark takes its hue outright, and the mote
+## fades away. Same distance test as the guards, so it cannot be missed by
+## tunnelling through it on a lunge.
+func _resolve_motes() -> void:
+	if _player_gone:
+		return
+	for mote in motes:
+		if not is_instance_valid(mote) or mote.taken:
+			continue
+		if player.position.distance_to(mote.position) <= player.body_radius + mote.radius:
+			mote.taken = true
+			player.drink(mote.colour)
+
+
 func _on_player_died() -> void:
 	_player_gone = true
 	player_died.emit()
+
+
+## The player lunged. Every guard close enough to hear it goes to look.
+func _on_player_dashed(_direction: Vector2) -> void:
+	if player == null or _player_gone:
+		return
+	for guard in guards:
+		if is_instance_valid(guard) and not guard.dead \
+				and guard.global_position.distance_to(player.global_position) <= hear_radius:
+			guard.hear(player.global_position)
+
+
+## One guard locking on raises the alarm: nearby allies come to help.
+func _on_guard_spotted(pos: Vector2) -> void:
+	for guard in guards:
+		if is_instance_valid(guard) and not guard.dead \
+				and guard.global_position.distance_to(pos) <= shout_radius:
+			guard.hear(pos)
 
 
 # ---------------------------------------------------------------------------

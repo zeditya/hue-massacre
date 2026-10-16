@@ -15,7 +15,7 @@ class_name Game
 ## Nothing here is built in the editor. Every node is created in _ready(), which
 ## means there is exactly one file to read to understand the whole game shell.
 
-enum State { TITLE, INTRO, PLAY, DEAD, WIN }
+enum State { TITLE, INTRO, PLAY, PAUSED, DEAD, WIN }
 
 @export_group("Colour rules")
 ## Hue distance (degrees) under which floor paint hides the player.
@@ -62,6 +62,31 @@ enum State { TITLE, INTRO, PLAY, DEAD, WIN }
 @export_group("Layout")
 @export var world_origin: Vector2 = Vector2.ZERO
 
+@export_group("Darkness")
+## The drained city is dark; the spark's own light cone shows the way. The dark
+## is deliberately gentle - atmospheric, never a keyhole - so the levels stay
+## navigable. Set this false for the original daylight look.
+@export var darkness_enabled: bool = true
+## Half-width of the player's light cone, in degrees. The cone follows WASD.
+@export var light_cone_deg: float = 62.0
+## How far the light cone reaches, in pixels.
+@export var light_range: float = 640.0
+## A small always-lit circle around the spark so they never lose themselves.
+@export var light_near_radius: float = 150.0
+## A dim pool of visibility around the spark in every direction, so the ground
+## right next to you is always readable even when you are not pointing at it.
+## Kept shorter than `light_range` so the forward cone still reads as a beam.
+@export var light_ambient_range: float = 260.0
+@export_range(0.0, 1.0) var light_ambient_strength: float = 0.55
+## How far each guard's lantern reaches. Guards glow with their stolen colour.
+@export var guard_lantern_range: float = 190.0
+## 0 = daylight, 1 = pitch black outside the light. Kept gentle on purpose:
+## the dark is atmosphere, not an obstacle, and the rooms must stay readable.
+@export_range(0.0, 1.0) var darkness_amount: float = 0.55
+## How many guards get a lantern (nearest first). Must match MAX_LIGHTS in the
+## shader. Extra guards simply go unlit.
+@export var guard_light_count: int = 8
+
 var state: State = State.TITLE
 var room: Room = null
 var room_index: int = 0
@@ -78,10 +103,13 @@ var hud: Hud = null
 var screens: Screens = null
 var audio: AudioBank = null
 var flash: ColorRect = null
+## Full-screen darkness with the player's light cone cut out of it.
+var darkness: ColorRect = null
 
 var _hud_layer: CanvasLayer = null
 var _screens_layer: CanvasLayer = null
 var _fx_layer: CanvasLayer = null
+var _dark_layer: CanvasLayer = null
 
 var _shake: float = 0.0
 var _hit_stop_until_msec: int = 0
@@ -120,6 +148,7 @@ func _process(delta: float) -> void:
 			_spotted_this_room = true
 
 	_sync_hud()
+	_sync_darkness()
 
 
 # ---------------------------------------------------------------------------
@@ -132,21 +161,47 @@ func _build_layers() -> void:
 	world_root = Node2D.new()
 	world_root.name = "World"
 	world_root.position = world_origin
+	# The world is pausable; the shell (this node, the pages and the effects)
+	# keeps running so the pause menu can draw and read input while the game
+	# underneath is frozen solid.
+	world_root.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(world_root)
+	process_mode = Node.PROCESS_MODE_ALWAYS
 
-	# 2. The HUD, above the world.
+	# 2. Darkness, over the world but under the interface. The player's light
+	#    cone is a hole cut in this black layer by darkness.gdshader.
+	_dark_layer = CanvasLayer.new()
+	_dark_layer.name = "DarkLayer"
+	_dark_layer.layer = 1
+	_dark_layer.process_mode = Node.PROCESS_MODE_PAUSABLE
+	add_child(_dark_layer)
+	darkness = ColorRect.new()
+	darkness.name = "Darkness"
+	# The shader writes COLOR outright, so this value is only a safety net: if the
+	# shader ever failed to compile, the default canvas shader would draw this
+	# rect, and a transparent fill means the screen stays visible rather than
+	# turning white or black.
+	darkness.color = Color(0.0, 0.0, 0.0, 0.0)
+	darkness.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	darkness.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var dark_mat := ShaderMaterial.new()
+	dark_mat.shader = load("res://scripts/darkness.gdshader")
+	darkness.material = dark_mat
+	_dark_layer.add_child(darkness)
+
+	# 3. The HUD, above the dark world.
 	_hud_layer = CanvasLayer.new()
 	_hud_layer.name = "HudLayer"
-	_hud_layer.layer = 1
+	_hud_layer.layer = 2
 	add_child(_hud_layer)
 	hud = Hud.new()
 	hud.name = "Hud"
 	_hud_layer.add_child(hud)
 
-	# 3. The full-screen pages (title, story, win, death).
+	# 4. The full-screen pages (title, story, win, death).
 	_screens_layer = CanvasLayer.new()
 	_screens_layer.name = "ScreensLayer"
-	_screens_layer.layer = 2
+	_screens_layer.layer = 3
 	add_child(_screens_layer)
 	screens = Screens.new()
 	screens.name = "Screens"
@@ -154,12 +209,15 @@ func _build_layers() -> void:
 	screens.intro_finished.connect(_on_intro_finished)
 	screens.restart_requested.connect(_on_screen_restart)
 	screens.title_requested.connect(start_title)
+	screens.quit_requested.connect(_on_quit_requested)
+	screens.resume_requested.connect(_on_resume_requested)
+	screens.room_restart_requested.connect(_on_pause_restart_room)
 	_screens_layer.add_child(screens)
 
-	# 4. Effects that must sit on top of EVERYTHING, including the pages.
+	# 5. Effects that must sit on top of EVERYTHING, including the pages.
 	_fx_layer = CanvasLayer.new()
 	_fx_layer.name = "FxLayer"
-	_fx_layer.layer = 3
+	_fx_layer.layer = 4
 	add_child(_fx_layer)
 	flash = ColorRect.new()
 	flash.name = "Flash"
@@ -179,7 +237,18 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	# Full-screen pages swallow input first.
 	if screens.is_blocking():
-		if event.is_action_pressed("ui_accept") or clicked:
+		# On the start menu, Up/Down (arrow keys, or W/S) move the highlight.
+		# These are also the movement actions, but nothing is being driven while
+		# a screen is up, so they are free to reuse here.
+		if event.is_action_pressed("ui_up") or event.is_action_pressed("move_up"):
+			screens.menu_move(-1)
+			return
+		if event.is_action_pressed("ui_down") or event.is_action_pressed("move_down"):
+			screens.menu_move(1)
+			return
+		# R does the same thing as SPACE on a page, so the "PRESS R TO RETRY NOW"
+		# prompt on the death screen actually works. Without this the prompt lied.
+		if event.is_action_pressed("restart") or event.is_action_pressed("ui_accept") or clicked:
 			screens.advance()
 			return
 		if event.is_action_pressed("to_title") or event.is_action_pressed("ui_cancel"):
@@ -193,7 +262,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("restart"):
 		restart_room()
 	elif event.is_action_pressed("to_title") or event.is_action_pressed("ui_cancel"):
-		start_title()
+		pause_game()
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +270,7 @@ func _unhandled_input(event: InputEvent) -> void:
 # ---------------------------------------------------------------------------
 
 func start_title() -> void:
+	get_tree().paused = false
 	Engine.time_scale = 1.0
 	_hit_stop_until_msec = 0
 	_clear_room()
@@ -218,11 +288,49 @@ func start_title() -> void:
 
 func _on_start_requested() -> void:
 	state = State.INTRO
-	screens.show_intro()
+	# Start with the story scene (the spark in the grey city), which then hands
+	# off to the five rhyme cards, which then hands off to the run.
+	screens.show_story()
 
 
 func _on_intro_finished() -> void:
 	start_run()
+
+
+## The QUIT row on the start menu. On the web build there is no process to
+## quit, so this simply returns to the title if the engine refuses.
+func _on_quit_requested() -> void:
+	get_tree().quit()
+
+
+## ESC during play. The tree is paused, which freezes the room and every actor
+## underneath it, while the pause page and this shell keep running.
+func pause_game() -> void:
+	if state != State.PLAY or _busy:
+		return
+	state = State.PAUSED
+	get_tree().paused = true
+	if hud != null:
+		hud.spotted = false
+	screens.show_pause()
+
+
+func _on_resume_requested() -> void:
+	if state != State.PAUSED:
+		return
+	get_tree().paused = false
+	screens.hide_all()
+	state = State.PLAY
+
+
+func _on_pause_restart_room() -> void:
+	if state != State.PAUSED:
+		return
+	get_tree().paused = false
+	screens.hide_all()
+	state = State.PLAY
+	_busy = false
+	load_room(room_index)
 
 
 ## Begin a fresh run at room 1 with a clean score.
@@ -241,6 +349,7 @@ func start_run() -> void:
 
 ## Build the room at `index`, throwing away whatever was there before.
 func load_room(index: int) -> void:
+	get_tree().paused = false
 	_clear_room()
 	Engine.time_scale = 1.0
 	_hit_stop_until_msec = 0
@@ -280,8 +389,10 @@ func _clear_room() -> void:
 
 
 ## R key during play: reload the current room without counting a death.
+## Ignored while a room-clear or death sequence is already running, otherwise
+## the pending sequence would then skip straight into the NEXT room.
 func restart_room() -> void:
-	if state != State.PLAY:
+	if state != State.PLAY or _busy:
 		return
 	_flash(Color(1.0, 1.0, 1.0), 0.18)
 	load_room(room_index)
@@ -376,7 +487,6 @@ func _on_room_cleared() -> void:
 	if _busy:
 		return
 	_busy = true
-	Engine.time_scale = 1.0
 	_reset_combo()
 	audio.play("room_clear")
 
@@ -541,6 +651,8 @@ func _sync_hud() -> void:
 		hud.player_colour = Color.WHITE
 		hud.player_hidden = false
 		hud.player_visibility = 1.0
+		hud.floor_colour = ColorTheory.FLOOR_GREY
+		hud.barks = []
 		hud.boss_hue = -1.0
 		hud.boss_vulnerable = false
 		return
@@ -549,10 +661,28 @@ func _sync_hud() -> void:
 	hud.restore = room.restore_ratio()
 	hud.spotted = _any_guard_chasing()
 
+	# Collect any guard that is mid-line so the HUD can draw the bubble above
+	# the darkness layer (where the guard itself might still be hidden).
+	var shake_offset: Vector2 = world_root.position - world_origin
+	var active_barks: Array = []
+	for guard in room.guards:
+		if is_instance_valid(guard) and guard.bark_left > 0.0 and guard.bark_text != "":
+			var alpha: float = clampf(guard.bark_left / maxf(guard.bark_total * 0.3, 0.01), 0.0, 1.0)
+			active_barks.append({
+				"pos": guard.global_position + shake_offset,
+				"text": guard.bark_text,
+				"alpha": alpha,
+				"colour": guard.bark_colour,
+			})
+	hud.barks = active_barks
+
 	if room.player != null and is_instance_valid(room.player):
 		hud.player_colour = room.player.colour
 		hud.player_hidden = room.player.is_hidden
 		hud.player_visibility = room.player.visibility_now
+		# Lets the HUD draw the combo readout in the complement of the floor
+		# under the player - colour theory as a live readout, not an assertion.
+		hud.floor_colour = room.ground_colour_at(room.player.position)
 
 	if room.boss != null and is_instance_valid(room.boss) and not room.boss.dead:
 		hud.boss_hue = float(ColorTheory.hue_degrees(room.boss.colour))
@@ -560,3 +690,63 @@ func _sync_hud() -> void:
 	else:
 		hud.boss_hue = -1.0
 		hud.boss_vulnerable = false
+
+
+# ---------------------------------------------------------------------------
+# Darkness (the player's light cone)
+# ---------------------------------------------------------------------------
+
+## Push the player's light cone into the darkness shader. The cone is only
+## active during play, so the title/story/win pages are never dimmed.
+func _sync_darkness() -> void:
+	if darkness == null:
+		return
+	var on: bool = darkness_enabled and state == State.PLAY \
+		and room != null and is_instance_valid(room) \
+		and room.player != null and is_instance_valid(room.player)
+	darkness.visible = on
+	if not on:
+		return
+	var player: Player = room.player
+	var mat: ShaderMaterial = darkness.material as ShaderMaterial
+	if mat == null:
+		return
+	mat.set_shader_parameter("screen_size", LevelData.PLAYFIELD)
+	mat.set_shader_parameter("player_pos", player.global_position + world_root.position)
+	mat.set_shader_parameter("facing", player.aim_angle())
+	mat.set_shader_parameter("cone_deg", light_cone_deg)
+	mat.set_shader_parameter("light_range", light_range)
+	mat.set_shader_parameter("near_radius", light_near_radius)
+	mat.set_shader_parameter("ambient_range", light_ambient_range)
+	mat.set_shader_parameter("ambient_strength", light_ambient_strength)
+	mat.set_shader_parameter("lantern_range", guard_lantern_range)
+	mat.set_shader_parameter("darkness_amount", darkness_amount)
+
+	# --- guard lanterns ---------------------------------------------------
+	# Fill a fixed-size (MAX_LIGHTS = 8) array with the guards nearest the
+	# player, padded with the player's own position at zero brightness. The
+	# length is always exactly 8 because that is what the shader uniform
+	# expects; `light_count` tells the shader how many are real.
+	const MAX_LIGHTS: int = 8
+	var cap: int = clampi(guard_light_count, 0, MAX_LIGHTS)
+	var lit: Array = []
+	if cap > 0:
+		for guard in room.guards:
+			if is_instance_valid(guard) and not guard.dead:
+				lit.append(guard)
+		lit.sort_custom(func(a, b): return \
+			a.global_position.distance_squared_to(player.global_position) \
+			< b.global_position.distance_squared_to(player.global_position))
+	var pos_arr: PackedVector2Array = PackedVector2Array()
+	var col_arr: PackedColorArray = PackedColorArray()
+	for i in MAX_LIGHTS:
+		if i < mini(lit.size(), cap):
+			var g: Guard = lit[i]
+			pos_arr.append(g.global_position + world_root.position)
+			col_arr.append(Color(g.colour.r, g.colour.g, g.colour.b, 1.0))
+		else:
+			pos_arr.append(player.global_position + world_root.position)
+			col_arr.append(Color(0.0, 0.0, 0.0, 1.0))
+	mat.set_shader_parameter("light_count", mini(lit.size(), cap))
+	mat.set_shader_parameter("light_pos", pos_arr)
+	mat.set_shader_parameter("light_col", col_arr)

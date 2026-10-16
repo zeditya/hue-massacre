@@ -22,8 +22,38 @@ extends CharacterBody2D
 ## Every tunable is an @export below.
 
 signal killed(guard: Guard)
+## Emitted the moment this guard locks on. The room uses it to spread the alarm.
+signal spotted(pos: Vector2)
 
 enum State { PATROL, INVESTIGATE, CHASE }
+
+## Things guards say. "%s" is replaced with the guard's own colour name, so a
+## blue guard shouts about the blue one, and the banter teaches the wheel.
+const BARKS := {
+	"alert": [
+		"...a colour?",
+		"Who's there?",
+		"What was that?",
+		"I saw something move.",
+	],
+	"spotted": [
+		"There - the %s one!",
+		"Stop, %s!",
+		"I see %s!",
+		"Got you, %s thief!",
+	],
+	"lost": [
+		"Where did it go?",
+		"Must have slipped past.",
+		"...gone.",
+	],
+	"investigate": [
+		"I know you're here.",
+		"Come out, come out...",
+		"Just a rat... maybe.",
+		"Keep looking.",
+	],
+}
 
 @export_group("Colour")
 ## The stolen colour this guard carries. It becomes the splat on death.
@@ -50,6 +80,10 @@ enum State { PATROL, INVESTIGATE, CHASE }
 @export var chase_speed: float = 165.0
 ## Seconds of not seeing the player before giving up and searching.
 @export var lose_time: float = 2.0
+## Longest a guard will spend walking to where it last saw you before it gives
+## up and goes back to its patrol. Without this a guard whose last-seen spot sits
+## behind a wall walks into that wall forever and never patrols again.
+@export var investigate_time: float = 5.0
 
 @export_group("Vision")
 ## How far the cone reaches, in pixels.
@@ -81,6 +115,8 @@ var _point_dir: int = 1
 var _wait_left: float = 0.0
 var _last_seen: Vector2 = Vector2.ZERO
 var _lost_timer: float = 0.0
+## Counts down while investigating; hitting 0 abandons the search.
+var _investigate_left: float = 0.0
 var _sight_quality: float = 0.0
 var _death_left: float = 0.0
 var _time: float = 0.0
@@ -94,6 +130,12 @@ var _alert_pop: float = 0.0
 var _sprite: AnimatedSprite2D = null
 ## Which way the guard faces: "down" / "up" / "left" / "right".
 var _dir: String = "down"
+## The line this guard is currently saying, and how long it has left to say it.
+## Public because the HUD draws the bubbles (above the darkness layer).
+var bark_text: String = ""
+var bark_left: float = 0.0
+var bark_total: float = 2.0
+var bark_colour: Color = Color(1.0, 1.0, 1.0)
 
 
 func _ready() -> void:
@@ -125,6 +167,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	bark_left = maxf(bark_left - delta, 0.0)
 	if dead:
 		_death_left = maxf(_death_left - delta, 0.0)
 		if _death_left <= 0.0:
@@ -225,8 +268,17 @@ func _perceive(delta: float) -> void:
 		# the player gets told they have been seen before the chase begins.
 		if was <= 0.001 and detection > 0.001:
 			_alert_pop = 1.0
+			_say("alert")
 		if detection >= 1.0:
+			if state != State.CHASE:
+				spotted.emit(global_position)
+				_say("spotted")
 			state = State.CHASE
+			_lost_timer = 0.0
+		elif state == State.CHASE:
+			# Re-acquiring line of sight restarts the give-up countdown, so a
+			# guard that keeps glimpsing you through gaps does not suddenly
+			# forget you the moment the gap closes again.
 			_lost_timer = 0.0
 	else:
 		detection = clampf(detection - delta * detect_decay, 0.0, 1.0)
@@ -237,7 +289,9 @@ func _perceive(delta: float) -> void:
 				state = State.INVESTIGATE
 				_lost_timer = 0.0
 				_wait_left = 0.0
+				_investigate_left = investigate_time
 				detection = 0.0
+				_say("lost")
 
 
 func _player() -> Player:
@@ -284,10 +338,11 @@ func _do_patrol(delta: float) -> void:
 	var to_target: Vector2 = target - global_position
 
 	if to_target.length() <= arrive_radius:
-		# Arrived: stop, look around, then head for the next waypoint.
+		# Arrived: stop, look around, then head for the next waypoint. The tiny
+		# floor keeps a zero `wait_at_point` from deadlocking at the waypoint.
 		velocity = Vector2.ZERO
 		if _wait_left <= 0.0:
-			_wait_left = wait_at_point
+			_wait_left = maxf(wait_at_point, 0.001)
 		else:
 			_wait_left -= delta
 			# Sweep the head slowly while waiting so the cone feels alive.
@@ -317,6 +372,7 @@ func _advance_point() -> void:
 
 
 func _do_investigate(delta: float) -> void:
+	_investigate_left = maxf(_investigate_left - delta, 0.0)
 	var to_target: Vector2 = _last_seen - global_position
 	if to_target.length() <= arrive_radius + 6.0:
 		velocity = Vector2.ZERO
@@ -327,6 +383,13 @@ func _do_investigate(delta: float) -> void:
 			_wait_left = 0.0
 			_snap_to_nearest_point()
 			state = State.PATROL
+		return
+	if _investigate_left <= 0.0:
+		# Took too long to reach the spot (it is behind a wall, or too far):
+		# give up and resume the patrol instead of walking into geometry forever.
+		_wait_left = 0.0
+		_snap_to_nearest_point()
+		state = State.PATROL
 		return
 	_turn_towards(to_target.angle(), delta, turn_speed_deg * 1.4)
 	velocity = Vector2.RIGHT.rotated(_facing) * patrol_speed * 1.15
@@ -354,6 +417,34 @@ func _snap_to_nearest_point() -> void:
 			best = i
 	_point_index = best
 	_point_dir = 1
+
+
+## A noise was heard at `at` (a lunge nearby, or an ally shouting). Break off
+## and go and look, unless already hunting the player for real.
+func hear(at: Vector2) -> void:
+	if dead or state == State.CHASE:
+		return
+	state = State.INVESTIGATE
+	_last_seen = at
+	_wait_left = 0.0
+	_investigate_left = investigate_time
+	detection = 0.0
+	_say("investigate")
+
+
+## Say a random line for `event`. A "%s" in the line is filled with this
+## guard's own colour name.
+func _say(event: String) -> void:
+	var lines: Array = BARKS.get(event, [])
+	if lines.is_empty():
+		return
+	var line: String = str(lines[randi() % lines.size()])
+	if line.find("%s") >= 0:
+		line = line % ColorTheory.color_name(colour)
+	bark_text = line
+	bark_left = 2.0
+	bark_total = 2.0
+	bark_colour = colour
 
 
 # ---------------------------------------------------------------------------
@@ -406,8 +497,8 @@ func _draw() -> void:
 
 	# The cone brightens as the guard notices you - a free tutorial in itself.
 	var alert: float = clampf(detection, 0.0, 1.0)
-	var cone_fill: Color = Color(body.r, body.g, body.b, 0.11 + 0.16 * alert)
-	var cone_edge: Color = Color(body.r, body.g, body.b, 0.34 + 0.45 * alert)
+	var cone_fill: Color = Color(body.r, body.g, body.b, 0.16 + 0.18 * alert)
+	var cone_edge: Color = Color(body.r, body.g, body.b, 0.50 + 0.45 * alert)
 	draw_colored_polygon(points, cone_fill)
 	var outline: PackedVector2Array = points.duplicate()
 	outline.append(Vector2.ZERO)

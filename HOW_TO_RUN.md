@@ -45,24 +45,30 @@ size and the renderer are all already set in `project.godot`.
 
 Press **F5** (or the ▶ play button, top-right).
 
-The game starts on the title screen with the five rhyming intro cards. A window
-opens at 1280×720, resizable.
+The game opens on a **start menu** — *START GAME / HOW TO PLAY / QUIT* — with a
+strip of the whole hue wheel above it. A window opens at 1280×720, resizable.
 
 **Controls**
 
 | Input | Action |
 |---|---|
-| **W A S D** / **Arrow keys** | Move |
-| **Space** / **Left click** | Lunge-dash with the blade — kills guards on contact |
+| **W A S D** / **Arrow keys** | Move — this also aims your light cone and your lunge |
+| **Space** / **Left click** | Lunge-dash the way you are steering — kills guards on contact |
 | **R** | Restart the current room |
-| **Esc** | Back to the title screen |
+| **Esc** | Pause — *Resume / Restart room / Quit to menu* |
+| **W / S** on a menu | Move the highlight; **Space / Enter / click** selects |
+
+There is deliberately **no separate mouse aim**: the way you steer is the way you
+face, the way you lunge, and the way your light cone points.
 
 **A 30-second first run**, so you can tell it works:
 
-1. Press any key on the title screen to get through the intro cards.
+1. Choose **START GAME**. A short story scene plays (the spark alone in the grey
+   city), then the five rhyme cards — press **Space** (or click) to move through
+   them.
 2. In Room 1 you are a white spark on a grey floor with two guards.
-3. Walk up behind the **red** guard and press **Space** near him. He dies and
-   splatters red paint on the floor.
+3. Walk up behind the **red** guard, point at him with **W A S D**, then tap
+   **Space** to lunge into him. He dies and splatters red paint on the floor.
 4. Stand in that red paint. **Your own colour is now red** (see the swatch in the
    top-left HUD), so the floor matches you and the remaining guard cannot see you.
 5. Walk to the **yellow** guard and kill him to clear the room.
@@ -79,7 +85,7 @@ If all five steps happen, the build is good.
 
 ## 4. Run the automated tests
 
-The project ships with a 129-check test suite. It runs in a headless engine (no
+The project ships with a 179-check test suite. It runs in a headless engine (no
 window) and prints a pass/fail line for every check.
 
 **From the editor:** open `tests/test_runner.tscn` in the FileSystem panel and
@@ -99,7 +105,7 @@ You should see the checks scroll past and then:
 
 ```
 =========================================================
-RESULT: 129 passed, 0 failed
+RESULT: 179 passed, 0 failed
 =========================================================
 ```
 
@@ -166,7 +172,7 @@ These are properties of the web export, not bugs in the game:
 
 | Limitation | What you will see | Why |
 |---|---|---|
-| **Audio needs a click** | The title screen's first moment can be silent. Sound works after your first keypress or click. | Browsers block autoplay until the user interacts. This is required behaviour, not a fault. |
+| **Audio needs a click** | The start menu's first moment can be silent. Sound works after your first keypress or click. | Browsers block autoplay until the user interacts. This is required behaviour, not a fault. |
 | **Single-threaded build** | Slightly lower performance on very weak machines. | The preset sets `thread_support=false`. A threaded build needs the host to send `COOP`/`COEP` security headers, which **GitHub Pages and `python -m http.server` will not do** — so the threaded build would simply hang there. Single-threaded runs anywhere. |
 | **No glow in the web build** | Some bloom may be missing. | Glow support is limited in the Compatibility renderer. The game is designed to look good without it. |
 | **Slow first load** | A loading bar for a few seconds. | The `.wasm` file is a few megabytes and is not cached on the first visit. |
@@ -224,13 +230,24 @@ Because every number is an `@export` at the top of its script, you can change
 almost all of the feel without touching logic. The quick wins:
 
 - **Too hard?** Raise `detect_time` in `scripts/guard.gd` (guards take longer to
-  spot you) or raise `hide_tolerance_deg` in `scripts/color_theory.gd` (more
-  colours count as hiding you).
+  spot you) or raise `hide_tolerance_deg` in `scripts/player.gd` (more colours
+  count as hiding you; also mirror it in `scripts/guard.gd` and `scripts/game.gd`).
 - **Harder combos?** Lower `complement_tolerance_deg` in `scripts/game.gd` from
   25° — at 10° only the exact Yellow↔Blue pair will work.
 - **Boss too fast?** Lower `hue_speed` on the boss entry in
   `scripts/level_data.gd` (28°/s = one lap in ~13s).
 - **More paint on the floor?** Raise `blob_lifetime` in `scripts/paint_layer.gd`.
+- **Too dark to see?** Lower `darkness_amount` in `scripts/game.gd` (0 = daylight,
+  1 = pitch black); widen the beam with `light_cone_deg` / `light_range`, or widen
+  the always-lit pool with `light_ambient_range`. Set `darkness_enabled = false`
+  to remove the dark entirely.
+- **Movement feels loose?** Raise `acceleration` and `friction` in
+  `scripts/player.gd` — higher values make the spark answer (and stop on) the keys
+  faster.
+- **Guards too psychic?** `hear_radius` and `shout_radius` in `scripts/room.gd`
+  set how far a lunge or a spot carries to other guards.
+- **More or fewer colour motes?** Edit the `"motes"` lists in
+  `scripts/level_data.gd`; each entry is just a position and a colour.
 
 Select the node in the running scene tree and the exports appear in the Inspector.
 

@@ -222,6 +222,21 @@ func _test_levels() -> void:
 
 			check(route.size() >= 2, "%s: guard %d has a real patrol route" % [name, i])
 
+		# --- the colour motes must be reachable --------------------------
+		# A mote buried inside a wall is a small lie: the room shows a light you
+		# can never touch. Check every one sits in open ground.
+		for mote in room.get("motes", []):
+			var mp: Vector2 = mote["pos"]
+			var in_field: bool = (
+				mp.x > LevelData.WALL and mp.x < LevelData.PLAYFIELD.x - LevelData.WALL
+				and mp.y > LevelData.WALL and mp.y < LevelData.PLAYFIELD.y - LevelData.WALL)
+			var clear: float = INF
+			for r in walls:
+				clear = minf(clear, _point_rect_distance(mp, r))
+			check(in_field and clear >= 18.0,
+				"%s: mote at %s is reachable" % [name, str(mp)],
+				"clearance %.1f" % clear)
+
 
 # ---------------------------------------------------------------------------
 # C. Integration
@@ -277,9 +292,34 @@ func _test_integration() -> void:
 		"the title page is showing")
 	check(_game.room == null, "no room is built while on the title screen")
 
-	# --- story cards ------------------------------------------------------
+	# --- the start menu ---------------------------------------------------
+	check(Screens.MENU_ITEMS.size() == 3, "the start menu has three rows")
+	check(_game.screens.mode == Screens.Mode.TITLE, "booting shows the start menu")
+	check(_game.screens.menu_index == 0, "the start menu opens with START GAME selected")
+	_game.screens.menu_move(-1)
+	check(_game.screens.menu_index == Screens.MENU_ITEMS.size() - 1,
+		"moving up from the top row wraps to the bottom", "index %d" % _game.screens.menu_index)
+	_game.screens.menu_move(1)
+	check(_game.screens.menu_index == 0, "and moving down wraps back to the top")
+	# The HOW TO PLAY row opens the rules page, and ESC returns to the menu.
+	_game.screens.menu_index = 1
+	_game.screens.advance()
+	check(_game.screens.mode == Screens.Mode.HOWTO, "the HOW TO PLAY row opens the rules page")
+	_game.screens.back()
+	check(_game.screens.mode == Screens.Mode.TITLE, "and ESC goes back to the menu")
+	_game.screens.menu_index = 0
+
+	# --- the story scene, then the story cards ---------------------------
 	_game._on_start_requested()
 	check(_game.state == Game.State.INTRO, "requesting start moves to the intro")
+	check(_game.screens.mode == Screens.Mode.STORY,
+		"start first shows the story scene (the spark in the grey city)")
+	check(Screens.STORY_LINE == "We have to bring the colours back.",
+		"the story line is the one the brief asked for")
+	# Advancing the story hands off to the five rhyme cards.
+	_game.screens.advance()
+	check(_game.screens.mode == Screens.Mode.INTRO, "the story scene leads into the rhyme cards")
+
 	check(Screens.CARDS.size() == 5, "the intro has exactly 5 story cards")
 	var card_ok: bool = true
 	for card in Screens.CARDS:
@@ -501,3 +541,131 @@ func _test_integration() -> void:
 	check(_game.state == Game.State.PLAY and _game.room_index == 0,
 		"restarting from the win screen begins a fresh run at room 1")
 	check(_game.score == 0 and _game.deaths == 0, "and resets the score and the death count")
+
+	# =====================================================================
+	# D. STEALTH, DARKNESS AND LEVEL ELEMENTS
+	# =====================================================================
+	# The game is now sitting in a clean room 1, which makes a good sandbox.
+	print("\n--- D. STEALTH, DARKNESS AND LEVEL ELEMENTS")
+
+	# --- darkness is wired and follows the player ------------------------
+	check(_game.darkness != null, "the darkness layer exists")
+	var dark_mat: ShaderMaterial = null
+	if _game.darkness != null:
+		dark_mat = _game.darkness.material as ShaderMaterial
+	check(dark_mat != null, "the darkness layer runs the light-cone shader")
+	check(_game.darkness.visible, "darkness is drawn during play")
+	if dark_mat != null:
+		check_approx(float(dark_mat.get_shader_parameter("cone_deg")), _game.light_cone_deg, 0.01,
+			"the shader receives the player's cone width")
+		check_approx(float(dark_mat.get_shader_parameter("darkness_amount")), _game.darkness_amount, 0.01,
+			"the shader receives the darkness level")
+		var lc: int = int(dark_mat.get_shader_parameter("light_count"))
+		check(lc >= 0, "the guard lantern count is passed to the shader")
+		var gpos: PackedVector2Array = dark_mat.get_shader_parameter("light_pos")
+		check(gpos != null and gpos.size() == 8,
+			"the lantern array is always the fixed 8 the shader expects",
+			"size %d" % (gpos.size() if gpos != null else -1))
+
+	# The light points the way the spark faces, driven by steering, not a mouse.
+	_game.room.player._facing = 1.25
+	check_approx(_game.room.player.aim_angle(), 1.25, 0.001,
+		"the light cone follows the spark's facing (WASD), not the mouse")
+
+	# --- hearing: a noise pulls a patrolling guard off its route ---------
+	var hg: Guard = _game.room.guards[0]
+	hg.state = Guard.State.PATROL
+	hg.hear(Vector2(400.0, 300.0))
+	check(hg.state == Guard.State.INVESTIGATE, "a heard noise sends a guard to investigate")
+	check(hg._investigate_left > 0.0, "and starts the give-up countdown")
+
+	hg.state = Guard.State.CHASE
+	hg.hear(Vector2(10.0, 10.0))
+	check(hg.state == Guard.State.CHASE, "a guard already chasing the player ignores a mere noise")
+
+	hg.state = Guard.State.INVESTIGATE
+	hg._last_seen = Vector2(9990.0, 9990.0)
+	hg._investigate_left = 0.0
+	await _physics_frames(2)
+	check(hg.state == Guard.State.PATROL,
+		"a guard abandons an unreachable search instead of walking into a wall forever")
+
+	# --- the alarm spreads ------------------------------------------------
+	var ag: Guard = _game.room.guards[1]
+	ag.state = Guard.State.PATROL
+	_game.room._on_guard_spotted(ag.global_position)
+	check(ag.state == Guard.State.INVESTIGATE,
+		"when one guard locks on, nearby allies come to help")
+
+	# A lunge is loud enough to be heard by a guard standing nearby (but not so
+	# close that simply standing there would count as a contact kill).
+	ag.state = Guard.State.PATROL
+	ag.position = _game.room.player.position + Vector2(120.0, 0.0)
+	_game.room._on_player_dashed(Vector2.RIGHT)
+	check(ag.state == Guard.State.INVESTIGATE, "a lunge is heard by a guard standing nearby")
+
+	# --- guard speech -----------------------------------------------------
+	ag._say("spotted")
+	check(ag.bark_text != "", "a guard says a line when it spots the player")
+	check(ag.bark_text.find(" ") > 0, "the line is real words, not an empty tag",
+		"line '%s'" % ag.bark_text)
+	check(ag.bark_left > 0.0, "a spoken line has a lifetime on screen")
+	var before_bark: float = ag.bark_left
+	await _frames(3)
+	check(ag.bark_left < before_bark, "the spoken line fades over time")
+
+	# Park the guards in a far corner so the mote test measures the mote, not a
+	# guard wandering into the player and killing them mid-check.
+	for g in _game.room.guards:
+		g.set_physics_process(false)
+		g.position = Vector2(1220.0, 80.0)
+	await _physics_frames(1)
+
+	# --- colour motes: the new level element -----------------------------
+	var rooms_with_motes: int = 0
+	for r in LevelData.ROOMS:
+		if (r.get("motes", []) as Array).size() > 0:
+			rooms_with_motes += 1
+	check(rooms_with_motes == LevelData.ROOMS.size(),
+		"every room has colour motes to find", "%d of %d" % [rooms_with_motes, LevelData.ROOMS.size()])
+	check(_game.room.motes.size() >= 1, "room 1 builds its motes into the world")
+
+	var mote: Mote = _game.room.motes[0]
+	var mote_hue: float = mote.colour.h * 360.0
+	_game.room.player.colour = Color(1.0, 1.0, 1.0)
+	_game.room.player.position = mote.position
+	await _physics_frames(3)
+	check(mote.taken, "standing on a mote drinks it")
+	check(_game.room.player.colour.s > ColorTheory.GREY_SATURATION,
+		"drinking a mote gives the spark a colour",
+		"colour=%s" % ColorTheory.hex(_game.room.player.colour))
+	check_approx(_game.room.player.colour.h * 360.0, mote_hue, 2.0,
+		"and it is the mote's own hue")
+
+	# --- the richer rooms are still clean geometry -----------------------
+	# (Section B measures this too; this is a cheap end-to-end re-check that
+	#  every room really built its new cover and motes.)
+	var built_ok: bool = true
+	for i in LevelData.ROOMS.size():
+		_game.load_room(i)
+		await _frames(2)
+		if _game.room == null or _game.room.guards.is_empty():
+			built_ok = false
+	check(built_ok, "all four enriched rooms still build with guards present")
+
+	# --- pause menu -------------------------------------------------------
+	check(Screens.PAUSE_ITEMS.size() == 3, "the pause menu has three rows")
+	_game.pause_game()
+	check(_game.state == Game.State.PAUSED, "ESC pauses the run")
+	check(get_tree().paused, "and the tree really is paused (the room is frozen)")
+	check(_game.screens.mode == Screens.Mode.PAUSE, "the pause page is on screen")
+	# RESTART ROOM resumes and rebuilds the same room.
+	_game.screens.pause_index = 1
+	_game.screens.advance()
+	check(_game.state == Game.State.PLAY and not get_tree().paused, "RESTART ROOM resumes the game")
+	check(_game.room != null and _game.room.time_in_room < 0.5, "and rebuilds the room from the top")
+	# ESC / back resumes without touching the run.
+	_game.pause_game()
+	_game.screens.back()
+	check(_game.state == Game.State.PLAY and not get_tree().paused, "ESC from the pause page resumes")
+	check(_game.screens.mode == Screens.Mode.NONE, "and clears the page")
