@@ -6,10 +6,11 @@
 #   3. exports the "Web" preset from export_presets.cfg to build/web/,
 #   4. publishes build/web/ to GitHub Pages.
 #
-# ONE-TIME SETUP (the workflow cannot do this for you):
+# Pages is enabled automatically on the first run by actions/configure-pages
+# (enablement: true), so there is no manual Settings step. If your account
+# forbids auto-enablement the step will fail loudly; in that case do it by hand:
 #   Repository -> Settings -> Pages -> Build and deployment -> Source:
-#   choose "GitHub Actions". Without that the deploy step has no Pages site
-#   to publish to.
+#   choose "GitHub Actions".
 #
 # The resulting URL is https://<owner>.github.io/<repo>/ and is linked from the
 # README's "Play it" table.
@@ -98,6 +99,15 @@ jobs:
       # folder as a Jekyll site and stripping files.
       - name: Add .nojekyll
         run: touch build/web/.nojekyll
+
+      # Enables GitHub Pages for this repo on the first run and switches it to
+      # the "GitHub Actions" build type, so the deploy job has a site to publish
+      # to. Without this the deploy step fails with "Get Pages site failed".
+      # Needs pages: write, which the permissions block above already grants.
+      - name: Configure Pages (enable on first run)
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload the Pages artifact
         uses: actions/upload-pages-artifact@v3
