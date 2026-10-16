@@ -206,6 +206,8 @@ screen.
 res://
 ├─ project.godot          main scene + input map + renderer
 ├─ export_presets.cfg     Web export preset (single-threaded)
+├─ LICENSE                MIT — covers the code, NOT the art in assets/
+├─ docs/                  assignment artefacts (the AI chat history PDF)
 ├─ assets/
 │  ├─ characters/
 │  │  └─ adventurer/      free top-down character sheets
