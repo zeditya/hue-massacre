@@ -300,6 +300,25 @@ func _test_levels() -> void:
 
 			check(route.size() >= 2, "%s: guard %d has a real patrol route" % [name, i])
 
+		# --- waves: numbered 1..N with knights in every one -----------------
+		var spec_waves: Array = []
+		for wspec in spec_list:
+			var w: int = int(wspec.get("wave", 1))
+			if not spec_waves.has(w):
+				spec_waves.append(w)
+		spec_waves.sort()
+		var declared: int = maxi(int(room.get("waves", 1)), 1)
+		var dense: bool = spec_waves.size() == declared
+		for k in spec_waves.size():
+			if spec_waves[k] != k + 1:
+				dense = false
+		check(dense, "%s: waves are numbered 1..%d with knights in each" % [name, declared],
+			"found %s" % str(spec_waves))
+		if int(room["id"]) == 3:
+			check(declared == 1, "%s: the boss hall fights its whole cast at once" % name)
+		else:
+			check(declared >= 2, "%s: teaching arenas feed their knights in waves" % name)
+
 		# --- the colour motes must be reachable --------------------------
 		# A mote buried inside a wall is a small lie: the room shows a light you
 		# can never touch. Check every one sits in open ground.
@@ -435,7 +454,11 @@ func _test_integration() -> void:
 	# --- room 1 -----------------------------------------------------------
 	await _frames(2)
 	check(_game.room != null, "room 1 is built")
-	check(_game.room.guards.size() == 2, "room 1 has 2 guards", "found %d" % _game.room.guards.size())
+	check(_game.room.guards.size() == 2, "room 1 fields 2 guards on its first wave",
+		"active %d" % _game.room.guards.size())
+	check(_game.room.remaining_guard_count() == 4, "with 2 more waiting for wave 2",
+		"remaining %d" % _game.room.remaining_guard_count())
+	check(_game.room.waves_total == 2, "so the arena is a two-wave fight")
 	check(_game.room.player.colour == Color(1.0, 1.0, 1.0), "the spark starts colourless (white)")
 
 	# --- the characters are real sprites, not dots -----------------------
@@ -498,18 +521,66 @@ func _test_integration() -> void:
 	check(not _game.room.player.is_hidden, "stepping onto bare grey floor EXPOSES you")
 	check_approx(_game.room.player.visibility_now, 1.0, 0.001, "and reports full contrast")
 
-	# --- clearing the room advances --------------------------------------
-	_game.room._kill_guard(_game.room.guards[0])
+	# --- waves: arenas feed their knights in packs ------------------------
+	# (One of wave 1's two knights already fell to the absorption test above.)
+	for g in _game.room.guards.duplicate():
+		_game.room._kill_guard(g)
 	await _frames(2)
+	check(not _game.room._cleared, "clearing wave 1 does NOT clear the arena")
+	check(_game.room.intermission_left > 0.0, "it starts the intermission instead")
+	check(_game.room.guards.is_empty(), "the floor stands empty while the next wave is called")
+	check(_game.room.remaining_guard_count() == 2, "the reserved knights still count as left")
+	check(_game.hud.guards_left == 2, "and the HUD counts them too", "hud %d" % _game.hud.guards_left)
+
+	# The next wave marches in when the pause runs out, and it gets the same
+	# blind moment every knight gets at room start: no ambush arrivals.
+	await get_tree().create_timer(_game.room.intermission_seconds - 0.5).timeout
+	await _frames(2)
+	check(_game.room.current_wave == 1, "until the pause runs out, no wave arrives")
+	await get_tree().create_timer(0.7).timeout
+	await _physics_frames(2)
+	check(_game.room.current_wave == 2, "then wave 2 marches in",
+		"current_wave %d" % _game.room.current_wave)
+	check(_game.room.guards.size() == 2, "with both of its knights on the floor")
+	check(_game.room.remaining_guard_count() == 2, "and the reserve now empty")
+
+	var arrived: Guard = _game.room.guards[0]
+	var facing: float = (arrived.patrol_points[1] - arrived.patrol_points[0]).angle()
+	var ahead: Vector2 = Vector2.from_angle(facing)
+	_game.room.player.colour = Color(1.0, 1.0, 1.0)
+	# Far enough ahead that the walking knight cannot pass the spark before
+	# the grace is over.
+	_game.room.player.position = arrived.position + ahead * 200.0
+	await _physics_frames(6)
+	check(arrived.detection == 0.0, "a just-arrived knight is blind for its grace period",
+		"detection %.2f" % arrived.detection)
+	# Once the grace runs out, the same knight in the same cone must see the
+	# spark again: the blind moment is a delay, not a disarm.
+	await get_tree().create_timer(LevelData.SPAWN_GRACE).timeout
+	_game.room.player.position = arrived.position + ahead * 150.0
+	await _physics_frames(40)
+	check(arrived.detection > 0.0, "and once the grace ends, the knight can see again",
+		"detection %.2f" % arrived.detection)
+
+	# --- clearing the arena advances --------------------------------------
+	for g in _game.room.guards.duplicate():
+		_game.room._kill_guard(g)
+	await _frames(2)
+	check(_game.room._cleared, "beating the last wave clears the arena")
 	check(_game._busy, "clearing the last guard starts the room-clear sequence")
 	await get_tree().create_timer(2.4).timeout
 	await _frames(2)
 	check(_game.room_index == 1, "the game advanced to room 2", "index %d" % _game.room_index)
-	check(_game.room.guards.size() == 3, "room 2 has 3 guards")
+	check(_game.room.guards.size() == 2, "room 2 opens with its first wave of 2")
+	check(_game.room.remaining_guard_count() == 3, "and 1 more knight waits in reserve")
 
 	# --- the complement combo --------------------------------------------
 	_game.load_room(2)
 	await _frames(3)
+	# This room fights in waves too; the tests are not the intermission timer,
+	# so pull every pack onto the floor at once before picking the pair.
+	_game.room.release_all_waves()
+	await _frames(2)
 	check(_game.room.guards.size() == 5, "room 3 has 5 guards")
 
 	# Find the exact complementary pair and kill it in the right order.
@@ -537,6 +608,8 @@ func _test_integration() -> void:
 	# --- a non-complement pair must NOT combo ----------------------------
 	_game.load_room(2)
 	await _frames(3)
+	_game.room.release_all_waves()
+	await _frames(2)
 	var red2: Guard = null
 	var green2: Guard = null
 	for g in _game.room.guards:
@@ -750,6 +823,7 @@ func _test_integration() -> void:
 	# --- the boss ---------------------------------------------------------
 	_game.load_room(3)
 	await _frames(3)
+	check(_game.room.waves_total == 1, "the boss hall is one fight, not a wave arena")
 	check(_game.room.boss != null, "the boss room has a Collector")
 	check(_game.room.boss.hue_speed != 0.0, "the Collector's hue rotates")
 	check(_game.room.player.colour == Color(1.0, 0.0, 0.0),

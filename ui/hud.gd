@@ -36,6 +36,11 @@ var combo_time_left: float = 0.0
 var combo_window: float = 3.0
 var deaths: int = 0
 var guards_left: int = 0
+## Wave readout: only shown when the room feeds its knights in packs
+## (wave_total stays 1 in one-fight rooms like the boss hall).
+var wave: int = 1
+var wave_total: int = 1
+var next_wave_in: float = 0.0
 var restore: float = 0.0
 
 var player_colour: Color = Color(1.0, 1.0, 1.0)
@@ -223,6 +228,14 @@ func _draw_top_right() -> void:
 	# Status counts.
 	var status: String = "GUARDS LEFT %d   /   DEATHS %d" % [guards_left, deaths]
 	UiStyle.text(self, status, Vector2(box_x, 112.0), 13, UiStyle.DIM, HORIZONTAL_ALIGNMENT_RIGHT, 356.0)
+
+	# Wave state, only in rooms that fight in waves.
+	if wave_total > 1:
+		UiStyle.text(self, UiStyle.tracked("WAVE %d / %d" % [wave, wave_total]),
+			Vector2(box_x, 132.0), 13, UiStyle.PAPER, HORIZONTAL_ALIGNMENT_RIGHT, 356.0)
+		if next_wave_in > 0.0:
+			UiStyle.text(self, "NEXT WAVE IN %.1fs" % next_wave_in,
+				Vector2(box_x, 148.0), 11, UiStyle.DIM, HORIZONTAL_ALIGNMENT_RIGHT, 356.0)
 
 
 func _draw_player_panel() -> void:

@@ -94,13 +94,18 @@ static func walls_for(room: Dictionary) -> Array:
 ##   * interior obstacles must sit inside 26..1254 across and 26..694 down,
 ##   * guard AABBs are 14px (the boss is 34px), so leave 40px+ between a patrol
 ##     point and any wall - the test suite measures this and will fail loudly,
-##   * keep the player's `start` at least 14px clear of every wall.
+##   * keep the player's `start` at least 14px clear of every wall,
+##   * a room's "waves" count plus each guard's "wave" tag decide when
+##     knights step into the arena (room.gd feeds the packs in). A room
+##     with no tags fights its whole cast at once, exactly as before.
 const ROOMS: Array = [
 	# -----------------------------------------------------------------------
 	# ROOM 1 - teaches HIDING BY MATCHING
 	# An open plaza. Four pillars break the space into a loose grid and two low
 	# walls give the corners a little shape, but the middle is wide open - so
 	# until you have paint on the floor, you are the most visible thing in it.
+	# Wave 1 is the original pair; wave 2 marches ORANGE up the left aisle
+	# and GREEN along the bottom corridor, so the second pack pinches in.
 	# -----------------------------------------------------------------------
 	{
 		"id": 0,
@@ -138,6 +143,7 @@ const ROOMS: Array = [
 			{ "pos": Vector2(360.0, 620.0), "color": Color(0.0, 1.0, 0.0) },
 			{ "pos": Vector2(960.0, 620.0), "color": Color(0.75, 0.0, 1.0) },
 		],
+		"waves": 2,
 		"guards": [
 			{
 				"color": Color(1.0, 0.0, 0.0),
@@ -146,6 +152,7 @@ const ROOMS: Array = [
 				"path": [Vector2(1100.0, 150.0), Vector2(1100.0, 570.0), Vector2(880.0, 570.0), Vector2(880.0, 150.0)],
 				"speed": 72.0,
 				"cone": 300.0,
+				"wave": 1,
 			},
 			{
 				# YELLOW 60 deg. Circles the central aisle, so it keeps
@@ -155,6 +162,27 @@ const ROOMS: Array = [
 				"path": [Vector2(520.0, 160.0), Vector2(760.0, 160.0), Vector2(760.0, 560.0), Vector2(520.0, 560.0)],
 				"speed": 78.0,
 				"cone": 300.0,
+				"wave": 1,
+			},
+			{
+				# ORANGE 30 deg. Works the left aisle from the second wave, so a
+				# new knight arrives on the side you are not watching.
+				"color": Color(1.0, 0.5, 0.0),
+				"pos": Vector2(200.0, 170.0),
+				"path": [Vector2(200.0, 170.0), Vector2(200.0, 550.0)],
+				"speed": 76.0,
+				"cone": 300.0,
+				"wave": 2,
+			},
+			{
+				# GREEN 120 deg. Sweeps the bottom corridor in the same wave, so
+				# wave 2 closes in from two directions at once.
+				"color": Color(0.0, 1.0, 0.0),
+				"pos": Vector2(1040.0, 660.0),
+				"path": [Vector2(1040.0, 660.0), Vector2(240.0, 660.0)],
+				"speed": 92.0,
+				"cone": 290.0,
+				"wave": 2,
 			},
 		],
 	},
@@ -164,6 +192,8 @@ const ROOMS: Array = [
 	# Two lanes. RED owns the horizontal one, BLUE the vertical one, and they
 	# cross at exactly one point: (640, 300). That crossing is the whole lesson,
 	# because two puddles overlapping there average to VIOLET - and so do you.
+	# Wave 1 brings both teachers in together (the lesson must be winnable);
+	# ORANGE, 30 degrees short of any combo, runs in alone as the straggler.
 	# -----------------------------------------------------------------------
 	{
 		"id": 1,
@@ -199,6 +229,7 @@ const ROOMS: Array = [
 			{ "pos": Vector2(430.0, 610.0), "color": Color(0.0, 1.0, 0.0) },
 			{ "pos": Vector2(820.0, 200.0), "color": Color(1.0, 0.5, 0.0) },
 		],
+		"waves": 2,
 		"guards": [
 			{
 				"color": Color(1.0, 0.0, 0.0),
@@ -207,6 +238,7 @@ const ROOMS: Array = [
 				"path": [Vector2(160.0, 310.0), Vector2(1120.0, 310.0)],
 				"speed": 80.0,
 				"cone": 320.0,
+				"wave": 1,
 			},
 			{
 				# BLUE 240 deg. Crosses RED's patrol at (640, 310), which is exactly
@@ -216,6 +248,7 @@ const ROOMS: Array = [
 				"path": [Vector2(640.0, 90.0), Vector2(640.0, 630.0)],
 				"speed": 80.0,
 				"cone": 320.0,
+				"wave": 1,
 			},
 			{
 				# ORANGE 30 deg: close to BLUE, but 30 degrees short of the 180
@@ -225,6 +258,7 @@ const ROOMS: Array = [
 				"path": [Vector2(740.0, 70.0), Vector2(1090.0, 70.0), Vector2(1090.0, 200.0), Vector2(740.0, 200.0)],
 				"speed": 85.0,
 				"cone": 300.0,
+				"wave": 2,
 			},
 		],
 	},
@@ -234,6 +268,8 @@ const ROOMS: Array = [
 	# A split spine: a broken wall runs down the middle of the room with two
 	# doorways cut into it. Four guards hold the wings and a fifth roams the
 	# bottom corridor, so you are always choosing which side to run to.
+	# Wave 1: RED holds the top wing while the GREEN/PURPLE pair stalk the
+	# room. Wave 2: YELLOW and BLUE - the second pair - march in together.
 	# -----------------------------------------------------------------------
 	{
 		"id": 2,
@@ -268,6 +304,7 @@ const ROOMS: Array = [
 			{ "pos": Vector2(640.0, 215.0), "color": Color(1.0, 1.0, 0.0) },
 			{ "pos": Vector2(640.0, 470.0), "color": Color(0.75, 0.0, 1.0) },
 		],
+		"waves": 2,
 		"guards": [
 			{
 				"color": Color(1.0, 0.0, 0.0),
@@ -275,6 +312,7 @@ const ROOMS: Array = [
 				"path": [Vector2(130.0, 90.0), Vector2(560.0, 90.0), Vector2(560.0, 310.0), Vector2(130.0, 310.0)],
 				"speed": 85.0,
 				"cone": 300.0,
+				"wave": 1,
 			},
 			{
 				# GREEN 120 deg. Its complement PURPLE (285) is also in this room,
@@ -284,6 +322,7 @@ const ROOMS: Array = [
 				"path": [Vector2(130.0, 335.0), Vector2(130.0, 640.0), Vector2(560.0, 640.0), Vector2(560.0, 335.0)],
 				"speed": 85.0,
 				"cone": 300.0,
+				"wave": 1,
 			},
 			{
 				# BLUE 240 deg: exactly opposite YELLOW (60), the other combo pair.
@@ -292,6 +331,7 @@ const ROOMS: Array = [
 				"path": [Vector2(1150.0, 90.0), Vector2(720.0, 90.0), Vector2(720.0, 310.0), Vector2(1150.0, 310.0)],
 				"speed": 85.0,
 				"cone": 300.0,
+				"wave": 2,
 			},
 			{
 				"color": Color(0.75, 0.0, 1.0),
@@ -299,6 +339,7 @@ const ROOMS: Array = [
 				"path": [Vector2(1150.0, 335.0), Vector2(1150.0, 640.0), Vector2(720.0, 640.0), Vector2(720.0, 335.0)],
 				"speed": 85.0,
 				"cone": 300.0,
+				"wave": 1,
 			},
 			{
 				# YELLOW 60 deg: exactly opposite BLUE (240) - the exact combo pair.
@@ -307,6 +348,7 @@ const ROOMS: Array = [
 				"path": [Vector2(1040.0, 660.0), Vector2(240.0, 660.0)],
 				"speed": 95.0,
 				"cone": 290.0,
+				"wave": 2,
 			},
 		],
 	},

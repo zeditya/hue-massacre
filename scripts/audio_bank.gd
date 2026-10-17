@@ -44,6 +44,7 @@ const SFX := {
 	"hit":        {"f0": 260.0, "f1": 90.0,  "dur": 0.11, "decay": 1.9, "wave": Wave.SQUARE, "db": -4.0},
 	"clang":      {"f0": 1500.0,"f1": 900.0, "dur": 0.16, "decay": 1.3, "wave": Wave.SQUARE, "db": -7.0},
 	"shatter":    {"f0": 1900.0,"f1": 300.0, "dur": 0.24, "decay": 0.9, "wave": Wave.NOISE,  "db": -2.0},
+	"wave":       {"f0": 170.0, "f1": 430.0, "dur": 0.50, "decay": 0.55,"wave": Wave.SQUARE, "db": -5.0},
 }
 
 var _streams: Dictionary = {}

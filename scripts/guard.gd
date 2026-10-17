@@ -136,6 +136,12 @@ var detection: float = 0.0
 ## True on the frame the boss is inside the player's kill window (boss only).
 var vulnerable: bool = false
 var dead: bool = false
+## True while this knight waits off the field for a later wave (room.gd feeds
+## the waves in). Dormant guards are hidden, inert and deaf.
+var dormant: bool = false
+## Room-time (room.time_in_room) before which this guard cannot see. Set when
+## a later wave marches in, so arriving is never an instant ambush.
+var spawn_grace_until: float = 0.0
 
 ## Current health. Reaching 0 runs the normal die() path.
 var hp: float = 60.0
@@ -325,8 +331,10 @@ func _perceive(delta: float) -> void:
 					_sight_quality = vis
 					_last_seen = player.global_position
 
-	# The room gives everybody a moment to get their bearings at the start.
-	var awake: bool = room == null or room.time_in_room >= LevelData.SPAWN_GRACE
+	# The room gives everybody a moment to get their bearings: at the start of
+	# the room, and again each time a later wave marches in.
+	var awake: bool = room == null or (room.time_in_room >= LevelData.SPAWN_GRACE
+		and room.time_in_room >= spawn_grace_until)
 
 	if sees and awake:
 		var was: float = detection
@@ -603,6 +611,36 @@ func clang() -> void:
 ## Health left as 0..1, for the over-head bar.
 func health_ratio() -> float:
 	return clampf(hp / maxf(max_hp, 0.01), 0.0, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# Waves
+# ---------------------------------------------------------------------------
+
+## Take the knight off the field until its wave is called by the room: hidden,
+## inert and deaf. Everything _ready() needs is already set up, so waking is
+## just turning it back on.
+func sleep_for_wave() -> void:
+	dormant = true
+	detection = 0.0
+	visible = false
+	set_process(false)
+	set_physics_process(false)
+
+
+## Its wave has been called: back on the field, facing its route, with the
+## same blind moment every knight gets when a room starts.
+func wake_for_wave() -> void:
+	dormant = false
+	detection = 0.0
+	state = State.PATROL
+	attack_state = Attack.NONE
+	velocity = Vector2.ZERO
+	spawn_grace_until = (room.time_in_room if room != null else 0.0) + LevelData.SPAWN_GRACE
+	visible = true
+	set_process(true)
+	set_physics_process(true)
+	queue_redraw()
 
 
 # ---------------------------------------------------------------------------

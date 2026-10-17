@@ -401,6 +401,8 @@ func load_room(index: int) -> void:
 	room.room_cleared.connect(_on_room_cleared)
 	room.boss_vulnerable_changed.connect(_on_boss_vulnerable_changed)
 	room.strike_landed.connect(_on_strike_landed)
+	room.wave_started.connect(_on_wave_started)
+	room.wave_cleared.connect(_on_wave_cleared)
 	world_root.add_child(room)
 	# The dodge roll belongs to the player alone, so its feedback (a shove of
 	# the camera, the air-puff sound) hangs straight off the player's signal.
@@ -581,6 +583,24 @@ func _on_boss_vulnerable_changed(is_vulnerable: bool) -> void:
 		hud.show_flash("his complement - strike now", UiStyle.PAPER, 1.4)
 
 
+## The herald calls a new pack of knights onto the floor.
+func _on_wave_started(wave: int, total: int, count: int) -> void:
+	audio.play("wave")
+	if hud == null:
+		return
+	var noun: String = "knight" if count == 1 else "knights"
+	var verb: String = "enters" if count == 1 else "enter"
+	hud.show_banner("WAVE %d / %d" % [wave, total],
+		"%d %s %s the arena" % [count, noun, verb], UiStyle.GOLD, 2.2)
+
+
+## The floor is clear for the moment; the next pack is already on its way.
+func _on_wave_cleared(_wave: int) -> void:
+	audio.play("room_clear", 1.35, -5.0)
+	if hud != null:
+		hud.show_flash("the arena falls quiet", UiStyle.PAPER, 1.2)
+
+
 func _win() -> void:
 	state = State.WIN
 	_busy = false
@@ -757,6 +777,9 @@ func _sync_hud() -> void:
 		hud.guards_left = 0
 		hud.restore = 0.0
 		hud.spotted = false
+		hud.wave = 1
+		hud.wave_total = 1
+		hud.next_wave_in = 0.0
 		hud.player_colour = Color.WHITE
 		hud.player_hidden = false
 		hud.player_visibility = 1.0
@@ -766,9 +789,12 @@ func _sync_hud() -> void:
 		hud.boss_vulnerable = false
 		return
 
-	hud.guards_left = room.alive_guard_count()
+	hud.guards_left = room.remaining_guard_count()
 	hud.restore = room.restore_ratio()
 	hud.spotted = _any_guard_chasing()
+	hud.wave = room.current_wave
+	hud.wave_total = room.waves_total
+	hud.next_wave_in = room.intermission_left
 
 	# Collect any guard that is mid-line so the HUD can draw the bubble above
 	# the darkness layer (where the guard itself might still be hidden).
