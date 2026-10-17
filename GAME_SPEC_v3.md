@@ -31,13 +31,11 @@ names; you don't have one yet.
   `proto/3d-billboard`) and deliberately shelved: too much production time for
   the visual gain within the deadline. It stays in the repo as a documented
   design decision for the video.
-- **Optional "2.5D tilt"** — a second prototype (branch `camera-2d-tilt`) tests
-  a tilted-floor camera trick in the 2D engine. If it survives the screenshot
-  comparison we may adopt it as the default view; the game must be fully
-  playable and readable in plain top-down either way.
-- **Camera:** baseline is the existing room-as-a-screen layout, but with a
-  **zoom-follow camera** (world scaled ~1.5×, camera eases toward the player)
-  so figures read big like Soul Knight.
+- **Camera (DECIDED): flat ground + zoom-follow.** A tilted-ground ("2.5D")
+  prototype was built and compared (`proto/2d/`, screenshots in
+  `docs/proto/2d_camera/`); the tilt was rejected for combat readability — it
+  hides characters behind tall walls. The rebuild uses a **flat top-down
+  view with a ~1.5× follow camera** so figures read big like Soul Knight.
 - **Palette:** warm sand + dark stone, one strong accent per house, saturated
   hue glows. Hades formula: warm key light, cool shadows, glow pools.
   Every hue ever spilled stays on the floor as paint.
