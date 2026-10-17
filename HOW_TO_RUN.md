@@ -52,14 +52,16 @@ strip of the whole hue wheel above it. A window opens at 1280×720, resizable.
 
 | Input | Action |
 |---|---|
-| **W A S D** / **Arrow keys** | Move — this also aims your light cone and your lunge |
-| **Space** / **Left click** | Lunge-dash the way you are steering — kills guards on contact |
+| **W A S D** / **Arrow keys** | Move — this also aims your light cone and your blade |
+| **J** / **Left click** | Strike — 3-swing chain of 12 / 12 / 20; the third knocks back |
+| **Space** | Dodge roll — i-frames at the start of the roll |
 | **R** | Restart the current room |
 | **Esc** | Pause — *Resume / Restart room / Quit to menu* |
 | **W / S** on a menu | Move the highlight; **Space / Enter / click** selects |
 
 There is deliberately **no separate mouse aim**: the way you steer is the way you
-face, the way you lunge, and the way your light cone points.
+face, the way your blade swings, and the way your light cone points. A swing gets
+one gentle pull onto a knight already in front of you — never behind your back.
 
 **A 30-second first run**, so you can tell it works:
 
@@ -67,11 +69,13 @@ face, the way you lunge, and the way your light cone points.
    city), then the five rhyme cards — press **Space** (or click) to move through
    them.
 2. In Room 1 you are a white spark on a grey floor with two guards.
-3. Walk up behind the **red** guard, point at him with **W A S D**, then tap
-   **Space** to lunge into him. He dies and splatters red paint on the floor.
+3. Walk up to the **red** guard, point at him with **W A S D**, then press **J**
+   two or three times to chain swings. He dies and splatters red paint on the
+   floor.
 4. Stand in that red paint. **Your own colour is now red** (see the swatch in the
    top-left HUD), so the floor matches you and the remaining guard cannot see you.
-5. Walk to the **yellow** guard and kill him to clear the room.
+5. Walk to the **yellow** guard and cut him down to clear the room. If a swing
+   comes your way, **Space** rolls you through it, unharmed.
 
 If all five steps happen, the build is good.
 

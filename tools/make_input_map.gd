@@ -13,10 +13,24 @@ const KEY_ACTIONS := {
 	"move_down": [KEY_S, KEY_DOWN],
 	"move_left": [KEY_A, KEY_LEFT],
 	"move_right": [KEY_D, KEY_RIGHT],
-	"dash": [KEY_SPACE],
+	# The strike: J on the keyboard, or the left mouse button below. Two
+	# bindings, ONE verb - the sword swings the way you steer, never at the
+	# cursor, so the two handles can never disagree about aim.
+	"strike": [KEY_J],
+	# Space is the DODGE ROLL: the defensive verb, with i-frames.
+	"dodge": [KEY_SPACE],
 	"restart": [KEY_R],
 	"to_title": [KEY_ESCAPE],
 }
+
+const MOUSE_ACTIONS := {
+	"strike": MOUSE_BUTTON_LEFT,
+}
+
+## Verbs from earlier builds. They are removed so the Input Map panel does not
+## keep advertising buttons that do nothing: documentation that lies is worse
+## than no documentation.
+const REMOVED_ACTIONS := ["dash", "dash_aim"]
 
 
 func _init() -> void:
@@ -28,10 +42,16 @@ func _init() -> void:
 			events.append(ev)
 		ProjectSettings.set_setting("input/" + action_name, {"deadzone": 0.2, "events": events})
 
-	# Left mouse also lunges, aimed at the cursor.
-	var mouse := InputEventMouseButton.new()
-	mouse.button_index = MOUSE_BUTTON_LEFT
-	ProjectSettings.set_setting("input/dash_aim", {"deadzone": 0.2, "events": [mouse]})
+	for action_name in MOUSE_ACTIONS:
+		var mouse := InputEventMouseButton.new()
+		mouse.button_index = MOUSE_ACTIONS[action_name]
+		var existing: Dictionary = ProjectSettings.get_setting("input/" + action_name, {"deadzone": 0.2, "events": []})
+		existing["events"].append(mouse)
+		ProjectSettings.set_setting("input/" + action_name, existing)
+
+	for dead in REMOVED_ACTIONS:
+		if ProjectSettings.has_setting("input/" + dead):
+			ProjectSettings.clear("input/" + dead)
 
 	var err: int = ProjectSettings.save()
 	print("input map written, ProjectSettings.save() returned ", err)

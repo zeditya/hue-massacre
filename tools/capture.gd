@@ -5,6 +5,10 @@ extends SceneTree
 ##     godot --path . --script res://tools/capture.gd
 ##
 ## Writes to build/capture/ (gitignored). Not part of the game.
+##
+## The grab forces a draw with swap_buffers=false first. On the Compatibility
+## renderer, reading the window texture after a buffer swap can return a blank
+## image, which once made every "visual check" a lie.
 
 const OUT_DIR := "res://build/capture"
 
@@ -22,6 +26,13 @@ func _init() -> void:
 	root.add_child(_game)
 
 
+func _snap(path: String) -> void:
+	RenderingServer.force_draw(false)
+	var img: Image = root.get_texture().get_image()
+	img.save_png(path)
+	print("captured ", path)
+
+
 func _process(_delta: float) -> bool:
 	_frame += 1
 	if _frame < 6:
@@ -37,9 +48,7 @@ func _process(_delta: float) -> bool:
 		return false
 
 	if not _shot_taken:
-		var img: Image = root.get_texture().get_image()
-		img.save_png("%s/room_%02d.png" % [OUT_DIR, _room + 1])
-		print("captured room %d" % (_room + 1))
+		_snap("%s/room_%02d.png" % [OUT_DIR, _room + 1])
 		_shot_taken = true
 		_warmup = 0
 		return false

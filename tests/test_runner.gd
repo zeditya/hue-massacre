@@ -570,39 +570,63 @@ func _test_integration() -> void:
 	check(_game.state == Game.State.PLAY, "the room restarts by itself after a death")
 	check(_game.room_index == room_before, "and restarts the SAME room")
 
-	# --- combat v1: vigour, hue strikes, telegraphed swings ---------------
+	# --- combat: vigour, hue strikes, the strike + dodge split ------------
 	# The old one-touch kills are gone: the spark has HP, knights have HP, and
-	# the hue gap decides how hard a strike lands (complements SHATTER).
+	# the hue gap decides how hard a swing lands (complements SHATTER).
 	_game.load_room(0)
 	await _frames(3)
 	var p_combat: Player = _game.room.player
 	var knight: Guard = _game.room.guards[0]
+
+	# The verbs are the spec's: strike on J / left mouse, dodge on space. If
+	# the old lunge action lingered in the input map, the panel would lie.
+	check(InputMap.has_action("strike") and InputMap.has_action("dodge"),
+		"the strike and dodge verbs are in the input map")
+	check(not InputMap.has_action("dash") and not InputMap.has_action("dash_aim"),
+		"the old lunge-dash verbs are gone")
+
 	check_approx(p_combat.hp, 100.0, 0.001, "the spark starts on full vigour (100 HP)")
 	check_approx(knight.hp, 60.0, 0.001, "a basic knight starts on 60 HP")
 
-	# A neutral cut: white blade vs red armour = exactly x1 damage.
+	# A full neutral chain: 12 / 12 / 20. The third swing is the heavy one.
 	p_combat.colour = Color.WHITE
 	knight.colour = RED
-	knight.position = Vector2(400.0, 500.0)
-	p_combat.position = Vector2(420.0, 500.0)
-	p_combat.dash_left = 0.10
-	p_combat.dash_serial += 1
+	knight.position = Vector2(450.0, 500.0)
+	p_combat.position = Vector2(400.0, 500.0)
+	p_combat.begin_strike(Vector2.RIGHT)
 	await _physics_frames(2)
-	check(not knight.dead and knight.hp < 60.0 and knight.hp > 0.0,
-		"a lunge cuts a knight instead of one-shotting it", "hp=%.1f" % knight.hp)
-	check_approx(knight.hp, 26.0, 0.6, "a neutral cut deals exactly x1 (60 - 34 = 26)")
+	check_approx(knight.hp, 48.0, 0.6, "swing 1 of a neutral chain deals x1 (60 - 12 = 48)")
+	# The blade stays out for whole frames; it must still only cut once.
+	await _physics_frames(4)
+	check_approx(knight.hp, 48.0, 0.001, "one swing hits once, however long the blade is out")
 
-	# A complement shatter: x2.5 kills a full-health knight in one cut.
+	knight.position = Vector2(450.0, 500.0)
+	p_combat.position = Vector2(400.0, 500.0)
+	p_combat.begin_strike(Vector2.RIGHT)
+	await _physics_frames(2)
+	check_approx(knight.hp, 36.0, 0.6, "swing 2 continues the chain (48 - 12 = 36)")
+
+	knight.position = Vector2(450.0, 500.0)
+	p_combat.position = Vector2(400.0, 500.0)
+	p_combat.begin_strike(Vector2.RIGHT)
+	await _physics_frames(2)
+	check_approx(knight.hp, 16.0, 0.6, "swing 3 is the heavy hit (36 - 20 = 16)")
+	check(knight.stagger_left > 0.2, "the heavy third swing knocks the knight back")
+
+	# A complement SHATTERS: x2.5. Two shatters in one chain break 60 HP.
 	p_combat.colour = RED
 	knight.colour = ColorTheory.complement(RED)
 	knight.hp = 60.0
-	knight.position = Vector2(400.0, 500.0)
-	p_combat.position = Vector2(420.0, 500.0)
-	p_combat.dash_cooldown_left = 0.0
-	p_combat.dash_left = 0.10
-	p_combat.dash_serial += 1
+	knight.position = Vector2(450.0, 500.0)
+	p_combat.position = Vector2(400.0, 500.0)
+	p_combat.begin_strike(Vector2.RIGHT)
 	await _physics_frames(2)
-	check(knight.dead, "a complement strike SHATTERS: x2.5, one cut, one kill")
+	check_approx(knight.hp, 30.0, 0.6, "a complement SHATTERS: x2.5 (60 - 30 = 30)")
+	knight.position = Vector2(450.0, 500.0)
+	p_combat.position = Vector2(400.0, 500.0)
+	p_combat.begin_strike(Vector2.RIGHT)
+	await _physics_frames(2)
+	check(knight.dead, "the next shatter of the chain breaks the armour for good")
 
 	# A matching hue is absorbed: x0.2, barely a scratch.
 	_game.load_room(0)
@@ -610,17 +634,102 @@ func _test_integration() -> void:
 	var p_absorb: Player = _game.room.player
 	var knight_absorb: Guard = _game.room.guards[0]
 	p_absorb.colour = knight_absorb.colour
-	knight_absorb.position = Vector2(400.0, 500.0)
-	p_absorb.position = Vector2(420.0, 500.0)
-	p_absorb.dash_left = 0.10
-	p_absorb.dash_serial += 1
+	knight_absorb.position = Vector2(450.0, 500.0)
+	p_absorb.position = Vector2(400.0, 500.0)
+	p_absorb.begin_strike(Vector2.RIGHT)
 	await _physics_frames(2)
-	check_approx(knight_absorb.hp, 60.0 - 34.0 * 0.2, 0.6,
-		"the same hue is ABSORBED: x0.2 damage (60 - 6.8 = 53.2)")
+	check_approx(knight_absorb.hp, 60.0 - 12.0 * 0.2, 0.6,
+		"the same hue is ABSORBED: x0.2 damage (60 - 2.4 = 57.6)")
+
+	# --- the dodge roll: the defensive verb --------------------------------
+	# Space rolls the way you steer and the first frames cannot be hit. It is
+	# the answer to a wind-up - and the reason the strike can live on J.
+	p_absorb.hitstun_left = 0.0
+	p_absorb.invuln_left = 0.0
+	p_absorb.roll_cooldown_left = 0.0
+	p_absorb.position = Vector2(300.0, 560.0)
+	knight_absorb.position = Vector2(150.0, 560.0)
+	var before_x: float = p_absorb.position.x
+	var hp_before_roll: float = p_absorb.hp
+	p_absorb.begin_roll(Vector2.RIGHT)
+	check(p_absorb.is_rolling(), "space starts a dodge roll")
+	check(p_absorb.roll_cooldown_left > 0.0, "and the roll goes on cooldown")
+	check(not p_absorb.take_damage(50.0, p_absorb.position + Vector2(40.0, 0.0)),
+		"a hit during the roll's i-frames does nothing")
+	check_approx(p_absorb.hp, hp_before_roll, 0.001, "the dodged hit costs no vigour")
+	await _physics_frames(4)
+	check(p_absorb.position.x > before_x + 20.0, "the roll covers ground in a hurry")
+	await get_tree().create_timer(p_absorb.roll_duration + 0.1).timeout
+	await _physics_frames(1)
+	check(not p_absorb.is_rolling(), "the roll ends after its short burst")
+
+	# The INPUT PATH itself, not just the API: a real J keypress (fed through
+	# the same pipeline as hardware) must swing, and a real space must roll -
+	# otherwise the input map and the code have drifted apart.
+	var key_j := InputEventKey.new()
+	key_j.physical_keycode = KEY_J
+	key_j.pressed = true
+	p_absorb.strike_cooldown_left = 0.0
+	Input.parse_input_event(key_j)
+	await _physics_frames(2)
+	key_j = InputEventKey.new()
+	key_j.physical_keycode = KEY_J
+	key_j.pressed = false
+	Input.parse_input_event(key_j)
+	check(p_absorb.is_striking(), "pressing J swings the blade")
+	p_absorb.strike_left = 0.0
+
+	var key_space := InputEventKey.new()
+	key_space.physical_keycode = KEY_SPACE
+	key_space.pressed = true
+	p_absorb.roll_cooldown_left = 0.0
+	Input.parse_input_event(key_space)
+	await _physics_frames(2)
+	key_space = InputEventKey.new()
+	key_space.physical_keycode = KEY_SPACE
+	key_space.pressed = false
+	Input.parse_input_event(key_space)
+	check(p_absorb.is_rolling(), "pressing SPACE rolls")
+	p_absorb.roll_left = 0.0
+	p_absorb.invuln_left = 0.0
+
+	# --- the chain bookkeeping and the gentle auto-aim ---------------------
+	# A pause past the combo window restarts the chain at the first swing.
+	p_absorb.combo_left = 0.0
+	p_absorb.begin_strike(Vector2.RIGHT)
+	check(p_absorb.strike_index == 0 and p_absorb.strike_damage_now() == 12.0,
+		"a swing after the combo window starts a fresh chain")
+	p_absorb.begin_strike(Vector2.RIGHT)
+	p_absorb.begin_strike(Vector2.RIGHT)
+	check(p_absorb.strike_index == 2 and p_absorb.strike_damage_now() == 20.0 and p_absorb.strike_is_heavy(),
+		"the third swing of the chain is the heavy one")
+	check(p_absorb.strike_half_rad() > deg_to_rad(p_absorb.strike_half_deg),
+		"and its cleave is wider than the two quick swings")
+	p_absorb.begin_strike(Vector2.RIGHT)
+	check(p_absorb.strike_index == 0, "and the chain wraps back to the first swing")
+
+	# Auto-aim: a swing turns onto a knight standing inside its arc, and
+	# never spins the player around to hit something behind them.
+	knight_absorb.position = p_absorb.position + Vector2(30.0, 8.0)
+	p_absorb.begin_strike(Vector2.RIGHT)
+	check_approx(p_absorb.strike_angle(), (knight_absorb.position - p_absorb.position).angle(), 0.001,
+		"a swing turns onto a knight standing inside its arc")
+	knight_absorb.position = p_absorb.position + Vector2(-40.0, 0.0)
+	p_absorb.begin_strike(Vector2.RIGHT)
+	check_approx(p_absorb.strike_angle(), 0.0, 0.001,
+		"and it never spins the player around to hit what is behind")
+	# The blade cuts a WEDGE, not a circle: a knight right at the player's
+	# back, well inside reach, must still survive the swing aimed away.
+	knight_absorb.position = p_absorb.position + Vector2(-30.0, 0.0)
+	var hp_behind_before: float = knight_absorb.hp
+	p_absorb.begin_strike(Vector2.RIGHT)
+	await _physics_frames(2)
+	check_approx(knight_absorb.hp, hp_behind_before, 0.001,
+		"a knight behind the swing is not cut")
 
 	# The knight swings back: windup, then the arc lands. Being hit costs
 	# vigour now; it does not end the run.
-	p_absorb.dash_left = 0.0
+	p_absorb.strike_left = 0.0
 	p_absorb.velocity = Vector2.ZERO
 	p_absorb.position = Vector2(400.0, 560.0)
 	knight_absorb.position = Vector2(430.0, 560.0)
@@ -651,7 +760,7 @@ func _test_integration() -> void:
 	await _physics_frames(10)
 	check(absf(boss.colour.h - hue_before) > 0.0001, "the Collector's hue actually moves over time")
 
-	# Wrong hue: dashing in must NOT kill him.
+	# Wrong hue: swinging in must NOT kill him.
 	boss.colour = RED
 	await _physics_frames(2)
 	check(not boss.vulnerable, "with the player red, a red Collector is NOT vulnerable")
@@ -661,21 +770,20 @@ func _test_integration() -> void:
 	await _physics_frames(2)
 	check(boss.vulnerable, "putting the player on the Collector's complement opens the kill window")
 
-	# A mistimed lunge at an invulnerable Collector must clang off harmlessly.
+	# A mistimed swing at an invulnerable Collector must clang off harmlessly.
 	_game.load_room(3)
 	await _frames(3)
 	var boss2: Guard = _game.room.boss
 	boss2.colour = RED
 	_game.room.player.colour = RED
-	_game.room.player.position = boss2.position
-	_game.room.player.dash_left = 0.10
-	_game.room.player.dash_serial += 1
+	_game.room.player.position = boss2.position + Vector2(-40.0, 0.0)
+	_game.room.player.begin_strike(Vector2.RIGHT)
 	await _physics_frames(2)
-	check(not boss2.dead, "lunging at an un-cancelled Collector does not wound him")
+	check(not boss2.dead, "striking an un-cancelled Collector does not wound him")
 	check_approx(boss2.hp, boss2.max_hp, 0.001, "his stolen wheel takes exactly zero damage")
 	check(_game.state == Game.State.PLAY, "and the clang no longer kills you: nobody dies")
 
-	# A well-timed lunge must win the game. (A fresh load of the boss room.)
+	# A well-timed swing must win the game. (A fresh load of the boss room.)
 	_game.load_room(3)
 	await _frames(3)
 	var boss3: Guard = _game.room.boss
@@ -685,13 +793,12 @@ func _test_integration() -> void:
 	await _physics_frames(2)
 	check(boss3.vulnerable, "the kill window is open on the second boss attempt")
 	# The real Champion takes several windows (400 HP, x2.5 shatters). Drop him
-	# to one window's worth so this test proves the killing blow lands.
-	boss3.hp = 50.0
-	_game.room.player.position = boss3.position
-	_game.room.player.dash_left = 0.10
-	_game.room.player.dash_serial += 1
+	# below one shatter swing so this test proves the killing blow lands.
+	boss3.hp = 25.0
+	_game.room.player.position = boss3.position + Vector2(-40.0, 0.0)
+	_game.room.player.begin_strike(Vector2.RIGHT)
 	await _physics_frames(2)
-	check(boss3.dead, "a complement lunge inside the window kills the Collector")
+	check(boss3.dead, "a complement strike inside the window kills the Collector")
 
 	# Clear the remaining small guards to finish the room.
 	for g in _game.room.guards.duplicate():
@@ -821,12 +928,12 @@ func _test_integration() -> void:
 	check(ag.state == Guard.State.INVESTIGATE,
 		"when one guard locks on, nearby allies come to help")
 
-	# A lunge is loud enough to be heard by a guard standing nearby (but not so
-	# close that simply standing there would count as a contact kill).
+	# A swung blade is loud enough to be heard by a guard standing nearby (but
+	# not so close that simply standing there would count as combat).
 	ag.state = Guard.State.PATROL
 	ag.position = _game.room.player.position + Vector2(120.0, 0.0)
-	_game.room._on_player_dashed(Vector2.RIGHT)
-	check(ag.state == Guard.State.INVESTIGATE, "a lunge is heard by a guard standing nearby")
+	_game.room._on_player_struck(Vector2.RIGHT)
+	check(ag.state == Guard.State.INVESTIGATE, "a swung blade is heard by a guard standing nearby")
 
 	# --- guard speech -----------------------------------------------------
 	ag._say("spotted")

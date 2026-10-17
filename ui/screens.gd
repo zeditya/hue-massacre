@@ -370,15 +370,16 @@ func _draw_howto() -> void:
 		14, UiStyle.GOLD)
 	var rows: Array = [
 		["W A S D / ARROWS", "move - and point your light"],
-		["SPACE / CLICK", "lunge-dash the way you steer"],
+		["J / LEFT CLICK", "strike - press again to chain combo"],
+		["SPACE", "dodge roll - briefly untouchable"],
 		["R", "restart the room"],
 		["ESC", "back to the menu"],
 	]
-	var y: float = box.position.y + 66.0
+	var y: float = box.position.y + 62.0
 	for row in rows:
 		UiStyle.text(self, row[0], Vector2(box.position.x + 22.0, y), 14, UiStyle.PAPER)
 		UiStyle.text(self, row[1], Vector2(box.position.x + 22.0, y + 18.0), 13, UiStyle.DIM)
-		y += 46.0
+		y += 38.0
 
 	# --- the rules --------------------------------------------------------
 	var box2 := Rect2(670.0, 184.0, 400.0, 250.0)
@@ -386,11 +387,11 @@ func _draw_howto() -> void:
 	UiStyle.text(self, UiStyle.tracked("THE RULES", 2), Vector2(box2.position.x + 22.0, box2.position.y + 32.0),
 		14, UiStyle.GOLD)
 	var rules: Array = [
-		"Guards kill on touch. So does your blade.",
-		"You are hidden only where the floor",
-		"matches your hue - within 26 deg.",
-		"Complements (180 deg apart) cancel:",
-		"kill one, then its opposite, to combo.",
+		"Your blade cuts in the arc you face.",
+		"Complements SHATTER armour (x2.5);",
+		"the same hue is ABSORBED (x0.2).",
+		"Hide where the floor matches your hue",
+		"(within 26 degrees) and dodge the rest.",
 	]
 	var ry: float = box2.position.y + 62.0
 	for line in rules:

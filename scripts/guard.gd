@@ -154,7 +154,7 @@ var _attack_cooldown_left: float = 0.0
 ## 0..1 fade of the swing arc drawn right after the blade falls.
 var _swing_flash: float = 0.0
 ## Serial of the last lunge that hit this guard, so one lunge hits once.
-var _last_dash_serial: int = -1
+var _last_strike_serial: int = -1
 
 var _facing: float = 0.0
 var _point_index: int = 0
@@ -557,24 +557,35 @@ func _say(event: String) -> void:
 # ---------------------------------------------------------------------------
 
 ## The room calls this when the player's blade connects. `amount` is already
-## hue-multiplied; `shatter` marks a complement strike. Returns true when the
-## strike actually landed.
-func take_hit(amount: float, shatter: bool, from_position: Vector2, dash_serial: int) -> bool:
+## hue-multiplied; `shatter` marks a complement strike and `heavy` the last,
+## hardest swing of the player's chain. Returns true when the strike landed.
+func take_hit(amount: float, shatter: bool, heavy: bool, from_position: Vector2, strike_serial: int) -> bool:
 	if dead:
 		return false
-	# One lunge only hits each guard once, no matter how many physics frames
-	# the bodies overlap.
-	if dash_serial == _last_dash_serial:
+	# One swing only hits each guard once, no matter how many physics frames
+	# the blade overlaps them.
+	if strike_serial == _last_strike_serial:
 		return false
-	_last_dash_serial = dash_serial
+	_last_strike_serial = strike_serial
 
 	hp = maxf(hp - amount, 0.0)
 	hit_flash = 1.0
-	# Everything flinches briefly; a shatter knocks the knight down properly.
-	stagger_left = maxf(stagger_left, stagger_time if shatter else 0.18)
+	# Everything flinches briefly; a shatter knocks the knight down properly,
+	# and the heavy third swing staggers even through neutral armour.
+	var flinch: float = 0.18
+	if heavy:
+		flinch = 0.30
+	if shatter:
+		flinch = stagger_time
+	stagger_left = maxf(stagger_left, flinch)
 	var away: Vector2 = global_position - from_position
 	if away.length() > 0.001:
-		velocity += away.normalized() * (240.0 if shatter else 90.0)
+		var push: float = 90.0
+		if heavy:
+			push = 320.0
+		if shatter:
+			push = maxf(push, 240.0)
+		velocity += away.normalized() * push
 	if shatter:
 		_say("stagger")
 

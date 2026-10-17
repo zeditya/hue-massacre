@@ -27,8 +27,8 @@ signal strike_landed(kind: int, at: Vector2)
 ## The boss can only be cut while the player's hue sits on his COMPLEMENT,
 ## within this many degrees either way. 25 gives a 50-degree kill window.
 @export var boss_kill_tolerance_deg: float = 25.0
-## Extra reach on the blade so kills feel generous instead of pixel-perfect.
-@export var blade_reach_bonus: float = 8.0
+## How far a swing reaches beyond the two bodies is the PLAYER's strike_reach
+## (it lives next to the arc that draws it, so reach and picture cannot drift).
 ## Must be the same value the guards use, or the visuals would lie.
 @export var hide_tolerance_deg: float = 26.0
 
@@ -74,10 +74,9 @@ var _last_boss_vulnerable: bool = false
 
 
 func _ready() -> void:
-	# Resolve contacts AFTER the actors have moved. Godot processes a parent
-	# before its children, so without this the room would read last frame's dash
-	# state and a lunge that starts on the contact frame would wrongly kill the
-	# player instead of the guard.
+	# Resolve strikes AFTER the actors have moved. Godot processes a parent
+	# before its children, so without this the room would read the blade state
+	# from before this frame's swing: the first frame of every cut would whiff.
 	process_physics_priority = 1
 
 	var all_rooms: Array = LevelData.ROOMS
@@ -142,8 +141,9 @@ func _build_player() -> void:
 	# The room sits at the origin, so position and global_position agree here.
 	player.position = data["start"]
 	player.died.connect(_on_player_died)
-	# A lunge is loud: nearby guards hear it and come to look.
-	player.dashed.connect(_on_player_dashed)
+	# A swung blade is loud: nearby guards hear it and come to look. The same
+	# signal also runs the room's gentle auto-aim (see _on_player_struck).
+	player.struck.connect(_on_player_struck)
 	add_child(player)
 
 
@@ -201,7 +201,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_update_camouflage()
 	_update_boss_windows()
-	_resolve_contacts()
+	_resolve_strikes()
 	_resolve_motes()
 
 
@@ -226,29 +226,32 @@ func _update_boss_windows() -> void:
 		boss_vulnerable_changed.emit(boss.vulnerable)
 
 
-## Touching is decided by distance, not by physics. It is one comparison and
-## it cannot be affected by tunnelling, so it always behaves the same.
-##
-## Combat v1: contact alone hurts nobody. The blade (a lunge) is what cuts,
-## and the hue rule decides how hard: a complement SHATTERS the armour, a
-## matching hue is ABSORBED. Guards swing back with their own attacks.
-func _resolve_contacts() -> void:
-	if _player_gone or not player.is_dashing():
+## A landed swing is the only thing that wounds a knight. The blade cuts a
+## WEDGE in front of the player (strike_half_deg either side of the swing) and
+## the hue rule decides how hard: a complement SHATTERS the armour, a matching
+## hue is ABSORBED. Guards swing back with their own attacks (guard.gd).
+func _resolve_strikes() -> void:
+	if _player_gone or not player.is_striking():
 		return
+	var half: float = player.strike_half_rad()
 	for guard in guards.duplicate():
 		if guard.dead:
 			continue
-		var reach: float = player.body_radius + guard.body_radius + blade_reach_bonus
-		if player.position.distance_to(guard.position) > reach:
+		var to_guard: Vector2 = guard.position - player.position
+		var reach: float = player.body_radius + guard.body_radius + player.strike_reach_now()
+		if to_guard.length() > reach:
+			continue
+		# The blade cuts a wedge, not a circle: a knight at your back survives.
+		if absf(_angle_delta(to_guard.angle(), player.strike_angle())) > half:
 			continue
 		if guard.is_boss and not guard.vulnerable:
 			# The stolen wheel turns the blade aside, unless the hues cancel.
 			guard.clang()
 			continue
 		var kind: int = ColorTheory.hit_kind(player.colour, guard.colour)
-		var damage: float = player.strike_damage * ColorTheory.hit_multiplier(kind)
-		if guard.take_hit(damage, kind == ColorTheory.Hit.SHATTER,
-				player.global_position, player.dash_serial):
+		var damage: float = player.strike_damage_now() * ColorTheory.hit_multiplier(kind)
+		if guard.take_hit(damage, kind == ColorTheory.Hit.SHATTER, player.strike_is_heavy(),
+				player.global_position, player.strike_serial):
 			strike_landed.emit(kind, guard.position)
 
 
@@ -299,14 +302,47 @@ func _on_player_died() -> void:
 	player_died.emit()
 
 
-## The player lunged. Every guard close enough to hear it goes to look.
-func _on_player_dashed(_direction: Vector2) -> void:
+## The spark swung the blade. Two jobs, in order:
+##   1. GENTLE AUTO-AIM: if a knight already stands inside the swing's soft
+##      arc (auto_aim_deg either side of where the player pointed), the swing
+##      turns to face them. It never fires at a knight behind the player, so
+##      it assists the aim without ever playing the game for you.
+##   2. NOISE: a swung blade sings. Every knight close enough to hear it comes
+##      to look - attacking still costs you your hiding place.
+func _on_player_struck(direction: Vector2) -> void:
 	if player == null or _player_gone:
 		return
+	var target: Guard = _nearest_guard_in_arc(direction.angle(),
+		deg_to_rad(player.auto_aim_deg), player.body_radius + player.strike_reach_now() + 34.0)
+	if target != null:
+		player.aim_strike_at(target.global_position)
 	for guard in guards:
 		if is_instance_valid(guard) and not guard.dead \
 				and guard.global_position.distance_to(player.global_position) <= hear_radius:
 			guard.hear(player.global_position)
+
+
+## Nearest living knight within `half` radians of `direction` and closer than
+## `max_dist`. Used to pull a swing onto a target already in front of the
+## player.
+func _nearest_guard_in_arc(direction: float, half: float, max_dist: float) -> Guard:
+	var best: Guard = null
+	var best_dist: float = max_dist
+	for guard in guards:
+		if not is_instance_valid(guard) or guard.dead:
+			continue
+		var to_guard: Vector2 = guard.position - player.position
+		var d: float = to_guard.length()
+		if d > best_dist or absf(_angle_delta(to_guard.angle(), direction)) > half:
+			continue
+		best = guard
+		best_dist = d
+	return best
+
+
+## Shortest signed distance between two angles (radians), wrapped to -PI..PI.
+func _angle_delta(a: float, b: float) -> float:
+	return fposmod(a - b + PI, TAU) - PI
 
 
 ## One guard locking on raises the alarm: nearby allies come to help.

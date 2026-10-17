@@ -46,7 +46,7 @@ enum State { TITLE, INTRO, PLAY, PAUSED, DEAD, WIN }
 @export_group("Feedback")
 ## How fast screen shake decays. Higher = snappier.
 @export var shake_decay: float = 5.5
-@export var dash_shake: float = 3.0
+@export var roll_shake: float = 3.0
 @export var kill_shake: float = 9.0
 @export var combo_shake: float = 16.0
 @export var death_shake: float = 20.0
@@ -402,6 +402,9 @@ func load_room(index: int) -> void:
 	room.boss_vulnerable_changed.connect(_on_boss_vulnerable_changed)
 	room.strike_landed.connect(_on_strike_landed)
 	world_root.add_child(room)
+	# The dodge roll belongs to the player alone, so its feedback (a shove of
+	# the camera, the air-puff sound) hangs straight off the player's signal.
+	room.player.rolled.connect(_on_player_rolled)
 	_snap_camera()
 
 	if hud != null:
@@ -512,6 +515,13 @@ func _on_strike_landed(kind: int, _at: Vector2) -> void:
 		_:
 			_add_shake(kill_shake * 0.45)
 			audio.play("hit", randf_range(0.95, 1.15))
+
+
+## A dodge roll has no victim to play feedback for, so it gets its own small
+## juice: a shove of the camera and the old air-puff sound, pitched up a touch.
+func _on_player_rolled(_direction: Vector2) -> void:
+	_add_shake(roll_shake)
+	audio.play("dash", randf_range(1.05, 1.20))
 
 
 func _on_player_died() -> void:

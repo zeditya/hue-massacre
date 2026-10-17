@@ -39,30 +39,34 @@ Colour is both halves of the game. It is how you hide, and it is how you kill.
 
 ## 2. How to play
 
-You have no health bar and no gun. Everything is one hit.
+You have no gun. You have a blade — and since the rebuild you also have vigour,
+and so does every guard: this is a melee arena now, not one-touch tag.
 
-- **Guards kill you on touch.** Any contact, any colour, instant death.
-- **You kill guards with the lunge.** A short dash with a blade. Contact kills.
+- **Guards cut you with telegraphed swings.** 12 vigour per hit, 25 from the boss.
+- **You cut them back in 3-swing chains** (12 / 12 / 20 — the third knocks back),
+  and the hue gap decides the multiplier (see below).
 - Death costs you nothing but tempo: **the room restarts instantly**, with your
   combo reset (your score and the room number are kept).
 
-The loop is: *watch the cone → pick your moment → lunge → take the colour →
+The loop is: *watch the cone → pick your moment → strike → take the colour →
 hide in your own paint → repeat.*
 
 ### Controls
 
 | Input | Action |
 |---|---|
-| **W A S D** or **Arrow keys** | Move — this also aims your light cone and your lunge |
-| **Space** or **Left mouse button** | Lunge-dash the way you are steering (kills on contact) |
+| **W A S D** or **Arrow keys** | Move — this also aims your light cone and your blade |
+| **J** or **Left mouse button** | Strike — 3-swing chain of 12 / 12 / 20; the third knocks back |
+| **Space** | Dodge roll — i-frames at the start of the roll |
 | **R** | Restart the current room immediately |
 | **Esc** | Pause — Resume / Restart room / Quit to menu |
 | **W / S** on a menu | Move the highlight; **Space / Enter / click** selects |
 
 There is deliberately **no separate mouse aim.** The way you steer is the way you
-face, the way you lunge, and the way your light cone points — one input, one
-direction, so the keyboard never fights the mouse. A thin ring around the spark
-fills back in as the lunge recharges.
+face, the way your blade swings, and the way your light cone points — one input,
+one direction, so the keyboard never fights the mouse. A swing gets one gentle
+pull onto a knight already standing in front of you; it never reaches behind your
+back. A thin ring around the spark fills back in as the dodge roll recharges.
 
 ### The shell: menu, story, pause
 

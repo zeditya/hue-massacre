@@ -1,28 +1,39 @@
 class_name Player
 extends CharacterBody2D
 ##
-## PLAYER - "the spark".
+## PLAYER - the spark.
 ##
 ## Three things make this node interesting:
-##   1. Movement is plain WASD, but the only attack is the LUNGE-DASH, which is
-##      also the only way to move fast. That is the whole risk/reward loop:
-##      the same button that kills is the button that gets you seen.
+##   1. Two verbs, split cleanly. STRIKE (J / left mouse) is a three-swing
+##      chain that cuts wherever you are steering; DODGE (space) is a roll
+##      with i-frames. Attacking is how you win the room, dodging is how you
+##      survive the reply - and the roll also cancels a swing, so committing
+##      to it is always possible.
 ##   2. `colour` is the player's current hue. It starts white/grey and is
 ##      re-mixed with every guard that dies (ColorTheory.absorb).
 ##   3. `visibility_now` is written by the room each frame. 0 means the floor
 ##      under the spark matches their hue, so guards cannot build detection.
 ##
+## Two combat rules live in the room instead, because they need to see the
+## whole battlefield: the hue multiplier on a landed swing, and the gentle
+## auto-aim that turns a swing onto a knight already standing in front of you.
+##
 ## All the numbers worth tuning are the @export variables right below.
 
 signal died
-signal dashed(direction: Vector2)
+## Emitted at the start of every swing. `direction` is where the blade points
+## before the room's auto-aim; the room answers by aiming the swing and by
+## letting nearby guards know they heard a blade.
+signal struck(direction: Vector2)
+## Emitted at the start of a dodge roll. game.gd hangs its feedback on this.
+signal rolled(direction: Vector2)
 ## Emitted every time a hit actually lands on the player. game.gd uses it for
 ## feedback; the room does not need it.
 signal hurt(amount: float, from_position: Vector2)
 
 @export_group("Movement")
 ## Walking speed in pixels/second. Guards patrol slower than this but chase
-## faster than this for the first moment, so you must commit to a dash.
+## faster than this, so you cannot simply outrun a fight - you dodge it.
 @export var move_speed: float = 240.0
 ## How quickly the spark reaches walking speed (pixels/second/second).
 ## High values = the spark answers the keys on the same frame you press them,
@@ -36,14 +47,49 @@ signal hurt(amount: float, from_position: Vector2)
 ## Physics radius. Must match the collision shape built in _ready().
 @export var body_radius: float = 12.0
 
-@export_group("Lunge dash")
-## Speed of the lunge. Roughly 3.5x walking speed.
-@export var dash_speed: float = 820.0
-## How long the lunge lasts. Short enough to feel like a stab, not a sprint.
-@export var dash_duration: float = 0.15
-## Seconds between lunges. Keep it long enough that spam is punished.
-@export var dash_cooldown: float = 0.50
-## Fading copies left behind during the lunge (pure visual juice).
+@export_group("Strike")
+## The three-swing chain, in order: each swing deals its own damage. The last
+## one lands with the whole body behind it and knocks the target back.
+@export var combo_damage: Array[float] = [12.0, 12.0, 20.0]
+## How long the blade is out and able to connect. Also the swing's whole
+## visible life - the arc in _draw() is drawn across exactly this window.
+@export var strike_active: float = 0.14
+## Seconds after a swing starts before the next one can. Long enough that a
+## swing is a commitment, short enough that the chain flows.
+@export var strike_cooldown: float = 0.28
+## How long the chain survives between swings. Press again inside it and the
+## next swing is hit 2 (then the heavy 3); wait past it and the chain resets.
+@export var combo_window: float = 0.60
+## How far past the body the blade reaches. The room adds the two body
+## radii to this when it tests whether a swing connects.
+@export var strike_reach: float = 22.0
+## Half-angle of the swing, in degrees. The blade cuts a WEDGE, not a circle:
+## a knight at your back survives a swing aimed forward.
+@export var strike_half_deg: float = 55.0
+## Auto-aim arc: the room may turn a swing onto any knight within this many
+## degrees of where the player was already pointing. Gentle, not snap-aim -
+## it never fires behind the player, so it assists without aiming for you.
+@export var auto_aim_deg: float = 60.0
+## A small forward step on every swing, so attacking walks you into the fight
+## instead of leaving you planted while everyone else moves.
+@export var strike_step: float = 300.0
+## The heavy third swing's extra reach and arc, as multipliers on the two
+## values above. The room resolves hits with the same numbers, so the wedge
+## the player DRAWS is always the wedge that cuts.
+const HEAVY_REACH_SCALE: float = 1.12
+const HEAVY_ARC_SCALE: float = 1.35
+
+@export_group("Dodge roll")
+## Space: a fast burst with i-frames at the start. The escape button.
+@export var roll_duration: float = 0.35
+## How long from the roll's start the player cannot be hit. Front-loaded on
+## purpose: the roll is a timed answer, not a second health bar.
+@export var roll_iframes: float = 0.25
+## Peak speed of the roll (about 2.3x walking speed).
+@export var roll_speed: float = 560.0
+## Seconds between rolls.
+@export var roll_cooldown: float = 0.90
+## Fading copies left behind during the roll (pure visual juice).
 @export var afterimage_count: int = 5
 ## Seconds between afterimage samples.
 @export var afterimage_interval: float = 0.022
@@ -66,14 +112,23 @@ signal hurt(amount: float, from_position: Vector2)
 @export var hit_knockback: float = 260.0
 ## Seconds the player cannot steer after a hit, so the shove reads.
 @export var hitstun_time: float = 0.16
-## Base damage of one lunge strike. The room multiplies it by the hue rule:
-## complements SHATTER (x2.5), a matching hue is ABSORBED (x0.2).
-@export var strike_damage: float = 34.0
 
-## -1 when ready, 0..dash_duration while lunging.
-var dash_left: float = 0.0
-## Counts down to 0; the lunge is allowed when this hits 0.
-var dash_cooldown_left: float = 0.0
+## Seconds of blade-out time left. The room asks is_striking() every frame.
+var strike_left: float = 0.0
+## Counts down to 0; the next swing is allowed when it hits 0.
+var strike_cooldown_left: float = 0.0
+## Seconds the current chain survives. 0 means the next swing starts hit 1.
+var combo_left: float = 0.0
+## Which swing of the chain is out right now (0-based into combo_damage).
+var strike_index: int = 0
+## Increments once per swing. Guards remember the last serial they took a hit
+## from, so one swing hits each of them once no matter how long the blade
+## overlaps them.
+var strike_serial: int = 0
+## Seconds of dodge roll left; 0 means not rolling.
+var roll_left: float = 0.0
+## Counts down to 0; the next roll is allowed when it hits 0.
+var roll_cooldown_left: float = 0.0
 ## 0..1 how camouflaged the spark is (written by the room every frame).
 var visibility_now: float = 1.0
 ## True when standing in paint that matches the spark's hue.
@@ -89,11 +144,11 @@ var invuln_left: float = 0.0
 var hitstun_left: float = 0.0
 ## 0..1 fade of the red hurt flash. Purely visual.
 var hurt_flash: float = 0.0
-## Increments once per lunge. Guards remember the last serial they took a hit
-## from, so one lunge hits each of them once no matter how long bodies overlap.
-var dash_serial: int = 0
 
-var _dash_dir: Vector2 = Vector2.RIGHT
+## Where the blade points while it is out. The room may turn it (auto-aim).
+var _strike_dir: Vector2 = Vector2.RIGHT
+## Where the roll is going. Locked in when the roll starts.
+var _roll_dir: Vector2 = Vector2.RIGHT
 var _facing: float = 0.0
 var _trail: Array = []
 var _trail_timer: float = 0.0
@@ -109,7 +164,7 @@ var _dir: String = "down"
 
 func _ready() -> void:
 	# Actors live on layer 2 but only collide with layer 1 (the walls), so the
-	# player and guards pass through each other. Touching is detected by
+	# player and guards pass through each other. Strikes are detected by
 	# distance in room.gd, which is far more predictable than physics contacts.
 	collision_layer = 2
 	collision_mask = 1
@@ -135,8 +190,11 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	dash_left = maxf(dash_left - delta, 0.0)
-	dash_cooldown_left = maxf(dash_cooldown_left - delta, 0.0)
+	strike_left = maxf(strike_left - delta, 0.0)
+	strike_cooldown_left = maxf(strike_cooldown_left - delta, 0.0)
+	combo_left = maxf(combo_left - delta, 0.0)
+	roll_left = maxf(roll_left - delta, 0.0)
+	roll_cooldown_left = maxf(roll_cooldown_left - delta, 0.0)
 	invuln_left = maxf(invuln_left - delta, 0.0)
 	hitstun_left = maxf(hitstun_left - delta, 0.0)
 
@@ -146,34 +204,30 @@ func _physics_process(delta: float) -> void:
 		return
 
 	# --- reading input -----------------------------------------------------
-	# While hit-stunned the keys are ignored for a beat, so being hit actually
-	# interrupts you instead of being just a number going down.
+	# While hit-stunned or mid-roll the keys are ignored, so a hit actually
+	# interrupts you and a roll actually commits you.
+	var busy: bool = hitstun_left > 0.0 or roll_left > 0.0
 	var input: Vector2 = Vector2.ZERO
-	if hitstun_left <= 0.0:
+	if not busy:
 		input = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 
-	# --- starting a lunge --------------------------------------------------
-	# ONE input, ONE direction: the lunge goes the way you are STEERING, so the
-	# light cone, the walk and the blade all agree. If you are standing still it
-	# goes where you last faced. There is deliberately no separate mouse aim -
-	# the controls stay entirely on the keyboard so they never fight each other.
-	var wants_dash: bool = hitstun_left <= 0.0 and (
-		Input.is_action_just_pressed("dash") or Input.is_action_just_pressed("dash_aim"))
-	if wants_dash and dash_left <= 0.0 and dash_cooldown_left <= 0.0:
-		if input.length() > 0.01:
-			_dash_dir = input.normalized()
-			_facing = _dash_dir.angle()
-		else:
-			_dash_dir = Vector2.RIGHT.rotated(_facing)
-		dash_left = dash_duration
-		dash_cooldown_left = dash_cooldown
-		dash_serial += 1
-		_trail.clear()
-		dashed.emit(_dash_dir)
+	# --- the two verbs ------------------------------------------------------
+	# STRIKE: one swing at a time, then a short cooldown. Press again inside
+	# the combo window and the chain continues to hit 2, then the heavy 3.
+	if not busy and strike_cooldown_left <= 0.0 and Input.is_action_just_pressed("strike"):
+		begin_strike(input)
+	# DODGE: a roll the way you steer. Deliberately checked after the strike,
+	# so if both land on the same frame the roll wins and cancels the swing -
+	# the defensive option must never be the one that gets eaten.
+	if not busy and roll_cooldown_left <= 0.0 and Input.is_action_just_pressed("dodge"):
+		begin_roll(input)
 
 	# --- moving ------------------------------------------------------------
-	if dash_left > 0.0:
-		velocity = _dash_dir * dash_speed
+	if roll_left > 0.0:
+		# The roll: a fast burst that eases out over its life. No steering -
+		# a roll is a commitment, and the i-frames are what you paid for.
+		var t: float = roll_left / maxf(roll_duration, 0.01)
+		velocity = _roll_dir * roll_speed * (0.35 + 0.65 * t)
 		# Leave a fading copy of ourselves behind roughly every 22ms.
 		_trail_timer -= delta
 		if _trail_timer <= 0.0:
@@ -196,8 +250,9 @@ func _physics_process(delta: float) -> void:
 	# --- walk cycle ------------------------------------------------------
 	# Creates a bobbing squash feeling. Faster movement = faster cycle. The
 	# cosine keeps the bob smooth and seamless as the phase wraps back to 0.
+	# (The roll skips it: the tumble rotation below is its animation.)
 	var spd: float = velocity.length()
-	if spd > 50.0:
+	if spd > 50.0 and roll_left <= 0.0:
 		_walk_cycle = fposmod(_walk_cycle + delta * spd / 80.0, 1.0)
 		_squash = 0.5 - 0.5 * cos(_walk_cycle * TAU)
 	else:
@@ -220,14 +275,23 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	hurt_flash = maxf(hurt_flash - delta * 3.0, 0.0)
-	# Invulnerability reads as a blink: the universal "you cannot be hit".
 	if _sprite != null:
-		_sprite.visible = invuln_left <= 0.0 or fmod(invuln_left, 0.18) > 0.09
+		# Invulnerability reads as a blink: the universal "you cannot be hit".
+		# A roll shows the tumble instead - blinking on top of it would just
+		# look like a broken sprite.
+		var blinking: bool = invuln_left > 0.0 and roll_left <= 0.0
+		_sprite.visible = not blinking or fmod(invuln_left, 0.18) > 0.09
+		if roll_left > 0.0:
+			var progress: float = 1.0 - roll_left / maxf(roll_duration, 0.01)
+			_sprite.rotation = TAU * progress * (1.0 if _roll_dir.x >= 0.0 else -1.0)
+		else:
+			_sprite.rotation = 0.0
 	queue_redraw()
 
 
 ## Pick the animation that matches what the character is doing right now:
-##   dashing -> attack_<dir>    moving -> run_<dir>    still -> idle_<dir>
+##   rolling -> attack_<dir> (tumbled)   swinging -> attack_<dir>
+##   moving  -> run_<dir>                still    -> idle_<dir>
 func _update_animation() -> void:
 	if _sprite == null:
 		return
@@ -237,8 +301,11 @@ func _update_animation() -> void:
 	_sprite.scale = Vector2(1.0 + squash, 1.0 - squash)
 	_sprite.position = Vector2(0.0, -2.0 * _squash)
 	var want: String
-	if is_dashing():
-		_dir = SpriteBank.dir_from_angle(_dash_dir.angle())
+	if is_rolling():
+		_dir = SpriteBank.dir_from_vector(_roll_dir)
+		want = "attack_%s" % _dir
+	elif is_striking():
+		_dir = SpriteBank.dir_from_angle(_strike_dir.angle())
 		want = "attack_%s" % _dir
 	elif velocity.length() > 30.0:
 		_dir = SpriteBank.dir_from_vector(velocity)
@@ -256,17 +323,96 @@ func _apply_tint() -> void:
 
 
 # ---------------------------------------------------------------------------
+# The two verbs. begin_strike / begin_roll are called by the input handling
+# above - and directly by the test suite, which is how a swing or a roll can
+# be simulated without synthesising key events.
+# ---------------------------------------------------------------------------
+
+## Swing the blade. `input` is the steering direction this frame, if any: the
+## swing goes the way you are moving, or the way you last faced. Emits
+## `struck` so the room can add its auto-aim and the noise.
+func begin_strike(input: Vector2 = Vector2.ZERO) -> void:
+	if input.length() > 0.01:
+		_facing = input.angle()
+	_strike_dir = Vector2.RIGHT.rotated(_facing)
+	# The chain: a swing inside the window continues it, otherwise it starts
+	# over. Hit 3 (the last entry) is the heavy one.
+	if combo_left > 0.0 and not combo_damage.is_empty():
+		strike_index = (strike_index + 1) % combo_damage.size()
+	else:
+		strike_index = 0
+	combo_left = combo_window
+	strike_left = strike_active
+	strike_cooldown_left = strike_cooldown
+	strike_serial += 1
+	# A small step into the swing, so attacking moves you forward.
+	velocity = _strike_dir * strike_step
+	struck.emit(_strike_dir)
+
+
+## Roll. `input` is the steering direction this frame, if any; standing still
+## rolls the way you last faced. The first `roll_iframes` seconds cannot be
+## hit, and a swing in progress is cancelled - the roll is the universal
+## "get me out of this".
+func begin_roll(input: Vector2 = Vector2.ZERO) -> void:
+	_roll_dir = input.normalized() if input.length() > 0.01 else Vector2.RIGHT.rotated(_facing)
+	_facing = _roll_dir.angle()
+	roll_left = roll_duration
+	roll_cooldown_left = roll_cooldown
+	invuln_left = maxf(invuln_left, roll_iframes)
+	strike_left = 0.0
+	_trail.clear()
+	_trail_timer = 0.0
+	rolled.emit(_roll_dir)
+
+
+# ---------------------------------------------------------------------------
 # Public API used by the room
 # ---------------------------------------------------------------------------
 
-## True while the blade is out and able to kill a guard.
-func is_dashing() -> bool:
-	return dash_left > 0.0
+## True while the blade is out and able to cut.
+func is_striking() -> bool:
+	return strike_left > 0.0
 
 
-## Fly forward at the moment of a kill (a tiny lunge extension).
-func get_blade_direction() -> Vector2:
-	return _dash_dir if dash_left > 0.0 else Vector2.RIGHT.rotated(_facing)
+## True while the roll is carrying the spark.
+func is_rolling() -> bool:
+	return roll_left > 0.0
+
+
+## Damage of the swing that is out right now, before the hue multiplier.
+func strike_damage_now() -> float:
+	if combo_damage.is_empty():
+		return 0.0
+	return combo_damage[clampi(strike_index, 0, combo_damage.size() - 1)]
+
+
+## True when the swinging hit is the heavy last one of the chain.
+func strike_is_heavy() -> bool:
+	return not combo_damage.is_empty() and strike_index >= combo_damage.size() - 1
+
+
+## The heavy third swing cleaves wider and further than the two quick ones.
+## The room resolves hits with these same numbers, so the wedge you see drawn
+## is exactly the wedge that cuts.
+func strike_reach_now() -> float:
+	return strike_reach * (HEAVY_REACH_SCALE if strike_is_heavy() else 1.0)
+
+
+func strike_half_rad() -> float:
+	return deg_to_rad(strike_half_deg) * (HEAVY_ARC_SCALE if strike_is_heavy() else 1.0)
+
+
+## Direction the blade is pointing (already auto-aimed by the room).
+func strike_angle() -> float:
+	return _strike_dir.angle()
+
+
+## The room's gentle - and only - auto-aim: turn the swing onto a knight the
+## player could already see. Called from room._on_player_struck.
+func aim_strike_at(target_position: Vector2) -> void:
+	_strike_dir = (target_position - global_position).normalized()
+	_facing = _strike_dir.angle()
 
 
 ## Take on `guard_colour` using HSV hue blending.
@@ -296,7 +442,7 @@ func take_damage(amount: float, from_position: Vector2) -> bool:
 	return true
 
 
-## True while the last hit is still ringing.
+## True while the last hit is still ringing (or a roll's i-frames are up).
 func is_invulnerable() -> bool:
 	return invuln_left > 0.0
 
@@ -321,8 +467,8 @@ func aim_angle() -> float:
 
 
 ## Take on the whole hue of a colour mote. Unlike a kill, a mote is a full
-## drink of colour rather than a 50% blend, because the mote is already made of
-## pure hue and there is nothing to mix it with.
+## drink of colour rather than a 50% blend, because the mote is already made
+## of pure hue and there is nothing to mix it with.
 func drink(mote_colour: Color) -> void:
 	colour = Color.from_hsv(mote_colour.h, clampf(maxf(mote_colour.s, 0.85), 0.0, 1.0),
 		clampf(maxf(mote_colour.v, 0.92), 0.0, 1.0), 1.0)
@@ -334,7 +480,7 @@ func drink(mote_colour: Color) -> void:
 # ---------------------------------------------------------------------------
 
 func _draw() -> void:
-	# --- dash afterimages --------------------------------------------------
+	# --- roll afterimages ---------------------------------------------------
 	# Local space equals world space offset from global_position because the
 	# node is never rotated or scaled, so we can subtract the offset and draw.
 	for t in _trail:
@@ -346,6 +492,36 @@ func _draw() -> void:
 	# --- ground shadow -----------------------------------------------------
 	# Drawn UNDER the sprite so the figure does not look like it is floating.
 	draw_circle(Vector2(0.0, body_radius * 1.1), body_radius * 0.95, Color(0.0, 0.0, 0.0, 0.30))
+
+	# --- the swinging blade -------------------------------------------------
+	# A white arc sweeping through the strike wedge, along the direction the
+	# room last aimed it. It stays bright for the whole swing (the room is
+	# dark: a slash that fades to nothing cannot be read). The heavy third
+	# swing is longer, thicker and tipped with the player's own hue - the
+	# chain has to READ at a glance, because hit 3 is worth more than hit 1
+	# and hit 2 together.
+	if is_striking():
+		var half: float = strike_half_rad()
+		var dir: float = _strike_dir.angle()
+		var progress: float = clampf(1.0 - strike_left / maxf(strike_active, 0.01), 0.0, 1.0)
+		var from_a: float = dir - half
+		var to_a: float = dir - half + 2.0 * half * progress
+		var fade: float = 1.0 - 0.45 * progress
+		var reach: float = body_radius + strike_reach_now()
+		var heavy: bool = strike_is_heavy()
+		if heavy:
+			draw_arc(Vector2.ZERO, reach, from_a, to_a, 28,
+				Color(1.0, 1.0, 1.0, 0.95 * fade), 7.0, true)
+			draw_arc(Vector2.ZERO, reach * 0.75, from_a, to_a, 22,
+				Color(colour.r, colour.g, colour.b, 0.60 * fade), 3.5, true)
+		else:
+			draw_arc(Vector2.ZERO, reach, from_a, to_a, 20,
+				Color(1.0, 1.0, 1.0, 0.85 * fade), 4.0, true)
+		# The point of the blade: a bright dot riding the leading edge of the
+		# sweep, so the eye can tell WHICH WAY the cut is going.
+		var tip_dir: Vector2 = Vector2.RIGHT.rotated(to_a)
+		draw_circle(tip_dir * reach, 4.0 if heavy else 3.0,
+			Color(1.0, 1.0, 1.0, minf(1.0, 1.1 * fade)))
 
 	# --- hurt flash --------------------------------------------------------
 	# A red ring snapping outward for a beat, so a hit on the player is never
@@ -363,10 +539,11 @@ func _draw() -> void:
 	else:
 		draw_circle(Vector2.ZERO, body_radius * 1.7, Color(colour.r, colour.g, colour.b, 0.09))
 
-	# --- dash readiness ring ----------------------------------------------
-	# A thin ring that fills as the lunge recharges and closes into a full circle
-	# when it is ready again. Without it the only feedback is "nothing happened".
-	var ready: float = 1.0 - clampf(dash_cooldown_left / maxf(dash_cooldown, 0.01), 0.0, 1.0)
+	# --- roll readiness ring ----------------------------------------------
+	# A thin ring that fills as the roll recharges and closes into a full
+	# circle when it is ready again. Without it the only feedback is
+	# "nothing happened".
+	var ready: float = 1.0 - clampf(roll_cooldown_left / maxf(roll_cooldown, 0.01), 0.0, 1.0)
 	if ready < 1.0:
 		draw_arc(Vector2.ZERO, body_radius * 2.0, -PI * 0.5, -PI * 0.5 + TAU * ready, 24,
 			Color(1.0, 1.0, 1.0, 0.40), 2.0, true)
