@@ -20,6 +20,8 @@ signal guard_killed(guard: Guard)
 signal player_died
 signal room_cleared
 signal boss_vulnerable_changed(is_vulnerable: bool)
+## A strike landed on a guard (before any kill). kind = ColorTheory.Hit.
+signal strike_landed(kind: int, at: Vector2)
 
 @export_group("Rules")
 ## The boss can only be cut while the player's hue sits on his COMPLEMENT,
@@ -158,6 +160,10 @@ func _build_guards() -> void:
 		guard.cone_angle_deg = float(spec.get("cone_angle", 64.0))
 		guard.hue_speed = float(spec.get("hue_speed", 0.0))
 		guard.hide_tolerance_deg = hide_tolerance_deg
+		# Combat stats: a basic knight dies fast, the Champion of the Wheel
+		# takes a full duel's worth of shatters. Room specs may override both.
+		guard.max_hp = float(spec.get("hp", (400.0 if guard.is_boss else 60.0)))
+		guard.damage = float(spec.get("damage", (25.0 if guard.is_boss else 12.0)))
 
 		var route := PackedVector2Array()
 		for point in spec["path"]:
@@ -222,8 +228,12 @@ func _update_boss_windows() -> void:
 
 ## Touching is decided by distance, not by physics. It is one comparison and
 ## it cannot be affected by tunnelling, so it always behaves the same.
+##
+## Combat v1: contact alone hurts nobody. The blade (a lunge) is what cuts,
+## and the hue rule decides how hard: a complement SHATTERS the armour, a
+## matching hue is ABSORBED. Guards swing back with their own attacks.
 func _resolve_contacts() -> void:
-	if _player_gone:
+	if _player_gone or not player.is_dashing():
 		return
 	for guard in guards.duplicate():
 		if guard.dead:
@@ -231,17 +241,28 @@ func _resolve_contacts() -> void:
 		var reach: float = player.body_radius + guard.body_radius + blade_reach_bonus
 		if player.position.distance_to(guard.position) > reach:
 			continue
-		# Blade out AND the boss is inside the kill window -> they die.
-		# Anything else (plain contact, or a mistimed lunge at the Collector)
-		# kills the player. One hit kills, both ways.
-		if player.is_dashing() and (not guard.is_boss or guard.vulnerable):
-			_kill_guard(guard)
-		else:
-			player.kill()
-			return
+		if guard.is_boss and not guard.vulnerable:
+			# The stolen wheel turns the blade aside, unless the hues cancel.
+			guard.clang()
+			continue
+		var kind: int = ColorTheory.hit_kind(player.colour, guard.colour)
+		var damage: float = player.strike_damage * ColorTheory.hit_multiplier(kind)
+		if guard.take_hit(damage, kind == ColorTheory.Hit.SHATTER,
+				player.global_position, player.dash_serial):
+			strike_landed.emit(kind, guard.position)
 
 
+## Scripted kills (and the test suite's short-cut for them) land here. Every
+## way a guard can die now goes through die(), so the accounting only has to
+## happen in one place: _on_guard_killed below.
 func _kill_guard(guard: Guard) -> void:
+	guard.die()
+
+
+## The guard announced its death - however it happened (the player's blade, a
+## test calling _kill_guard). The room does the accounting here, so no path
+## can kill a guard without spilling its colour or feeding the player's hue.
+func _on_guard_killed(guard: Guard) -> void:
 	# 1. The stolen colour hits the floor, in the guard's own hue.
 	#    A boss throws a much larger splat, which also fills the restore bar fast.
 	paint.spawn(guard.position, guard.colour, 2.2 if guard.is_boss else 1.0)
@@ -251,11 +272,7 @@ func _kill_guard(guard: Guard) -> void:
 	#    (A previous version of this file forgot this line, and the test suite
 	#     caught it - the player stayed white and could never hide.)
 	player.absorb_colour(guard.colour)
-	# 3. The guard itself dies and announces it.
-	guard.die()
-
-
-func _on_guard_killed(guard: Guard) -> void:
+	# 3. Then the guard leaves the field.
 	guards.erase(guard)
 	guard_killed.emit(guard)
 	if guards.is_empty() and not _cleared:

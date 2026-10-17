@@ -16,6 +16,9 @@ extends CharacterBody2D
 
 signal died
 signal dashed(direction: Vector2)
+## Emitted every time a hit actually lands on the player. game.gd uses it for
+## feedback; the room does not need it.
+signal hurt(amount: float, from_position: Vector2)
 
 @export_group("Movement")
 ## Walking speed in pixels/second. Guards patrol slower than this but chase
@@ -54,6 +57,19 @@ signal dashed(direction: Vector2)
 ## spark is invisible. Also used by the HUD to explain hiding.
 @export var hide_tolerance_deg: float = 26.0
 
+@export_group("Combat")
+## Player health. The arena is a fight now: hits cost vigour, not the run.
+@export var max_hp: float = 100.0
+## Seconds of invulnerability after a hit, so a pack cannot chain-stun you.
+@export var invuln_time: float = 0.8
+## How hard a hit shoves the player away from whoever dealt it.
+@export var hit_knockback: float = 260.0
+## Seconds the player cannot steer after a hit, so the shove reads.
+@export var hitstun_time: float = 0.16
+## Base damage of one lunge strike. The room multiplies it by the hue rule:
+## complements SHATTER (x2.5), a matching hue is ABSORBED (x0.2).
+@export var strike_damage: float = 34.0
+
 ## -1 when ready, 0..dash_duration while lunging.
 var dash_left: float = 0.0
 ## Counts down to 0; the lunge is allowed when this hits 0.
@@ -64,6 +80,18 @@ var visibility_now: float = 1.0
 var is_hidden: bool = false
 ## Frozen while the death animation plays.
 var frozen: bool = false
+
+## Current health. Hits take it down; reaching 0 runs the normal death path.
+var hp: float = 100.0
+## Counts down; while positive the player cannot be hit again.
+var invuln_left: float = 0.0
+## Counts down; while positive input is ignored so the knockback reads.
+var hitstun_left: float = 0.0
+## 0..1 fade of the red hurt flash. Purely visual.
+var hurt_flash: float = 0.0
+## Increments once per lunge. Guards remember the last serial they took a hit
+## from, so one lunge hits each of them once no matter how long bodies overlap.
+var dash_serial: int = 0
 
 var _dash_dir: Vector2 = Vector2.RIGHT
 var _facing: float = 0.0
@@ -102,12 +130,15 @@ func _ready() -> void:
 	_sprite.centered = true
 	_sprite.material = SpriteBank.tint_material(colour)
 	add_child(_sprite)
+	hp = max_hp
 	_update_animation()
 
 
 func _physics_process(delta: float) -> void:
 	dash_left = maxf(dash_left - delta, 0.0)
 	dash_cooldown_left = maxf(dash_cooldown_left - delta, 0.0)
+	invuln_left = maxf(invuln_left - delta, 0.0)
+	hitstun_left = maxf(hitstun_left - delta, 0.0)
 
 	if frozen:
 		velocity = Vector2.ZERO
@@ -115,14 +146,19 @@ func _physics_process(delta: float) -> void:
 		return
 
 	# --- reading input -----------------------------------------------------
-	var input: Vector2 = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	# While hit-stunned the keys are ignored for a beat, so being hit actually
+	# interrupts you instead of being just a number going down.
+	var input: Vector2 = Vector2.ZERO
+	if hitstun_left <= 0.0:
+		input = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 
 	# --- starting a lunge --------------------------------------------------
 	# ONE input, ONE direction: the lunge goes the way you are STEERING, so the
 	# light cone, the walk and the blade all agree. If you are standing still it
 	# goes where you last faced. There is deliberately no separate mouse aim -
 	# the controls stay entirely on the keyboard so they never fight each other.
-	var wants_dash: bool = Input.is_action_just_pressed("dash") or Input.is_action_just_pressed("dash_aim")
+	var wants_dash: bool = hitstun_left <= 0.0 and (
+		Input.is_action_just_pressed("dash") or Input.is_action_just_pressed("dash_aim"))
 	if wants_dash and dash_left <= 0.0 and dash_cooldown_left <= 0.0:
 		if input.length() > 0.01:
 			_dash_dir = input.normalized()
@@ -131,6 +167,7 @@ func _physics_process(delta: float) -> void:
 			_dash_dir = Vector2.RIGHT.rotated(_facing)
 		dash_left = dash_duration
 		dash_cooldown_left = dash_cooldown
+		dash_serial += 1
 		_trail.clear()
 		dashed.emit(_dash_dir)
 
@@ -181,7 +218,11 @@ func _physics_process(delta: float) -> void:
 	_update_animation()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	hurt_flash = maxf(hurt_flash - delta * 3.0, 0.0)
+	# Invulnerability reads as a blink: the universal "you cannot be hit".
+	if _sprite != null:
+		_sprite.visible = invuln_left <= 0.0 or fmod(invuln_left, 0.18) > 0.09
 	queue_redraw()
 
 
@@ -235,7 +276,32 @@ func absorb_colour(guard_colour: Color) -> void:
 	_apply_tint()
 
 
-## Called once by the room on touching a hostile guard.
+## Take a hit. Returns true when it actually landed (false while invulnerable
+## or already dying), so the attacker can key its feedback on the result.
+func take_damage(amount: float, from_position: Vector2) -> bool:
+	if frozen or invuln_left > 0.0:
+		return false
+	hp = maxf(hp - amount, 0.0)
+	invuln_left = invuln_time
+	hitstun_left = hitstun_time
+	hurt_flash = 1.0
+	# Shoved away from whoever hit us, so hits physically move the fight.
+	var away: Vector2 = global_position - from_position
+	if away.length() < 0.001:
+		away = Vector2.RIGHT.rotated(_facing + PI)
+	velocity = away.normalized() * hit_knockback
+	hurt.emit(amount, from_position)
+	if hp <= 0.0:
+		kill()
+	return true
+
+
+## True while the last hit is still ringing.
+func is_invulnerable() -> bool:
+	return invuln_left > 0.0
+
+
+## Called when health runs out (and once by the room for scripted deaths).
 func kill() -> void:
 	if frozen:
 		return
@@ -280,6 +346,13 @@ func _draw() -> void:
 	# --- ground shadow -----------------------------------------------------
 	# Drawn UNDER the sprite so the figure does not look like it is floating.
 	draw_circle(Vector2(0.0, body_radius * 1.1), body_radius * 0.95, Color(0.0, 0.0, 0.0, 0.30))
+
+	# --- hurt flash --------------------------------------------------------
+	# A red ring snapping outward for a beat, so a hit on the player is never
+	# mistaken for a hit on somebody else.
+	if hurt_flash > 0.0:
+		draw_arc(Vector2.ZERO, body_radius * 2.4, 0.0, TAU, 28,
+			Color(1.0, 0.25, 0.20, 0.75 * hurt_flash), 3.0, true)
 
 	# --- glow --------------------------------------------------------------
 	# The glow fades out when camouflaged, which is the player's clearest

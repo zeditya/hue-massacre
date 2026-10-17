@@ -41,6 +41,9 @@ const SFX := {
 	"vulnerable": {"f0": 1150.0,"f1": 1700.0,"dur": 0.20, "decay": 1.0, "wave": Wave.SINE,   "db": -5.0},
 	"room_clear": {"f0": 320.0, "f1": 1300.0,"dur": 0.95, "decay": 0.30,"wave": Wave.SINE,   "db": -1.0},
 	"boss_down":  {"f0": 220.0, "f1": 40.0,  "dur": 1.30, "decay": 0.35,"wave": Wave.SINE,   "db": 0.0},
+	"hit":        {"f0": 260.0, "f1": 90.0,  "dur": 0.11, "decay": 1.9, "wave": Wave.SQUARE, "db": -4.0},
+	"clang":      {"f0": 1500.0,"f1": 900.0, "dur": 0.16, "decay": 1.3, "wave": Wave.SQUARE, "db": -7.0},
+	"shatter":    {"f0": 1900.0,"f1": 300.0, "dur": 0.24, "decay": 0.9, "wave": Wave.NOISE,  "db": -2.0},
 }
 
 var _streams: Dictionary = {}

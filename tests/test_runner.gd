@@ -148,6 +148,22 @@ func _test_colour_theory() -> void:
 	check(ColorTheory.color_name(ColorTheory.wheel(300.0)) == "VIOLET", "300 degrees is named VIOLET")
 	check(ColorTheory.color_name(ColorTheory.FLOOR_GREY) == "GREY", "the bare floor is named GREY")
 
+	# --- striking: the hue gap decides the damage -------------------------
+	check(ColorTheory.hit_kind(RED, ColorTheory.complement(RED)) == ColorTheory.Hit.SHATTER,
+		"a complement strike SHATTERS the armour")
+	check(ColorTheory.hit_kind(RED, RED) == ColorTheory.Hit.ABSORBED,
+		"a strike in the same hue is ABSORBED")
+	check(ColorTheory.hit_kind(RED, GREEN) == ColorTheory.Hit.NEUTRAL,
+		"everything in between is a plain CUT")
+	check(ColorTheory.hit_kind(Color.WHITE, RED) == ColorTheory.Hit.NEUTRAL,
+		"a colourless blade always deals a plain CUT")
+	check_approx(ColorTheory.hit_multiplier(ColorTheory.Hit.SHATTER), 2.5, 0.001,
+		"shatter deals x2.5 damage")
+	check_approx(ColorTheory.hit_multiplier(ColorTheory.Hit.ABSORBED), 0.2, 0.001,
+		"absorbed deals x0.2 damage")
+	check_approx(ColorTheory.hit_multiplier(ColorTheory.Hit.NEUTRAL), 1.0, 0.001,
+		"a cut deals x1 damage")
+
 
 # ---------------------------------------------------------------------------
 # B. Level geometry
@@ -543,15 +559,84 @@ func _test_integration() -> void:
 	await _frames(3)
 	var room_before: int = _game.room_index
 	var deaths_before: int = _game.deaths
-	_game.room.player.kill()
+	_game.room.player.take_damage(999.0, _game.room.player.position + Vector2(10.0, 0.0))
 	await _frames(3)
-	check(_game.state == Game.State.DEAD, "touching a guard kills the player")
+	check(_game.room.player.hp <= 0.0, "a lethal hit drops the spark to 0 vigour")
+	check(_game.state == Game.State.DEAD, "and 0 vigour is the death the run remembers")
 	check(_game.deaths == deaths_before + 1, "the death counter went up")
 	check(_game.screens.mode == Screens.Mode.DEAD, "the restart prompt is on screen")
 	await get_tree().create_timer(1.3).timeout
 	await _frames(3)
 	check(_game.state == Game.State.PLAY, "the room restarts by itself after a death")
 	check(_game.room_index == room_before, "and restarts the SAME room")
+
+	# --- combat v1: vigour, hue strikes, telegraphed swings ---------------
+	# The old one-touch kills are gone: the spark has HP, knights have HP, and
+	# the hue gap decides how hard a strike lands (complements SHATTER).
+	_game.load_room(0)
+	await _frames(3)
+	var p_combat: Player = _game.room.player
+	var knight: Guard = _game.room.guards[0]
+	check_approx(p_combat.hp, 100.0, 0.001, "the spark starts on full vigour (100 HP)")
+	check_approx(knight.hp, 60.0, 0.001, "a basic knight starts on 60 HP")
+
+	# A neutral cut: white blade vs red armour = exactly x1 damage.
+	p_combat.colour = Color.WHITE
+	knight.colour = RED
+	knight.position = Vector2(400.0, 500.0)
+	p_combat.position = Vector2(420.0, 500.0)
+	p_combat.dash_left = 0.10
+	p_combat.dash_serial += 1
+	await _physics_frames(2)
+	check(not knight.dead and knight.hp < 60.0 and knight.hp > 0.0,
+		"a lunge cuts a knight instead of one-shotting it", "hp=%.1f" % knight.hp)
+	check_approx(knight.hp, 26.0, 0.6, "a neutral cut deals exactly x1 (60 - 34 = 26)")
+
+	# A complement shatter: x2.5 kills a full-health knight in one cut.
+	p_combat.colour = RED
+	knight.colour = ColorTheory.complement(RED)
+	knight.hp = 60.0
+	knight.position = Vector2(400.0, 500.0)
+	p_combat.position = Vector2(420.0, 500.0)
+	p_combat.dash_cooldown_left = 0.0
+	p_combat.dash_left = 0.10
+	p_combat.dash_serial += 1
+	await _physics_frames(2)
+	check(knight.dead, "a complement strike SHATTERS: x2.5, one cut, one kill")
+
+	# A matching hue is absorbed: x0.2, barely a scratch.
+	_game.load_room(0)
+	await _frames(3)
+	var p_absorb: Player = _game.room.player
+	var knight_absorb: Guard = _game.room.guards[0]
+	p_absorb.colour = knight_absorb.colour
+	knight_absorb.position = Vector2(400.0, 500.0)
+	p_absorb.position = Vector2(420.0, 500.0)
+	p_absorb.dash_left = 0.10
+	p_absorb.dash_serial += 1
+	await _physics_frames(2)
+	check_approx(knight_absorb.hp, 60.0 - 34.0 * 0.2, 0.6,
+		"the same hue is ABSORBED: x0.2 damage (60 - 6.8 = 53.2)")
+
+	# The knight swings back: windup, then the arc lands. Being hit costs
+	# vigour now; it does not end the run.
+	p_absorb.dash_left = 0.0
+	p_absorb.velocity = Vector2.ZERO
+	p_absorb.position = Vector2(400.0, 560.0)
+	knight_absorb.position = Vector2(430.0, 560.0)
+	# Skip the tail of the absorbed hit's flinch so the swing is what we test.
+	knight_absorb.stagger_left = 0.0
+	knight_absorb.state = Guard.State.CHASE
+	knight_absorb.detection = 1.0
+	await _physics_frames(2)
+	check(knight_absorb.attack_state == Guard.Attack.WINDUP,
+		"a knight in range winds up instead of touching you to death")
+	var player_hp_before: float = p_absorb.hp
+	await get_tree().create_timer(knight_absorb.attack_windup + 0.2).timeout
+	await _physics_frames(2)
+	check(p_absorb.hp < player_hp_before, "the telegraphed swing lands and costs vigour",
+		"hp %.0f -> %.0f" % [player_hp_before, p_absorb.hp])
+	check(_game.state == Game.State.PLAY, "and taking a hit no longer ends the run")
 
 	# --- the boss ---------------------------------------------------------
 	_game.load_room(3)
@@ -576,7 +661,7 @@ func _test_integration() -> void:
 	await _physics_frames(2)
 	check(boss.vulnerable, "putting the player on the Collector's complement opens the kill window")
 
-	# A mistimed lunge at an invulnerable Collector must kill the player.
+	# A mistimed lunge at an invulnerable Collector must clang off harmlessly.
 	_game.load_room(3)
 	await _frames(3)
 	var boss2: Guard = _game.room.boss
@@ -584,13 +669,13 @@ func _test_integration() -> void:
 	_game.room.player.colour = RED
 	_game.room.player.position = boss2.position
 	_game.room.player.dash_left = 0.10
+	_game.room.player.dash_serial += 1
 	await _physics_frames(2)
-	check(_game.state == Game.State.DEAD,
-		"lunging at an un-cancelled Collector kills YOU instead")
+	check(not boss2.dead, "lunging at an un-cancelled Collector does not wound him")
+	check_approx(boss2.hp, boss2.max_hp, 0.001, "his stolen wheel takes exactly zero damage")
+	check(_game.state == Game.State.PLAY, "and the clang no longer kills you: nobody dies")
 
-	# A well-timed lunge must win the game.
-	await get_tree().create_timer(1.3).timeout
-	await _frames(3)
+	# A well-timed lunge must win the game. (A fresh load of the boss room.)
 	_game.load_room(3)
 	await _frames(3)
 	var boss3: Guard = _game.room.boss
@@ -599,10 +684,14 @@ func _test_integration() -> void:
 	_game.room.player.colour = ColorTheory.complement(boss3.colour)
 	await _physics_frames(2)
 	check(boss3.vulnerable, "the kill window is open on the second boss attempt")
+	# The real Champion takes several windows (400 HP, x2.5 shatters). Drop him
+	# to one window's worth so this test proves the killing blow lands.
+	boss3.hp = 50.0
 	_game.room.player.position = boss3.position
 	_game.room.player.dash_left = 0.10
+	_game.room.player.dash_serial += 1
 	await _physics_frames(2)
-	check(boss3.dead, "the complement lunge kills the Collector")
+	check(boss3.dead, "a complement lunge inside the window kills the Collector")
 
 	# Clear the remaining small guards to finish the room.
 	for g in _game.room.guards.duplicate():

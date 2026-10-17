@@ -375,6 +375,7 @@ func load_room(index: int) -> void:
 	room.player_died.connect(_on_player_died)
 	room.room_cleared.connect(_on_room_cleared)
 	room.boss_vulnerable_changed.connect(_on_boss_vulnerable_changed)
+	room.strike_landed.connect(_on_strike_landed)
 	world_root.add_child(room)
 
 	if hud != null:
@@ -468,6 +469,23 @@ func _trigger_combo(colour: Color) -> void:
 		var sub: String = "%s and %s sit opposite each other on the wheel" % [
 			ColorTheory.color_name(_last_kill_colour), ColorTheory.color_name(colour)]
 		hud.show_banner("COMPLEMENT  x%d" % multiplier, sub, UiStyle.GOLD, 2.0)
+
+
+## The room's blade report: a strike landed, kill or not. A complement SHATTER
+## gets the strong juice, an absorbed hit a dull clang, an ordinary cut a whack.
+func _on_strike_landed(kind: int, _at: Vector2) -> void:
+	match kind:
+		ColorTheory.Hit.SHATTER:
+			_add_shake(combo_shake * 0.55)
+			_flash(Color(1.0, 1.0, 1.0), 0.16)
+			_set_hit_stop()
+			audio.play("shatter", randf_range(0.92, 1.08))
+		ColorTheory.Hit.ABSORBED:
+			_add_shake(kill_shake * 0.2)
+			audio.play("clang", randf_range(0.75, 0.90))
+		_:
+			_add_shake(kill_shake * 0.45)
+			audio.play("hit", randf_range(0.95, 1.15))
 
 
 func _on_player_died() -> void:
@@ -687,6 +705,8 @@ func _sync_hud() -> void:
 		hud.player_colour = room.player.colour
 		hud.player_hidden = room.player.is_hidden
 		hud.player_visibility = room.player.visibility_now
+		hud.player_hp = room.player.hp
+		hud.player_max_hp = room.player.max_hp
 		# Lets the HUD draw the combo readout in the complement of the floor
 		# under the player - colour theory as a live readout, not an assertion.
 		hud.floor_colour = room.ground_colour_at(room.player.position)

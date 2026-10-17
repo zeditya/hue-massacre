@@ -72,6 +72,65 @@ static func is_grey(c: Color) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# STRIKING - what the blade does to armour of a given hue
+# ---------------------------------------------------------------------------
+
+## How a strike lands, decided entirely by the hue gap between the attacker and
+## the target. Complementary contrast, used as combat:
+##
+##   SHATTER  - complements (~180 apart): the hues cancel out and the armour
+##              cracks. Extra damage plus a stagger.
+##   ABSORBED - same hue: the armour drinks the blow. Almost no damage.
+##   NEUTRAL  - everything else: an ordinary cut.
+enum Hit { SHATTER, NEUTRAL, ABSORBED }
+
+## Half-width of the "complement" window (degrees) for a shatter.
+const HIT_SHATTER_TOL_DEG: float = 30.0
+
+## Half-width of the "same hue" window (degrees) for an absorbed strike.
+const HIT_SAME_TOL_DEG: float = 30.0
+
+const HIT_MULTIPLIER_SHATTER: float = 2.5
+const HIT_MULTIPLIER_NEUTRAL: float = 1.0
+const HIT_MULTIPLIER_ABSORBED: float = 0.2
+
+
+## Classify a strike by `attack_hue` against `armour_hue`.
+## Grey carries no hue, so a colourless spark always deals an ordinary cut.
+static func hit_kind(attack_hue: Color, armour_hue: Color) -> Hit:
+	if is_grey(attack_hue) or is_grey(armour_hue):
+		return Hit.NEUTRAL
+	var gap: float = hue_gap_color(attack_hue, armour_hue)
+	if absf(gap - 180.0) <= HIT_SHATTER_TOL_DEG:
+		return Hit.SHATTER
+	if gap <= HIT_SAME_TOL_DEG:
+		return Hit.ABSORBED
+	return Hit.NEUTRAL
+
+
+## Damage multiplier for a Hit classification.
+static func hit_multiplier(kind: Hit) -> float:
+	match kind:
+		Hit.SHATTER:
+			return HIT_MULTIPLIER_SHATTER
+		Hit.ABSORBED:
+			return HIT_MULTIPLIER_ABSORBED
+		_:
+			return HIT_MULTIPLIER_NEUTRAL
+
+
+## Short human name for on-screen feedback, e.g. "SHATTER".
+static func hit_name(kind: Hit) -> String:
+	match kind:
+		Hit.SHATTER:
+			return "SHATTER"
+		Hit.ABSORBED:
+			return "ABSORBED"
+		_:
+			return "CUT"
+
+
+# ---------------------------------------------------------------------------
 # CONTRAST / CAMOUFLAGE - the "can the guard see me?" question
 # ---------------------------------------------------------------------------
 

@@ -26,6 +26,8 @@ signal killed(guard: Guard)
 signal spotted(pos: Vector2)
 
 enum State { PATROL, INVESTIGATE, CHASE }
+## Swing state machine: NONE -> WINDUP -> RECOVER -> NONE.
+enum Attack { NONE, WINDUP, RECOVER }
 
 ## Things guards say. "%s" is replaced with the guard's own colour name, so a
 ## blue guard shouts about the blue one, and the banter teaches the wheel.
@@ -52,6 +54,11 @@ const BARKS := {
 		"Come out, come out...",
 		"Just a rat... maybe.",
 		"Keep looking.",
+	],
+	"stagger": [
+		"My hue - it cracks!",
+		"No! Not my colour!",
+		"The wheel hates me...",
 	],
 }
 
@@ -85,6 +92,27 @@ const BARKS := {
 ## behind a wall walks into that wall forever and never patrols again.
 @export var investigate_time: float = 5.0
 
+@export_group("Combat")
+## Health. 60 means a basic knight dies to two neutral cuts, or one complement
+## shatter plus any follow-up.
+@export var max_hp: float = 60.0
+## Damage one swing deals to the player.
+@export var damage: float = 12.0
+## How close the player must be before the windup starts.
+@export var attack_range: float = 46.0
+## How far the swing actually reaches when the blade falls.
+@export var attack_reach: float = 60.0
+## Half-angle of the swing arc, in degrees.
+@export var attack_half_deg: float = 65.0
+## Seconds of windup before the blade falls. This is the whole read.
+@export var attack_windup: float = 0.55
+## Seconds of recovery after a swing: the player's punish window.
+@export var attack_recover: float = 0.55
+## Seconds between swings.
+@export var attack_cooldown: float = 1.0
+## Seconds knocked silly by a complement shatter (armour break).
+@export var stagger_time: float = 1.0
+
 @export_group("Vision")
 ## How far the cone reaches, in pixels.
 @export var cone_length: float = 310.0
@@ -108,6 +136,25 @@ var detection: float = 0.0
 ## True on the frame the boss is inside the player's kill window (boss only).
 var vulnerable: bool = false
 var dead: bool = false
+
+## Current health. Reaching 0 runs the normal die() path.
+var hp: float = 60.0
+## 0..1 flash when a strike lands (white hit pop).
+var hit_flash: float = 0.0
+## 0..1 flash for a strike that glanced off without doing anything.
+var clang_flash: float = 0.0
+## Seconds of shatter-stagger left: no moving, no attacking, no watching.
+var stagger_left: float = 0.0
+## Which beat of a swing this guard is on.
+var attack_state: Attack = Attack.NONE
+## Counts down inside WINDUP and RECOVER.
+var _attack_left: float = 0.0
+## Counts down between swings.
+var _attack_cooldown_left: float = 0.0
+## 0..1 fade of the swing arc drawn right after the blade falls.
+var _swing_flash: float = 0.0
+## Serial of the last lunge that hit this guard, so one lunge hits once.
+var _last_dash_serial: int = -1
 
 var _facing: float = 0.0
 var _point_index: int = 0
@@ -162,12 +209,19 @@ func _ready() -> void:
 	_sprite.centered = true
 	_sprite.material = SpriteBank.tint_material(colour)
 	add_child(_sprite)
+	hp = max_hp
 	_update_animation()
 
 
 func _process(delta: float) -> void:
 	_time += delta
 	bark_left = maxf(bark_left - delta, 0.0)
+	hit_flash = maxf(hit_flash - delta * 4.0, 0.0)
+	clang_flash = maxf(clang_flash - delta * 4.0, 0.0)
+	_swing_flash = maxf(_swing_flash - delta * 3.5, 0.0)
+	# A staggered knight reels visibly, so the armour break cannot be missed.
+	if _sprite != null:
+		_sprite.rotation = sin(_time * 34.0) * 0.22 if stagger_left > 0.0 else 0.0
 	if dead:
 		_death_left = maxf(_death_left - delta, 0.0)
 		if _death_left <= 0.0:
@@ -215,6 +269,19 @@ func _physics_process(delta: float) -> void:
 	# --- the Collector drags the stolen wheel around ----------------------
 	if not is_zero_approx(hue_speed):
 		colour = Color.from_hsv(fposmod(colour.h + (hue_speed / 360.0) * delta, 1.0), colour.s, colour.v, 1.0)
+
+	# --- shatter stagger --------------------------------------------------
+	# A complement strike breaks the armour: the knight reels and can do
+	# nothing until it recovers. This is the player's reward window, and it
+	# also cancels any swing mid-windup.
+	if stagger_left > 0.0:
+		stagger_left = maxf(stagger_left - delta, 0.0)
+		velocity = velocity.move_toward(Vector2.ZERO, 1100.0 * delta)
+		if stagger_left <= 0.0:
+			attack_state = Attack.NONE
+			_attack_left = 0.0
+		move_and_slide()
+		return
 
 	_perceive(delta)
 
@@ -291,6 +358,7 @@ func _perceive(delta: float) -> void:
 				_wait_left = 0.0
 				_investigate_left = investigate_time
 				detection = 0.0
+				attack_state = Attack.NONE
 				_say("lost")
 
 
@@ -401,9 +469,46 @@ func _do_chase(delta: float) -> void:
 		state = State.PATROL
 		return
 	var to_player: Vector2 = player.global_position - global_position
+	var dist: float = to_player.length()
 	# Snappier turning while hunting: they are locked on now.
 	_turn_towards(to_player.angle(), delta, turn_speed_deg * 2.2)
-	velocity = Vector2.RIGHT.rotated(_facing) * chase_speed
+
+	match attack_state:
+		Attack.WINDUP:
+			# Braced for the swing: planted, and the telegraph in _draw is
+			# the entire read for the player.
+			velocity = Vector2.ZERO
+			_attack_left = maxf(_attack_left - delta, 0.0)
+			if _attack_left <= 0.0:
+				_swing(player)
+		Attack.RECOVER:
+			# The blade is heavy: a punish window right after every swing.
+			velocity = Vector2.ZERO
+			_attack_left = maxf(_attack_left - delta, 0.0)
+			if _attack_left <= 0.0:
+				attack_state = Attack.NONE
+		_:
+			_attack_cooldown_left = maxf(_attack_cooldown_left - delta, 0.0)
+			if dist <= attack_range and _attack_cooldown_left <= 0.0 and not player.frozen:
+				attack_state = Attack.WINDUP
+				_attack_left = attack_windup
+			elif dist > attack_range * 0.85:
+				velocity = Vector2.RIGHT.rotated(_facing) * chase_speed
+			else:
+				velocity = Vector2.ZERO
+
+
+## The blade falls: anything still inside the arc takes the hit.
+func _swing(player: Player) -> void:
+	attack_state = Attack.RECOVER
+	_attack_left = attack_recover
+	_attack_cooldown_left = attack_cooldown
+	_swing_flash = 1.0
+	var to_player: Vector2 = player.global_position - global_position
+	var inside: bool = to_player.length() <= attack_reach + player.body_radius \
+		and absf(_angle_delta(to_player.angle(), _facing)) <= deg_to_rad(attack_half_deg)
+	if inside:
+		player.take_damage(damage, global_position)
 
 
 ## After a failed search, resume from whichever waypoint is closest.
@@ -448,6 +553,48 @@ func _say(event: String) -> void:
 
 
 # ---------------------------------------------------------------------------
+# Taking hits
+# ---------------------------------------------------------------------------
+
+## The room calls this when the player's blade connects. `amount` is already
+## hue-multiplied; `shatter` marks a complement strike. Returns true when the
+## strike actually landed.
+func take_hit(amount: float, shatter: bool, from_position: Vector2, dash_serial: int) -> bool:
+	if dead:
+		return false
+	# One lunge only hits each guard once, no matter how many physics frames
+	# the bodies overlap.
+	if dash_serial == _last_dash_serial:
+		return false
+	_last_dash_serial = dash_serial
+
+	hp = maxf(hp - amount, 0.0)
+	hit_flash = 1.0
+	# Everything flinches briefly; a shatter knocks the knight down properly.
+	stagger_left = maxf(stagger_left, stagger_time if shatter else 0.18)
+	var away: Vector2 = global_position - from_position
+	if away.length() > 0.001:
+		velocity += away.normalized() * (240.0 if shatter else 90.0)
+	if shatter:
+		_say("stagger")
+
+	if hp <= 0.0:
+		die()
+	return true
+
+
+## A strike that glanced off without doing anything (the Collector's shield,
+## outside the complement window). Purely feedback.
+func clang() -> void:
+	clang_flash = 1.0
+
+
+## Health left as 0..1, for the over-head bar.
+func health_ratio() -> float:
+	return clampf(hp / maxf(max_hp, 0.01), 0.0, 1.0)
+
+
+# ---------------------------------------------------------------------------
 # Death
 # ---------------------------------------------------------------------------
 
@@ -457,6 +604,7 @@ func die() -> void:
 		return
 	dead = true
 	detection = 0.0
+	attack_state = Attack.NONE
 	velocity = Vector2.ZERO
 	_death_left = 0.30
 	# Stop colliding with anything the moment we are dead.
@@ -504,10 +652,38 @@ func _draw() -> void:
 	outline.append(Vector2.ZERO)
 	draw_polyline(outline, cone_edge, 1.5)
 
+	# --- swing telegraph and blade arc ------------------------------------
+	# The windup wedge grows towards the swing's reach; the flashing wedge
+	# right after the blade falls shows exactly where it went. Both are drawn
+	# on the ground, so "where will the hit land" is never a guess. The warm
+	# gold is deliberately NOT the guard's own hue: the telegraph has to read
+	# on top of the vision cone the guard is standing in.
+	if attack_state == Attack.WINDUP:
+		var wt: float = clampf(1.0 - _attack_left / maxf(attack_windup, 0.01), 0.0, 1.0)
+		_draw_wedge(deg_to_rad(attack_half_deg), attack_reach * (0.55 + 0.45 * wt),
+			Color(1.0, 0.82, 0.42, 0.10 + 0.24 * wt),
+			Color(1.0, 0.70, 0.30, 0.35 + 0.65 * wt))
+	if _swing_flash > 0.0:
+		_draw_wedge(deg_to_rad(attack_half_deg), attack_reach,
+			Color(1.0, 0.95, 0.82, 0.38 * _swing_flash),
+			Color(1.0, 1.0, 1.0, 0.55 * _swing_flash))
+
 	# --- ground shadow ----------------------------------------------------
 	# The body itself is the character sprite (built in _ready). This just stops
 	# the figure from looking like it is floating above the floor.
 	draw_circle(Vector2(0.0, body_radius * 1.1), body_radius * 1.05, Color(0.0, 0.0, 0.0, 0.30))
+
+	# --- damage feedback --------------------------------------------------
+	# Drawn under the sprite, so each one reads as an aura around the figure.
+	if hit_flash > 0.0:
+		draw_circle(Vector2.ZERO, body_radius * 1.5, Color(1.0, 1.0, 1.0, 0.45 * hit_flash))
+	if clang_flash > 0.0:
+		draw_arc(Vector2.ZERO, body_radius * 1.9, 0.0, TAU, 22,
+			Color(0.85, 0.95, 1.0, 0.75 * clang_flash), 3.0, true)
+	if stagger_left > 0.0:
+		var pulse: float = 0.5 + 0.5 * sin(_time * 30.0)
+		draw_arc(Vector2.ZERO, body_radius + 6.0, 0.0, TAU, 26,
+			Color(1.0, 1.0, 1.0, 0.30 + 0.35 * pulse), 2.5, true)
 
 	# --- detection meter --------------------------------------------------
 	if detection > 0.01:
@@ -516,6 +692,17 @@ func _draw() -> void:
 		draw_rect(Rect2(-w * 0.5, y, w, 5.0), Color(0.0, 0.0, 0.0, 0.65))
 		var meter: Color = Color(1.0, 0.85, 0.2).lerp(Color(1.0, 0.15, 0.15), detection)
 		draw_rect(Rect2(-w * 0.5, y, w * detection, 5.0), meter)
+
+	# --- health bar -------------------------------------------------------
+	# Shown once damaged (or while hunting) so a fresh room stays clean but a
+	# fight reads at a glance.
+	if hp < max_hp - 0.001 or state == State.CHASE:
+		var hw: float = 34.0
+		var hy: float = -body_radius - 42.0
+		var ratio: float = health_ratio()
+		draw_rect(Rect2(-hw * 0.5 - 1.0, hy - 1.0, hw + 2.0, 6.0), Color(0.0, 0.0, 0.0, 0.65))
+		var hp_colour: Color = Color(0.95, 0.25, 0.25).lerp(Color(0.35, 0.90, 0.35), ratio)
+		draw_rect(Rect2(-hw * 0.5, hy, hw * ratio, 4.0), hp_colour)
 
 	# --- state marker -----------------------------------------------------
 	if state == State.CHASE:
@@ -552,3 +739,20 @@ func _draw() -> void:
 			HORIZONTAL_ALIGNMENT_CENTER, 120.0, 12, Color(0.0, 0.0, 0.0, 0.6))
 		draw_string(font, Vector2(-60.0, body_radius + 17.0), label,
 			HORIZONTAL_ALIGNMENT_CENTER, 120.0, 12, label_colour)
+
+
+## A filled pie slice from the guard's centre towards `_facing`, spreading
+## `half` radians either side and reaching `reach` pixels. `edge` outlines it
+## (pass a zero-alpha colour to skip the outline).
+func _draw_wedge(half: float, reach: float, colour: Color, edge: Color = Color(0.0, 0.0, 0.0, 0.0)) -> void:
+	var steps: int = 10
+	var pts: PackedVector2Array = PackedVector2Array()
+	pts.append(Vector2.ZERO)
+	for i in steps + 1:
+		var a: float = _facing - half + (2.0 * half) * (float(i) / float(steps))
+		pts.append(Vector2.RIGHT.rotated(a) * reach)
+	draw_colored_polygon(pts, colour)
+	if edge.a > 0.0:
+		var outline: PackedVector2Array = pts.duplicate()
+		outline.append(Vector2.ZERO)
+		draw_polyline(outline, edge, 2.5)

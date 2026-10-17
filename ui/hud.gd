@@ -41,6 +41,10 @@ var restore: float = 0.0
 var player_colour: Color = Color(1.0, 1.0, 1.0)
 var player_hidden: bool = false
 var player_visibility: float = 1.0
+## Current/maximum player health, for the vigour bar. The bar itself is drawn
+## in the player's own hue, so health and colour read as one thing.
+var player_hp: float = 100.0
+var player_max_hp: float = 100.0
 ## The blended floor colour under the player, written by game.gd. The combo
 ## readout is drawn in its complement, so the score demonstrates complementary
 ## contrast while you play rather than merely describing it.
@@ -222,10 +226,25 @@ func _draw_top_right() -> void:
 
 
 func _draw_player_panel() -> void:
-	var panel_rect := Rect2(12.0, 626.0, 212.0, 70.0)
+	var panel_rect := Rect2(12.0, 608.0, 212.0, 88.0)
 	# The panel border takes the player's own hue: a constant, readable reminder
 	# of what colour you currently are.
 	UiStyle.panel(self, panel_rect, player_colour)
+
+	# --- vigour (health) --------------------------------------------------
+	# The bar rides the player's own hue, so health and colour stay one thing.
+	# Under a third it pulses towards red: "you are about to die" arrives
+	# before the numbers do.
+	var ratio: float = clampf(player_hp / maxf(player_max_hp, 0.01), 0.0, 1.0)
+	var hp_rect := Rect2(24.0, 618.0, 188.0, 12.0)
+	var hp_fill: Color = player_colour
+	if ratio < 0.34:
+		hp_fill = player_colour.lerp(UiStyle.ALERT, 0.5 + 0.5 * sin(_time * 8.0))
+	UiStyle.bar(self, hp_rect, ratio, hp_fill)
+	UiStyle.text(self, "VIGOUR %d / %d" % [int(ceil(player_hp)), int(round(player_max_hp))],
+		Vector2(hp_rect.position.x + 7.0, hp_rect.position.y + 10.0), 10,
+		ColorTheory.readable_on(hp_fill))
+
 	UiStyle.swatch(self, Rect2(22.0, 636.0, 50.0, 50.0), player_colour)
 
 	UiStyle.text(self, UiStyle.tracked("YOUR HUE"), Vector2(82.0, 646.0), 10, UiStyle.DIM)
