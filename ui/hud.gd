@@ -236,14 +236,16 @@ func _draw_player_panel() -> void:
 	# Under a third it pulses towards red: "you are about to die" arrives
 	# before the numbers do.
 	var ratio: float = clampf(player_hp / maxf(player_max_hp, 0.01), 0.0, 1.0)
-	var hp_rect := Rect2(24.0, 618.0, 188.0, 12.0)
+	var hp_rect := Rect2(24.0, 616.0, 188.0, 14.0)
 	var hp_fill: Color = player_colour
 	if ratio < 0.34:
 		hp_fill = player_colour.lerp(UiStyle.ALERT, 0.5 + 0.5 * sin(_time * 8.0))
 	UiStyle.bar(self, hp_rect, ratio, hp_fill)
+	# No outline on this one: the text sits INSIDE the bar, where the heavy
+	# outline that keeps text legible over the world would just smudge it.
 	UiStyle.text(self, "VIGOUR %d / %d" % [int(ceil(player_hp)), int(round(player_max_hp))],
-		Vector2(hp_rect.position.x + 7.0, hp_rect.position.y + 10.0), 10,
-		ColorTheory.readable_on(hp_fill))
+		Vector2(hp_rect.position.x + 7.0, hp_rect.position.y + 11.0), 10,
+		ColorTheory.readable_on(hp_fill), HORIZONTAL_ALIGNMENT_LEFT, -1.0, false)
 
 	UiStyle.swatch(self, Rect2(22.0, 636.0, 50.0, 50.0), player_colour)
 

@@ -737,6 +737,59 @@ func _test_integration() -> void:
 		check(gpos != null and gpos.size() == 8,
 			"the lantern array is always the fixed 8 the shader expects",
 			"size %d" % (gpos.size() if gpos != null else -1))
+		if gpos != null and gpos.size() == 8:
+			# With the camera in play the shader positions are SCREEN pixels:
+			# every live guard lantern must land where world_to_screen says.
+			# Settle the shake first so the read cannot race the camera jitter.
+			_game._shake = 0.0
+			await _frames(2)
+			gpos = dark_mat.get_shader_parameter("light_pos")
+			var matched: int = 0
+			var live: int = 0
+			for guard in _game.room.guards:
+				if not is_instance_valid(guard) or guard.dead:
+					continue
+				live += 1
+				var want: Vector2 = _game.world_to_screen(guard.global_position)
+				for i in int(dark_mat.get_shader_parameter("light_count")):
+					if gpos[i].distance_to(want) < 2.0:
+						matched += 1
+						break
+			check(live > 0 and matched == live,
+				"every guard lantern reaches the shader in screen space (world->camera->canvas)",
+				"%d/%d matched" % [matched, live])
+
+	# --- the zoom-follow camera ------------------------------------------
+	check(_game.camera != null, "the follow camera exists")
+	check_approx(_game.camera.zoom.x, _game.camera_zoom, 0.001,
+		"the view is zoomed in for Soul-Knight framing")
+	check_approx(_game.camera.zoom.y, _game.camera.zoom.x, 0.001, "and the zoom is uniform")
+
+	# The view may never leave the playfield: at 1.5x the camera centre is
+	# confined to the middle of the arena, so the border walls are always
+	# exactly the frame of the screen.
+	var clamped: Vector2 = _game._clamp_camera(Vector2(-500.0, -500.0))
+	check_approx(clamped.x, LevelData.PLAYFIELD.x * 0.5 / _game.camera_zoom, 0.01,
+		"the camera clamps at the west wall instead of showing out of bounds")
+	check_approx(clamped.y, LevelData.PLAYFIELD.y * 0.5 / _game.camera_zoom, 0.01,
+		"and at the north wall")
+
+	# A point under the camera lands at the middle of the 1280x720 canvas.
+	var centre_px: Vector2 = _game.world_to_screen(_game.camera.position)
+	check(centre_px.distance_to(LevelData.PLAYFIELD * 0.5) < 0.01,
+		"world_to_screen puts the camera focus at the centre of the screen")
+
+	# A corner spawn clamps the camera target into the corner: this is what
+	# load_room() snaps to, so a new room never slides in from the old one.
+	var saved_pos: Vector2 = _game.room.player.position
+	_game.room.player.position = Vector2(120.0, 640.0)
+	check(_game._clamp_camera(_game._camera_target()).distance_to(Vector2(426.67, 480.0)) < 0.1,
+		"a corner spawn clamps the camera target to the arena corner")
+	_game._snap_camera()
+	check(_game._camera_follow.distance_to(Vector2(426.67, 480.0)) < 0.1,
+		"and the snap puts the follow position exactly there")
+	_game.room.player.position = saved_pos
+	_game._snap_camera()
 
 	# The light points the way the spark faces, driven by steering, not a mouse.
 	_game.room.player._facing = 1.25

@@ -62,6 +62,15 @@ enum State { TITLE, INTRO, PLAY, PAUSED, DEAD, WIN }
 @export_group("Layout")
 @export var world_origin: Vector2 = Vector2.ZERO
 
+@export_group("Camera")
+## The view is zoomed in so the figures read big (Soul Knight framing: the
+## room scrolls past instead of fitting on one screen). 1.5 is the value the
+## camera comparison picked in docs/proto/2d_camera/.
+@export var camera_zoom: float = 1.5
+## How fast the camera catches up to the player, per second (exponential ease).
+## Higher = tighter and snappier, lower = floatier.
+@export var camera_follow_speed: float = 7.0
+
 @export_group("Darkness")
 ## The drained city is dark; the spark's own light cone shows the way, like a
 ## torch in a blacked-out hallway. It is dark, but the ground at your feet and
@@ -109,6 +118,12 @@ var flash: ColorRect = null
 ## Full-screen darkness with the player's light cone cut out of it.
 var darkness: ColorRect = null
 
+## The zoom-follow camera. Deliberately NOT a child of world_root: screen
+## shake is applied as a jitter on this node, so the world itself never moves.
+var camera: Camera2D = null
+## The smoothed, clamped follow position. camera.position = this + shake.
+var _camera_follow: Vector2 = LevelData.PLAYFIELD * 0.5
+
 var _hud_layer: CanvasLayer = null
 var _screens_layer: CanvasLayer = null
 var _fx_layer: CanvasLayer = null
@@ -141,6 +156,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_update_shake(delta)
+	_update_camera(delta)
 	_update_hit_stop()
 	_update_flash(delta)
 	_torch_time += delta
@@ -163,8 +179,8 @@ func _process(delta: float) -> void:
 # ---------------------------------------------------------------------------
 
 func _build_layers() -> void:
-	# 1. The world. Shaking this node shakes the game but not the interface,
-	#    which is exactly why the HUD lives on its own CanvasLayer.
+	# 1. The world. The camera below is what moves for follow and shake; the
+	#    HUD stays on its own CanvasLayer so it is never scaled or shaken.
 	world_root = Node2D.new()
 	world_root.name = "World"
 	world_root.position = world_origin
@@ -174,6 +190,15 @@ func _build_layers() -> void:
 	world_root.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(world_root)
 	process_mode = Node.PROCESS_MODE_ALWAYS
+
+	# 1b. The camera: flat top-down, zoomed ~1.5x, following the player and
+	#     clamped to the playfield. It lives OUTSIDE world_root so shake is a
+	#     jitter of the camera, not a wobble of the whole simulation.
+	camera = Camera2D.new()
+	camera.name = "Camera"
+	camera.zoom = Vector2(camera_zoom, camera_zoom)
+	camera.position = _camera_follow
+	add_child(camera)
 
 	# 2. Darkness, over the world but under the interface. The player's light
 	#    cone is a hole cut in this black layer by darkness.gdshader.
@@ -377,6 +402,7 @@ func load_room(index: int) -> void:
 	room.boss_vulnerable_changed.connect(_on_boss_vulnerable_changed)
 	room.strike_landed.connect(_on_strike_landed)
 	world_root.add_child(room)
+	_snap_camera()
 
 	if hud != null:
 		hud.clear_messages()
@@ -613,15 +639,63 @@ func _add_shake(amount: float) -> void:
 
 
 func _update_shake(delta: float) -> void:
-	if world_root == null:
-		return
 	if _shake > 0.0:
 		# Decay faster the bigger the shake, so a huge hit settles quickly.
 		_shake = maxf(_shake - shake_decay * delta * (1.0 + _shake * 0.06), 0.0)
-		world_root.position = world_origin + Vector2(
-			randf_range(-_shake, _shake), randf_range(-_shake, _shake))
-	else:
-		world_root.position = world_origin
+
+
+# ---------------------------------------------------------------------------
+# Camera (flat top-down, zoomed in, follows the player)
+# ---------------------------------------------------------------------------
+
+## The camera wants to look at the player. Without a room (title, pages) it
+## rests on the middle of the playfield.
+func _camera_target() -> Vector2:
+	if room != null and is_instance_valid(room) \
+			and room.player != null and is_instance_valid(room.player):
+		return room.player.global_position
+	return LevelData.PLAYFIELD * 0.5
+
+
+## Keep the view inside the playfield. At zoom Z the view is PLAYFIELD/Z big,
+## so the centre may only travel over the inner rectangle; the border walls
+## are then always exactly the frame of the screen.
+func _clamp_camera(point: Vector2) -> Vector2:
+	var half: Vector2 = LevelData.PLAYFIELD * 0.5 / camera_zoom
+	return Vector2(
+		clampf(point.x, half.x, LevelData.PLAYFIELD.x - half.x),
+		clampf(point.y, half.y, LevelData.PLAYFIELD.y - half.y))
+
+
+## Snap straight to the clamped target. Called when a room loads so the camera
+## never slides in from wherever the previous room left it.
+func _snap_camera() -> void:
+	_camera_follow = _clamp_camera(_camera_target())
+	if camera != null:
+		camera.position = _camera_follow
+
+
+func _update_camera(delta: float) -> void:
+	if camera == null:
+		return
+	var target: Vector2 = _clamp_camera(_camera_target())
+	# Exponential ease: frame-rate independent and it never overshoots.
+	_camera_follow = _camera_follow.lerp(target, 1.0 - exp(-camera_follow_speed * delta))
+	# Screen shake is a jitter ON TOP of the follow position, so it moves the
+	# world on screen without ever disturbing the simulation.
+	var jitter: Vector2 = Vector2.ZERO
+	if _shake > 0.0:
+		jitter = Vector2(randf_range(-_shake, _shake), randf_range(-_shake, _shake))
+	camera.position = _camera_follow + jitter
+
+
+## World point -> the 1280x720 canvas pixel the HUD and the darkness shader
+## live in. This is THE world-to-screen conversion; every screen-space effect
+## goes through it, so they can never disagree with the camera.
+func world_to_screen(world_point: Vector2) -> Vector2:
+	if camera == null:
+		return world_point
+	return (world_point - camera.position) * camera.zoom + LevelData.PLAYFIELD * 0.5
 
 
 ## A few milliseconds of near-freeze on a kill. Cheap, and it makes the blade
@@ -688,13 +762,14 @@ func _sync_hud() -> void:
 
 	# Collect any guard that is mid-line so the HUD can draw the bubble above
 	# the darkness layer (where the guard itself might still be hidden).
-	var shake_offset: Vector2 = world_root.position - world_origin
 	var active_barks: Array = []
 	for guard in room.guards:
 		if is_instance_valid(guard) and guard.bark_left > 0.0 and guard.bark_text != "":
 			var alpha: float = clampf(guard.bark_left / maxf(guard.bark_total * 0.3, 0.01), 0.0, 1.0)
 			active_barks.append({
-				"pos": guard.global_position + shake_offset,
+				# The bubble is drawn in screen space, above the darkness, so
+				# the world->screen camera mapping has to be applied here.
+				"pos": world_to_screen(guard.global_position),
 				"text": guard.bark_text,
 				"alpha": alpha,
 				"colour": guard.bark_colour,
@@ -739,18 +814,20 @@ func _sync_darkness() -> void:
 	if mat == null:
 		return
 	mat.set_shader_parameter("screen_size", LevelData.PLAYFIELD)
-	mat.set_shader_parameter("player_pos", player.global_position + world_root.position)
+	mat.set_shader_parameter("player_pos", world_to_screen(player.global_position))
 	mat.set_shader_parameter("facing", player.aim_angle())
 	mat.set_shader_parameter("cone_deg", light_cone_deg)
 	# A small, slow flicker so the beam reads as a flame rather than a lamp.
 	# Only the range flickers: the cone width and the darkness level are
 	# asserted by the test suite, so they must stay exactly as exported.
 	var flicker: float = 0.93 + 0.05 * sin(_torch_time * 9.0) + 0.03 * sin(_torch_time * 23.0 + 1.3)
-	mat.set_shader_parameter("light_range", light_range * flicker)
-	mat.set_shader_parameter("near_radius", light_near_radius)
-	mat.set_shader_parameter("ambient_range", light_ambient_range)
+	# Every radius is authored in WORLD pixels, but the shader works in screen
+	# pixels, so they all scale with the camera zoom.
+	mat.set_shader_parameter("light_range", light_range * camera_zoom * flicker)
+	mat.set_shader_parameter("near_radius", light_near_radius * camera_zoom)
+	mat.set_shader_parameter("ambient_range", light_ambient_range * camera_zoom)
 	mat.set_shader_parameter("ambient_strength", light_ambient_strength)
-	mat.set_shader_parameter("lantern_range", guard_lantern_range)
+	mat.set_shader_parameter("lantern_range", guard_lantern_range * camera_zoom)
 	mat.set_shader_parameter("darkness_amount", darkness_amount)
 
 	# --- guard lanterns ---------------------------------------------------
@@ -773,10 +850,10 @@ func _sync_darkness() -> void:
 	for i in MAX_LIGHTS:
 		if i < mini(lit.size(), cap):
 			var g: Guard = lit[i]
-			pos_arr.append(g.global_position + world_root.position)
+			pos_arr.append(world_to_screen(g.global_position))
 			col_arr.append(Color(g.colour.r, g.colour.g, g.colour.b, 1.0))
 		else:
-			pos_arr.append(player.global_position + world_root.position)
+			pos_arr.append(world_to_screen(player.global_position))
 			col_arr.append(Color(0.0, 0.0, 0.0, 1.0))
 	mat.set_shader_parameter("light_count", mini(lit.size(), cap))
 	mat.set_shader_parameter("light_pos", pos_arr)
