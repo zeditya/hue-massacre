@@ -633,7 +633,27 @@ no `gpt_assist/`, no `assets/arenas/`, no `submission.txt`.
    the arena and fight captures have been inspected, but nobody has yet played a
    full room start-to-finish at zoom 2 with darkness on.
 
-### 9.14 Housekeeping note for whoever picks this up next
+### 9.14 The live build, verified
+
+`https://zeditya.github.io/hue-massacre/index.pck` now serves this revision
+(418 KB). Scanned the downloaded bytes: `assets/units/{knight,warden,champion}`,
+the crowd atlas, `assets/fx/{impact,lightning}`, `assets/props/{statue_soldier,
+statue_orc,tree,sheep}` and the Adventurer are **in**; `assets/arenas`,
+`gpt_assist`, `.zip`, `build/capture`, `tests/` and `PROGRESS_REPORT` are
+**out**.
+
+Two things worth knowing about exporting locally, both learned here:
+
+- **`build/` gets imported.** The capture PNGs live under `build/capture/` but
+  are inside the project, so Godot imports them and `export_filter=all_resources`
+  ships them: a local export was **44.8 MB** before `build/*` was excluded, and
+  **8.9 MB** after. CI never had the problem, because it checks out a clean tree
+  where `build/` does not exist — which is exactly why the live pck was 418 KB.
+- **`;` not `#`.** Inside `[preset.0]`, a `#` comment makes Godot's ConfigFile
+  lose the whole key and the export fails with *"Couldn't find the given section
+  preset.0 and key exclude_filter"*.
+
+### 9.15 Housekeeping note for whoever picks this up next
 
 - `tools/probe_camera.gd` was written to settle a confusion (it prints camera
   position, zoom and visible world size, which proved the fight capture is a
