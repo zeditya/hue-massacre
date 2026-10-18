@@ -243,8 +243,21 @@ var _walk_phase: float = 0.0
 var _alert_pop: float = 0.0
 ## The character sprite, built in _ready() and tinted to this guard's hue.
 var _sprite: AnimatedSprite2D = null
+## Which sheet of armour this knight wears: "knight" (the 60hp line), "warden"
+## (the 140hp heavy, cut bigger), "harrier" (the crowd's knife, fast and
+## fragile), "aspirant" (the axe hands the Champion calls up) or "champion"
+## (the lancer himself). The room picks it; see SpriteBank.UNITS.
+var unit: String = "knight"
 ## Which way the guard faces: "down" / "up" / "left" / "right".
 var _dir: String = "down"
+## The attack sheet this swing is using, alternating so a combo is never the
+## same animation twice in a row.
+var _attack_anim: String = "attack1"
+var _attack_toggle: bool = false
+## Seconds left of the "blade turned aside" pose (the Champion's shield).
+var _guard_pose_left: float = 0.0
+## Which way the armour topples when the knight dies: away from the blade.
+var _fall_side: float = 1.0
 ## The line this guard is currently saying, and how long it has left to say it.
 ## Public because the HUD draws the bubbles (above the darkness layer).
 var bark_text: String = ""
@@ -252,6 +265,9 @@ var bark_left: float = 0.0
 var bark_total: float = 2.0
 var bark_colour: Color = Color(1.0, 1.0, 1.0)
 
+
+## Reference to blood field for bloody footprints
+var blood: BloodField = null
 
 func _ready() -> void:
 	collision_layer = 2
@@ -262,8 +278,9 @@ func _ready() -> void:
 	circle.radius = body_radius
 	shape.shape = circle
 	add_child(shape)
-	# Above the paint, below the player.
-	z_index = 2
+	# Sorted among the walls and props by the ground line they stand on, so a
+	# knight really is hidden when it walks behind a pillar.
+	z_index = 0
 	# Face the first waypoint so the cone does not start pointing at nothing.
 	if patrol_points.size() >= 2:
 		_facing = (patrol_points[1] - patrol_points[0]).angle()
@@ -273,13 +290,18 @@ func _ready() -> void:
 	# drawn in its own fixed palette.
 	_sprite = AnimatedSprite2D.new()
 	_sprite.name = "Sprite"
-	_sprite.sprite_frames = SpriteBank.adventurer()
+	_sprite.sprite_frames = SpriteBank.unit(unit)
 	_sprite.centered = true
+	_sprite.offset = SpriteBank.unit_offset(unit)
 	_sprite.material = SpriteBank.tint_material(colour)
 	add_child(_sprite)
 	hp = max_hp
 	_base_hue_speed = hue_speed
 	_update_animation()
+
+	# Get blood field reference from room
+	if room != null and room.blood != null:
+		blood = room.blood
 
 
 func _process(delta: float) -> void:
@@ -288,6 +310,7 @@ func _process(delta: float) -> void:
 	hit_flash = maxf(hit_flash - delta * 4.0, 0.0)
 	clang_flash = maxf(clang_flash - delta * 4.0, 0.0)
 	_swing_flash = maxf(_swing_flash - delta * 3.5, 0.0)
+	_guard_pose_left = maxf(_guard_pose_left - delta, 0.0)
 	# A staggered knight reels visibly, so the armour break cannot be missed.
 	if _sprite != null:
 		_sprite.rotation = sin(_time * 34.0) * 0.22 if stagger_left > 0.0 else 0.0
@@ -295,6 +318,13 @@ func _process(delta: float) -> void:
 		# A beaten Champion does not pop out of the world: he kneels there until
 		# the victory page takes over (_death_left is effectively infinite).
 		if not kneeling:
+			# The rest fall over: the armour tips away from the blade and the
+			# body is gone before it lands. Better than a sprite that blinks
+			# out of a world the player is standing in.
+			var fall: float = 1.0 - clampf(_death_left / 0.30, 0.0, 1.0)
+			if _sprite != null:
+				_sprite.rotation = _fall_side * 1.35 * fall
+				_sprite.modulate = Color(1.0, 1.0, 1.0, 1.0 - 0.9 * fall)
 			_death_left = maxf(_death_left - delta, 0.0)
 			if _death_left <= 0.0:
 				queue_free()
@@ -325,13 +355,49 @@ func _process(delta: float) -> void:
 
 ## Pick the animation for what the guard is doing. A moving guard runs, a
 ## standing one idles, and either way it faces where its vision cone points.
+##
+## The melee's art is drawn for a camera looking from the south, so every
+## facing uses the same frames and "left" is the only one that flips. What
+## carries the rest of the read is the ground itself: the cone, the arc and the
+## swing streak all point where the knight does.
 func _update_animation() -> void:
 	if _sprite == null:
 		return
-	_dir = SpriteBank.dir_from_angle(_facing)
-	var want: String = ("run_%s" if velocity.length() > 5.0 else "idle_%s") % _dir
+	var face: String = SpriteBank.dir_from_angle(_facing)
+	_dir = face
+	_sprite.flip_h = face == "left"
+
+	# A swing owns the sprite until the knight has recovered. Holding the last
+	# frame through RECOVER is what makes the punish window visible: the blade
+	# is still out, the guard is wide open.
+	if attack_state != Attack.NONE and _sprite.sprite_frames.has_animation(_attack_anim):
+		if _sprite.animation != _attack_anim:
+			_sprite.play(_attack_anim)
+		return
+
+	var want: String = "run" if velocity.length() > 5.0 else "idle"
+	# The Champion turns the blade aside behind the defence set whenever a
+	# strike clangs off his shield.
+	if _guard_pose_left > 0.0 and _sprite.sprite_frames.has_animation("guard"):
+		want = "guard"
+	# A warden standing still plants behind its shield: the same armour as the
+	# knights, read as the heavy it is from across the arena.
+	elif want == "idle" and unit == "warden" and _sprite.sprite_frames.has_animation("guard"):
+		want = "guard"
 	if _sprite.animation != want:
 		_sprite.play(want)
+
+
+## Start the windup's attack sheet, alternating between the two so a knight who
+## swings twice does not look like a loop. The sheets are timed to the windup,
+## so the last frame lands when the blade is coded to connect.
+func _begin_attack() -> void:
+	_attack_toggle = not _attack_toggle
+	var pair: String = "attack2" if (_attack_toggle and
+		_sprite != null and _sprite.sprite_frames.has_animation("attack2")) else "attack1"
+	_attack_anim = pair
+	if _sprite != null and _sprite.sprite_frames.has_animation(pair):
+		_sprite.play(pair)
 
 
 func _physics_process(delta: float) -> void:
@@ -366,6 +432,13 @@ func _physics_process(delta: float) -> void:
 			_do_chase(delta)
 
 	move_and_slide()
+
+	# Bloody footprints: if walking through blood, leave footprints
+	if blood != null and velocity.length() > 15.0 and not dead:
+		if blood.is_in_blood(global_position):
+			var blood_colour: Color = blood.get_blood_at(global_position)
+			if blood_colour.a > 0.0:
+				blood.add_footprint(global_position, blood_colour, velocity.normalized(), body_radius / 14.0)
 
 
 # ---------------------------------------------------------------------------
@@ -587,6 +660,7 @@ func _do_chase(delta: float) -> void:
 			if dist <= attack_range and _attack_cooldown_left <= 0.0 and not player.frozen:
 				attack_state = Attack.WINDUP
 				_attack_left = attack_windup
+				_begin_attack()
 			elif dist > attack_range * 0.85:
 				velocity = Vector2.RIGHT.rotated(_facing) * chase_speed
 			else:
@@ -727,6 +801,9 @@ func take_hit(amount: float, shatter: bool, heavy: bool, from_position: Vector2,
 		if shatter:
 			push = maxf(push, 240.0)
 		velocity += away.normalized() * push
+		# Remembered for the death topple: the armour falls away from the blade.
+		if absf(away.x) > 0.01:
+			_fall_side = signf(away.x)
 	if shatter:
 		_say("stagger")
 
@@ -766,6 +843,8 @@ func _update_boss_phase() -> void:
 ## outside the complement window). Purely feedback.
 func clang() -> void:
 	clang_flash = 1.0
+	# Hold the defence pose long enough to read: the blade is turned aside.
+	_guard_pose_left = maxf(_guard_pose_left, 0.45)
 
 
 ## Health left as 0..1, for the over-head bar.
@@ -878,13 +957,20 @@ func _draw() -> void:
 		points.append(dir * reach)
 
 	# The cone brightens as the guard notices you - a free tutorial in itself.
+	# It is drawn as four nested wedges, brightest at the knight and thinning
+	# towards its reach: on top of a painted floor a flat wash reads like a
+	# stain, a falloff reads like light.
 	var alert: float = clampf(detection, 0.0, 1.0)
-	var cone_fill: Color = Color(body.r, body.g, body.b, 0.16 + 0.18 * alert)
-	var cone_edge: Color = Color(body.r, body.g, body.b, 0.50 + 0.45 * alert)
-	draw_colored_polygon(points, cone_fill)
+	for k in 4:
+		var t: float = 1.0 - float(k) * 0.24
+		var band: PackedVector2Array = PackedVector2Array()
+		for p in points:
+			band.append(p * t)
+		var band_alpha: float = (0.045 + 0.05 * alert) * (0.5 + float(k) * 0.5)
+		draw_colored_polygon(band, Color(body.r, body.g, body.b, band_alpha))
 	var outline: PackedVector2Array = points.duplicate()
 	outline.append(Vector2.ZERO)
-	draw_polyline(outline, cone_edge, 1.5)
+	draw_polyline(outline, Color(body.r, body.g, body.b, 0.38 + 0.42 * alert), 1.5)
 
 	# --- boss charge telegraph --------------------------------------------
 	# A long, hot lane painted on the sand: at full charge the wedge is already

@@ -97,6 +97,12 @@ var sigil_accent: Color = UiStyle.GOLD
 var barks: Array = []
 
 var _time: float = 0.0
+## The multiplier's pulse, driven by game.gd when the chain grows: how long it
+## has been swelling, and how far it jumped. A number that only changes when you
+## read it is easy to miss in the middle of a fight; a number that punches out
+## and settles back is impossible to miss.
+var _mult_pulse: float = 0.0
+var _mult_pulse_size: float = 1.0
 
 
 func _ready() -> void:
@@ -111,8 +117,17 @@ func _process(delta: float) -> void:
 	banner_left = maxf(banner_left - delta, 0.0)
 	hint_left = maxf(hint_left - delta, 0.0)
 	verse_left = maxf(verse_left - delta, 0.0)
+	if _mult_pulse > 0.0:
+		_mult_pulse = maxf(_mult_pulse - delta, 0.0)
 	# The HUD changes every frame (timers, bars), so just redraw every frame.
 	queue_redraw()
+
+
+## Called by game.gd the moment the multiplier climbs. `step` is how much it
+## gained, so a long chain kicks harder than the first rung of it.
+func pulse_multiplier(step: int) -> void:
+	_mult_pulse = 1.0
+	_mult_pulse_size = clampf(1.0 + 0.055 * float(maxi(step, 1)), 1.0, 1.35)
 
 
 # ---------------------------------------------------------------------------
@@ -238,9 +253,29 @@ func _draw_top_right() -> void:
 	# Multiplier plus the shrinking window in which the next complement counts.
 	# Drawn in the complement of the floor colour under the player, which is
 	# complementary contrast used as a live readout.
-	var mult_text: String = "MULTIPLIER  x%d" % multiplier
+	#
+	# The pulse: when the chain grows, the readout swells and eases back over a
+	# quarter of a second, and a ring of the floor's complement blooms behind it.
+	# The number carries the same information either way; the pulse is what makes
+	# it impossible to miss while three knights are closing on you.
+	var pulse: float = 0.0
+	var mult_size: int = 13
 	var mult_colour: Color = ColorTheory.complement(floor_colour) if multiplier > 1 else UiStyle.DIM
-	UiStyle.text(self, UiStyle.tracked(mult_text), Vector2(box_x, 76.0), 13, mult_colour,
+	if _mult_pulse > 0.0:
+		# A fast out, a slower settle: the shape of a punch.
+		var swell: float = pow(_mult_pulse, 0.55)
+		pulse = swell
+		mult_size = int(round(13.0 * (1.0 + 0.34 * swell)))
+		mult_colour = mult_colour.lerp(Color(1.0, 1.0, 1.0), 0.55 * swell)
+	if pulse > 0.0:
+		var bloom_centre := Vector2(TOP_RIGHT_EDGE - 44.0, 74.0)
+		for i in 3:
+			draw_arc(bloom_centre, 14.0 + 8.0 * pulse + float(i) * 10.0 * pulse,
+				0.0, TAU, 32,
+				Color(mult_colour.r, mult_colour.g, mult_colour.b, (0.38 - 0.10 * float(i)) * pulse),
+				2.0 + 1.5 * pulse, true)
+	var mult_text: String = "MULTIPLIER  x%d" % multiplier
+	UiStyle.text(self, UiStyle.tracked(mult_text), Vector2(box_x, 76.0), mult_size, mult_colour,
 		HORIZONTAL_ALIGNMENT_RIGHT, 356.0)
 	if combo_time_left > 0.0 and multiplier > 1:
 		var ratio: float = clampf(combo_time_left / maxf(combo_window, 0.01), 0.0, 1.0)

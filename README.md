@@ -271,10 +271,17 @@ res://
 ├─ LICENSE                MIT — covers the code, NOT the art in assets/
 ├─ docs/                  assignment artefacts (AI chat history PDF, floor plans)
 ├─ assets/
-│  ├─ characters/         free top-down character sheets (the only imported art)
+│  ├─ characters/         the Adventurer - the Unsworn's sheet, and only hers
+│  ├─ units/              the cast (knight, warden, harrier, aspirant, champion)
+│  │  └─ crowd/           the stands: one 20-row pawn atlas
+│  ├─ fx/                 impact, splatter, magic, lightning, dust, fire
+│  ├─ props/              rocks, bushes, gold, timber, the stone champions
+│  ├─ ui/                 banner and bar frames from the packs
 │  ├─ tiles/              floor tiles (kept from the first build, now unused)
 │  ├─ LICENSES/           the licence text for each art pack
 │  └─ ATTRIBUTION.md      where every asset came from, and its terms
+│                        (every baked sheet's source file is logged in
+│                         tools/bake_itch_packs.sh)
 ├─ scenes/
 │  └─ main.tscn           the ONLY scene in the game: one Node + game.gd
 ├─ scripts/
@@ -343,6 +350,60 @@ Everything you see is drawn in code, and the arena is the biggest piece of it
 
 The whole mood is tunable in one place: set `darkness_enabled` to `false` in
 `game.gd` to play the bright, unlit version.
+
+### Where the pixels come from
+
+The floor, the masonry, the sigils, the light pools and the fighters' shadows
+are still drawn in code — that is the part that makes the arena read as *this*
+arena. On top of that sit baked sheets from four packs, all produced by one
+script, `tools/bake_itch_packs.sh`, which records the source file and size of
+everything it bakes:
+
+- **The fighters.** Every knight but the Unsworn is a **Tiny Swords** sheet
+  (Pixel Frog), baked to greyscale and resized: the *Warrior* for the line, the
+  same armour 25 % larger for the warden, the *Pawn with Knife* for the
+  harriers, the *Pawn with Axe* for the Champion's Aspirants, the *Lancer* for
+  the Champion himself. The Unsworn keeps the 4-directional Adventurer so the
+  aim stays readable.
+- **The crowd.** The stands are now the **Tiny Swords pawns** — five factions,
+  four props each — cut into a 20-row atlas and re-mixed per arena so a third of
+  the crowd wears the house's own colour and the rest are the other four.
+- **The fire.** Braziers burn the pack's tall flame, torches its campfire; the
+  rest of the frame around the flame is still drawn.
+- **The dressing.** Rocks, bushes, stumps, gold, timber, meat, tools, a grazing
+  sheep and a tree at the arena's edge, each variant picked from where the prop
+  stands so a rock never changes shape between frames. The two stone champions
+  at the gates are **Zerie's** Soldier and Orc, trimmed and scaled up to stand at
+  knight height.
+- **The combat.** Hits, kills, shatters, mote-drinks, phase changes and the
+  Aspirants arriving on a bolt of lightning are **Super Pixel Effects** frames,
+  greyscaled so they can be tinted to the hue the moment calls for — a knight's
+  blood is his own colour, a shatter is the Unsworn's.
+
+All three are recolour-driven, which is the point: hue is the game's language,
+so the art is a mask for it rather than a palette competing with it.
+
+### Art credits
+
+- **Tiny Swords** — Pixel Frog. <https://pixelfrog-assets.itch.io/tiny-swords>
+  (commercial use and modification allowed; not redistributed — see
+  `assets/LICENSES/tiny_swords.txt`).
+- **Tiny RPG Character Asset Pack 01** — Zerie.
+  <https://zerie.itch.io/tiny-rpg-character-asset-pack> (commercial use and
+  modification allowed; not redistributed — `assets/LICENSES/zerie_tiny_rpg.txt`).
+- **Super Pixel Effects Gigapack (Free Version) v3.1.0** — Will Tice /
+  unTied Games. <https://untiedgames.itch.io/super-pixel-effects-gigapack>
+  (**attribution required by the licence**, commercial use allowed —
+  `assets/LICENSES/super_pixel_effects.txt`).
+- **FREE Adventurer 2D Pixel Art** — the Unsworn
+  (`assets/LICENSES/adventurer.txt`).
+- **Modern Interiors** — LimeZu, free edition, **non-commercial only**. It is
+  still in `assets/tiles/` from the first build and is **not used by the game**;
+  it must be removed before any monetised build
+  (`assets/LICENSES/modern_interiors.txt`).
+
+Full terms, what was deliberately left out and why, and every exclusion is in
+[`assets/ATTRIBUTION.md`](assets/ATTRIBUTION.md).
 
 ---
 

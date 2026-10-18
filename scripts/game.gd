@@ -71,17 +71,19 @@ enum State { PLAY, PAUSED, DEAD, WIN }
 
 @export_group("Camera")
 ## The view is zoomed in so the figures read big (Soul Knight framing: the
-## room scrolls past instead of fitting on one screen). 1.5 is the value the
-## camera comparison picked in docs/proto/2d_camera/.
-@export var camera_zoom: float = 1.5
+## room scrolls past instead of fitting on one screen). 2.0 is the value that
+## keeps the pixel grid honest: the floor bake is half resolution, so at zoom
+## 2.0 one baked pixel lands on exactly 4x4 screen pixels - no shimmer when
+## the camera moves, which is what a laid-stone floor needs.
+@export var camera_zoom: float = 2.0
 ## How fast the camera catches up to the player, per second (exponential ease).
 ## Higher = tighter and snappier, lower = floatier.
 @export var camera_follow_speed: float = 7.0
 
 @export_group("Darkness")
-## The arena is dark; the Unsworn's own torch shows the way, like a
-## torch in a blacked-out hallway. It is dark, but the ground at your feet and
-## the guards' lanterns stay readable - the dark is atmosphere, never a keyhole.
+## The arena is in the last light of the day; the Unsworn's own torch shows
+## the way. The dark is a mood, never a keyhole: the painted floor, the
+## masonry and the guests on the rim all have to stay readable under it.
 ## Set this false for the original daylight look.
 @export var darkness_enabled: bool = true
 ## Half-width of the player's light cone, in degrees. A torch throws a fairly
@@ -89,19 +91,21 @@ enum State { PLAY, PAUSED, DEAD, WIN }
 ## follows WASD.
 @export var light_cone_deg: float = 50.0
 ## How far the light cone reaches, in pixels. Long enough to see down a hallway.
-@export var light_range: float = 720.0
+@export var light_range: float = 850.0
 ## A small always-lit circle around the Unsworn so they never lose themselves.
-@export var light_near_radius: float = 95.0
+@export var light_near_radius: float = 120.0
 ## A dim pool of visibility around the Unsworn in every direction, so the ground
 ## right next to you is always readable even when you are not pointing at it.
 ## Kept short and weak so the forward cone still reads as a torch beam.
-@export var light_ambient_range: float = 150.0
-@export_range(0.0, 1.0) var light_ambient_strength: float = 0.30
+@export var light_ambient_range: float = 190.0
+@export_range(0.0, 1.0) var light_ambient_strength: float = 0.50
 ## How far each knight's lantern reaches. Knights glow with their own hue.
-@export var guard_lantern_range: float = 150.0
-## 0 = daylight, 1 = pitch black outside the light. Set high enough that the
-## world genuinely reads as a dark hallway, but the ambient pool keeps it fair.
-@export_range(0.0, 1.0) var darkness_amount: float = 0.74
+@export var guard_lantern_range: float = 165.0
+## 0 = daylight, 1 = pitch black outside the light. Set low enough that the
+## painted floor, the arena rim and the combat all stay readable at a glance -
+## the dark is a mood here, not the game. The braziers and the knights'
+## lanterns still pool light on the sand.
+@export_range(0.0, 1.0) var darkness_amount: float = 0.34
 ## How many guards get a lantern (nearest first). Must match MAX_LIGHTS in the
 ## shader. Extra guards simply go unlit.
 @export var guard_light_count: int = 8
@@ -149,6 +153,10 @@ var _busy: bool = false    # true while a room-clear or death sequence is runnin
 
 ## Advances forever; drives the torch flicker in the darkness shader.
 var _torch_time: float = 0.0
+## Crowd excitement level (0..1) - drives crowd animations, banner waving, cheering
+var crowd_excitement: float = 0.0
+## Decay rate for crowd excitement
+const CROWD_EXCITEMENT_DECAY: float = 0.15  # per second
 
 
 func _ready() -> void:
@@ -178,6 +186,13 @@ func _process(delta: float) -> void:
 				_reset_combo()
 		if room != null and _any_guard_chasing():
 			_spotted_this_room = true
+
+	# Decay crowd excitement and publish it: the arena's living rim reads it
+	# back through ArenaArt.get_crowd_excitement().
+	if crowd_excitement > 0.0:
+		crowd_excitement = maxf(crowd_excitement - CROWD_EXCITEMENT_DECAY * delta, 0.0)
+	if room != null:
+		ArenaArt.set_crowd_excitement(room_index, crowd_excitement)
 
 	_sync_hud()
 	_sync_darkness()
@@ -445,8 +460,13 @@ func _on_guard_killed(guard: Guard) -> void:
 
 	if linked:
 		combo_chain += 1
+		var before: int = multiplier
 		multiplier = mini(1 + combo_chain, max_multiplier)
 		combo_time_left = combo_window
+		# The readout punches as it climbs. Every rung of a chain should be felt,
+		# not just read - the score is the reward, the pulse is the punctuation.
+		if hud != null and multiplier > before:
+			hud.pulse_multiplier(multiplier - before)
 	else:
 		combo_chain = 0
 		multiplier = 1
@@ -466,6 +486,9 @@ func _on_guard_killed(guard: Guard) -> void:
 	audio.play("kill", randf_range(0.90, 1.12))
 	if hud != null:
 		hud.show_flash(Screens.random_kill_flash(), guard.colour, 2.2)
+
+	# Crowd excitement: kills get the crowd going
+	crowd_excitement = minf(crowd_excitement + 0.15, 1.0)
 
 	if linked:
 		_trigger_combo(guard.colour)
@@ -499,6 +522,13 @@ func _boss_victory_beat() -> void:
 func _on_boss_phase_changed(phase: int) -> void:
 	audio.play("wave", 0.75)
 	_add_shake(kill_shake)
+	# The wheel spins up: the Champion's own hue flares around him as he takes
+	# the next turn of it. A phase change is never a surprise.
+	if room != null:
+		for guard in room.guards:
+			if guard.is_boss:
+				room.queue_fx("magic", guard.global_position, guard.colour, 1.6)
+				break
 	if hud == null:
 		return
 	var title: String = "PHASE II - THE CHARGE" if phase == 2 else "PHASE III - THE ASPIRANTS"
@@ -506,6 +536,8 @@ func _on_boss_phase_changed(phase: int) -> void:
 	hud.show_banner(title, sub, UiStyle.GOLD, 2.0)
 	if phase >= 3:
 		hud.show_flash("his hue is turning faster now", UiStyle.ALERT, 1.6)
+	# Crowd roars for phase changes
+	crowd_excitement = minf(crowd_excitement + (0.25 if phase == 2 else 0.35), 1.0)
 
 
 ## The Champion's Aspirants have arrived. They are extra knights in the same
@@ -517,6 +549,8 @@ func _on_boss_summons_spawned(count: int) -> void:
 		return
 	var noun: String = "Aspirant" if count == 1 else "Aspirants"
 	hud.show_flash("%d %s enter the arena" % [count, noun], UiStyle.PAPER, 1.6)
+	# Crowd goes wild for summons
+	crowd_excitement = minf(crowd_excitement + 0.2, 1.0)
 
 
 ## The dash is committed: a shove of the camera and a low whoosh, so the lane
@@ -524,6 +558,8 @@ func _on_boss_summons_spawned(count: int) -> void:
 func _on_boss_charge_started() -> void:
 	_add_shake(combo_shake * 0.45)
 	audio.play("charge")
+	# Crowd holds breath for the charge
+	crowd_excitement = minf(crowd_excitement + 0.15, 1.0)
 
 
 ## The complement payoff: a white flash, a hard shake and a bigger multiplier.
@@ -536,6 +572,8 @@ func _trigger_combo(colour: Color) -> void:
 		var sub: String = "%s and %s sit opposite each other on the wheel" % [
 			ColorTheory.color_name(_last_kill_colour), ColorTheory.color_name(colour)]
 		hud.show_banner("COMPLEMENT  x%d" % multiplier, sub, UiStyle.GOLD, 2.0)
+	# Crowd goes wild for combos
+	crowd_excitement = minf(crowd_excitement + 0.2, 1.0)
 
 
 ## The room's blade report: a strike landed, kill or not. A complement SHATTER
@@ -551,19 +589,35 @@ func _on_strike_landed(kind: int, _at: Vector2) -> void:
 			_flash(Color(1.0, 1.0, 1.0), 0.16)
 			_set_hit_stop()
 			audio.play("shatter", randf_range(0.92, 1.08))
+			# Crowd reacts to shatters
+			crowd_excitement = minf(crowd_excitement + 0.08, 1.0)
 		ColorTheory.Hit.ABSORBED:
 			_add_shake(kill_shake * 0.2)
 			audio.play("clang", randf_range(0.75, 0.90))
+			# The blade bounced: no freeze at all, or the dodge that follows a
+			# wrong swing would eat the punish window.
+			_set_hit_stop(0.0)
 		_:
 			_add_shake(kill_shake * 0.45)
+			# A third of a stop. The chain is three swings at 0.28s apart; a
+			# full stop on every cut would make the third swing feel late.
+			_set_hit_stop(0.34)
 			audio.play("hit", randf_range(0.95, 1.15))
+			# Small excitement for normal hits
+			crowd_excitement = minf(crowd_excitement + 0.02, 1.0)
 
 
 ## A dodge roll has no victim to play feedback for, so it gets its own small
-## juice: a shove of the camera and the old air-puff sound, pitched up a touch.
+## juice: a shove of the camera, the old air-puff sound pitched up a touch, and
+## a kick of sand where the boots dig in.
 func _on_player_rolled(_direction: Vector2) -> void:
 	_add_shake(roll_shake)
 	audio.play("dash", randf_range(1.05, 1.20))
+	if room != null:
+		room.queue_fx("dust", room.player.global_position + Vector2(0.0, 6.0),
+			Color(0.86, 0.80, 0.68), 0.85)
+	# Crowd likes a good dodge
+	crowd_excitement = minf(crowd_excitement + 0.03, 1.0)
 
 
 func _on_player_died() -> void:
@@ -572,6 +626,8 @@ func _on_player_died() -> void:
 	_add_shake(death_shake)
 	_flash(Color(1.0, 0.15, 0.15), 0.45)
 	audio.play("die")
+	# Crowd gasps
+	crowd_excitement = minf(crowd_excitement + 0.1, 1.0)
 	state = State.DEAD
 	_busy = true
 	if room != null:
@@ -592,6 +648,8 @@ func _on_room_cleared() -> void:
 	_busy = true
 	_reset_combo()
 	audio.play("room_clear")
+	# Crowd cheers for arena clear
+	crowd_excitement = minf(crowd_excitement + 0.3, 1.0)
 
 	var bonus_text: String = ""
 	if not _spotted_this_room:
@@ -681,6 +739,11 @@ func _on_screen_restart() -> void:
 			pass
 
 
+## Get current crowd excitement level (for room drawing)
+func get_crowd_excitement() -> float:
+	return crowd_excitement
+
+
 # ---------------------------------------------------------------------------
 # Combo bookkeeping
 # ---------------------------------------------------------------------------
@@ -768,13 +831,21 @@ func world_to_screen(world_point: Vector2) -> Vector2:
 	return (world_point - camera.position) * camera.zoom + LevelData.PLAYFIELD * 0.5
 
 
-## A few milliseconds of near-freeze on a kill. Cheap, and it makes the blade
-## feel like it has weight. Measured in real time so it cannot be re-entered.
-func _set_hit_stop() -> void:
-	if hit_stop_seconds <= 0.0:
+## A few milliseconds of near-freeze, so the blade feels like it has weight.
+## Measured in real time so it cannot be re-entered. `weight` scales it: a kill
+## or a shatter asks for the full stop, an ordinary cut takes a third of one
+## (enough to land the impact, not enough to interrupt a three-swing chain),
+## and a glance off a shield asks for none.
+func _set_hit_stop(weight: float = 1.0) -> void:
+	if hit_stop_seconds <= 0.0 or weight <= 0.0:
 		return
+	# Never shorter than the real-time release, or the freeze outlives the hit.
+	var seconds: float = hit_stop_seconds * clampf(weight, 0.0, 2.0)
 	Engine.time_scale = 0.08
-	_hit_stop_until_msec = Time.get_ticks_msec() + int(hit_stop_seconds * 1000.0)
+	# A longer stop is always the later deadline, so a kill during a cut's
+	# micro-stop extends it rather than cutting it short.
+	_hit_stop_until_msec = maxi(_hit_stop_until_msec,
+		Time.get_ticks_msec() + int(seconds * 1000.0))
 
 
 func _update_hit_stop() -> void:

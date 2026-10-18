@@ -139,7 +139,16 @@ const ROOMS: Array = [
 		# One verse per house, printed by the HUD when the arena loads.
 		"verse": "HOUSE OF THE CRIMSON SUN\nThey fight for a sun that never sets.\nYou fight for the colour you are standing in.",
 		"accent": Color(0.92, 0.30, 0.18),
-		"wall_color": Color(0.10, 0.09, 0.11),
+		"wall_color": Color(0.42, 0.36, 0.31),
+		# The laid stone of this arena, kept desaturated (the darkest grey still
+		# carries a warm cast, saturation 0.14) so the floor counts as "no
+		# colour" to the rules while the WALLS - which nobody can walk on - do
+		# the warm, sunlit work.
+		"stones": {
+			"base": Color(0.51, 0.48, 0.44),
+			"dark": Color(0.40, 0.38, 0.35),
+			"light": Color(0.58, 0.55, 0.51),
+		},
 		"floor_style": "sun",
 		"waves": 3,
 		"walls": [
@@ -159,6 +168,38 @@ const ROOMS: Array = [
 		"braziers": [
 			Vector2(300.0, 230.0), Vector2(300.0, 490.0),
 			Vector2(980.0, 230.0), Vector2(980.0, 490.0),
+		],
+		# Furniture. Every prop is drawn from its BASE and sorted with the
+		# fighters, so a knight walking behind a column really does go behind
+		# it. Nothing here is solid: the only collision is "walls".
+		"props": [
+			# A broken column on each herald plinth.
+			{ "kind": "pillar", "pos": Vector2(450.0, 170.0), "scale": 1.0 },
+			{ "kind": "pillar", "pos": Vector2(830.0, 590.0), "scale": 0.85 },
+			# Fallen masonry at the ring's feet.
+			{ "kind": "rubble", "pos": Vector2(400.0, 646.0), "scale": 1.1 },
+			{ "kind": "rubble", "pos": Vector2(880.0, 646.0), "scale": 0.9 },
+			{ "kind": "rubble", "pos": Vector2(400.0, 118.0), "scale": 1.0 },
+			{ "kind": "rubble", "pos": Vector2(880.0, 118.0), "scale": 0.8 },
+			# Old bones, out where the sand keeps no footprints.
+			{ "kind": "bones", "pos": Vector2(545.0, 305.0) },
+			{ "kind": "bones", "pos": Vector2(755.0, 465.0) },
+			{ "kind": "bones", "pos": Vector2(185.0, 255.0) },
+			# Two champions of the Crimson Sun stand at the south corners,
+			# and the concourse holds the day's clutter: quarried stone, the
+			# house's tribute, and a tree the sun has not killed yet.
+			{ "kind": "statue_soldier", "pos": Vector2(150.0, 660.0) },
+			{ "kind": "statue_soldier", "pos": Vector2(1130.0, 660.0) },
+			{ "kind": "rock", "pos": Vector2(78.0, 78.0), "scale": 1.05 },
+			{ "kind": "rock", "pos": Vector2(1204.0, 76.0) },
+			{ "kind": "rock", "pos": Vector2(1212.0, 650.0), "scale": 1.15 },
+			{ "kind": "stump", "pos": Vector2(70.0, 360.0) },
+			{ "kind": "stump", "pos": Vector2(240.0, 660.0), "scale": 0.9 },
+			{ "kind": "tree", "pos": Vector2(1218.0, 140.0), "scale": 0.75 },
+			{ "kind": "bush", "pos": Vector2(70.0, 520.0) },
+			{ "kind": "bush", "pos": Vector2(300.0, 55.0) },
+			{ "kind": "gold", "pos": Vector2(985.0, 660.0) },
+			{ "kind": "wood", "pos": Vector2(90.0, 200.0) },
 		],
 		"start": Vector2(170.0, 620.0),
 		"start_color": Color(1.0, 1.0, 1.0),
@@ -259,7 +300,12 @@ const ROOMS: Array = [
 		# One verse per house, printed by the HUD when the arena loads.
 		"verse": "THE TWIN HOUSES\nTwo houses share this hall and share no colour.\nWhere their paint meets, a third colour is born.",
 		"accent": Color(0.30, 0.55, 0.95),
-		"wall_color": Color(0.10, 0.10, 0.12),
+		"wall_color": Color(0.40, 0.34, 0.30),
+		"stones": {
+			"base": Color(0.46, 0.44, 0.42),
+			"dark": Color(0.35, 0.33, 0.32),
+			"light": Color(0.54, 0.52, 0.49),
+		},
 		"floor_style": "cross",
 		"waves": 3,
 		"walls": [
@@ -283,6 +329,36 @@ const ROOMS: Array = [
 		"braziers": [
 			Vector2(430.0, 160.0), Vector2(850.0, 160.0),
 			Vector2(430.0, 570.0), Vector2(850.0, 570.0),
+		],
+		"props": [
+			# A column on each quadrant block: the four corners of the hall.
+			{ "kind": "pillar", "pos": Vector2(280.0, 220.0), "scale": 1.1 },
+			{ "kind": "pillar", "pos": Vector2(1000.0, 220.0), "scale": 1.1 },
+			{ "kind": "pillar", "pos": Vector2(280.0, 580.0), "scale": 1.1 },
+			{ "kind": "pillar", "pos": Vector2(1000.0, 580.0), "scale": 1.1 },
+			# Where the halls meet the crossing, the hall's own ruins.
+			{ "kind": "rubble", "pos": Vector2(548.0, 302.0), "scale": 1.0 },
+			{ "kind": "rubble", "pos": Vector2(732.0, 418.0), "scale": 0.9 },
+			{ "kind": "rubble", "pos": Vector2(548.0, 418.0), "scale": 0.8 },
+			{ "kind": "bones", "pos": Vector2(640.0, 375.0) },
+			{ "kind": "bones", "pos": Vector2(365.0, 330.0) },
+			{ "kind": "bones", "pos": Vector2(915.0, 392.0) },
+			# The Twin Houses face each other down the length of the hall -
+			# each one's champion in stone, and the tribute they fight over
+			# stacked where the crowd threw it.
+			{ "kind": "statue_soldier", "pos": Vector2(470.0, 332.0) },
+			{ "kind": "statue_orc", "pos": Vector2(810.0, 332.0) },
+			{ "kind": "gold", "pos": Vector2(330.0, 546.0) },
+			{ "kind": "gold", "pos": Vector2(356.0, 528.0), "scale": 0.85 },
+			{ "kind": "gold", "pos": Vector2(950.0, 176.0) },
+			{ "kind": "meat", "pos": Vector2(180.0, 200.0) },
+			{ "kind": "meat", "pos": Vector2(206.0, 212.0), "scale": 0.9 },
+			{ "kind": "wood", "pos": Vector2(150.0, 520.0) },
+			{ "kind": "tool", "pos": Vector2(1120.0, 500.0) },
+			{ "kind": "tool", "pos": Vector2(1148.0, 516.0), "scale": 0.85 },
+			{ "kind": "bush", "pos": Vector2(60.0, 60.0) },
+			{ "kind": "bush", "pos": Vector2(1225.0, 60.0) },
+			{ "kind": "sheep", "pos": Vector2(1085.0, 205.0) },
 		],
 		"start": Vector2(70.0, 360.0),
 		"start_color": Color(1.0, 1.0, 1.0),
@@ -371,7 +447,12 @@ const ROOMS: Array = [
 		# One verse per house, printed by the HUD when the arena loads.
 		"verse": "HOUSE OF THE GREEN THORN\nHere the wheel is the whole floor.\nFind the hue opposite yours, and end it.",
 		"accent": Color(0.30, 0.90, 0.45),
-		"wall_color": Color(0.09, 0.10, 0.09),
+		"wall_color": Color(0.31, 0.35, 0.44),
+		"stones": {
+			"base": Color(0.40, 0.42, 0.46),
+			"dark": Color(0.29, 0.31, 0.35),
+			"light": Color(0.48, 0.50, 0.54),
+		},
 		"floor_style": "wheel",
 		"waves": 2,
 		"walls": [
@@ -391,6 +472,33 @@ const ROOMS: Array = [
 		"braziers": [
 			Vector2(250.0, 250.0), Vector2(1030.0, 250.0),
 			Vector2(250.0, 470.0), Vector2(1030.0, 470.0),
+		],
+		"props": [
+			# The two altars in the pit wear a broken column each.
+			{ "kind": "pillar", "pos": Vector2(524.0, 314.0), "scale": 0.9 },
+			{ "kind": "pillar", "pos": Vector2(756.0, 496.0), "scale": 0.9 },
+			# Rubble at the gates of the ring.
+			{ "kind": "rubble", "pos": Vector2(562.0, 262.0), "scale": 0.9 },
+			{ "kind": "rubble", "pos": Vector2(758.0, 466.0), "scale": 0.9 },
+			{ "kind": "rubble", "pos": Vector2(300.0, 420.0), "scale": 1.0 },
+			{ "kind": "bones", "pos": Vector2(640.0, 560.0) },
+			{ "kind": "bones", "pos": Vector2(415.0, 300.0) },
+			{ "kind": "bones", "pos": Vector2(880.0, 175.0) },
+			# The Green Thorn's pit is quarry country: raw stone at every
+			# corner, and the house's two champions stood over the south gate.
+			{ "kind": "statue_orc", "pos": Vector2(430.0, 660.0) },
+			{ "kind": "statue_orc", "pos": Vector2(850.0, 660.0) },
+			{ "kind": "rock", "pos": Vector2(70.0, 70.0) },
+			{ "kind": "rock", "pos": Vector2(1212.0, 68.0) },
+			{ "kind": "rock", "pos": Vector2(1214.0, 652.0), "scale": 1.1 },
+			{ "kind": "rock", "pos": Vector2(70.0, 652.0), "scale": 0.9 },
+			{ "kind": "stump", "pos": Vector2(200.0, 68.0) },
+			{ "kind": "stump", "pos": Vector2(1080.0, 662.0) },
+			{ "kind": "tool", "pos": Vector2(360.0, 642.0) },
+			{ "kind": "tool", "pos": Vector2(390.0, 656.0), "scale": 0.85 },
+			{ "kind": "wood", "pos": Vector2(940.0, 90.0) },
+			{ "kind": "gold", "pos": Vector2(180.0, 430.0) },
+			{ "kind": "bush", "pos": Vector2(1150.0, 432.0) },
 		],
 		"start": Vector2(140.0, 620.0),
 		"start_color": Color(1.0, 1.0, 1.0),
@@ -471,7 +579,12 @@ const ROOMS: Array = [
 		# One verse per house, printed by the HUD when the arena loads.
 		"verse": "THE CHAMPION OF THE WHEEL\nHe has worn every colour in one day.\nTake the one he is not wearing, and hold it.",
 		"accent": Color(1.0, 0.82, 0.25),
-		"wall_color": Color(0.12, 0.10, 0.10),
+		"wall_color": Color(0.30, 0.25, 0.24),
+		"stones": {
+			"base": Color(0.42, 0.39, 0.37),
+			"dark": Color(0.31, 0.29, 0.28),
+			"light": Color(0.50, 0.47, 0.44),
+		},
 		"floor_style": "spokes",
 		"walls": [
 			# The eight pillars of the wheel, with a gate at each compass point.
@@ -489,6 +602,38 @@ const ROOMS: Array = [
 		"braziers": [
 			Vector2(240.0, 240.0), Vector2(1040.0, 240.0),
 			Vector2(240.0, 480.0), Vector2(1040.0, 480.0),
+		],
+		"props": [
+			# The wheel's eight standing stones, each wearing a column: walk
+			# behind one and the Champion loses you for a heartbeat.
+			{ "kind": "pillar", "pos": Vector2(936.0, 511.0), "scale": 1.1 },
+			{ "kind": "pillar", "pos": Vector2(762.0, 684.0), "scale": 1.1 },
+			{ "kind": "pillar", "pos": Vector2(518.0, 684.0), "scale": 1.1 },
+			{ "kind": "pillar", "pos": Vector2(344.0, 511.0), "scale": 1.1 },
+			{ "kind": "pillar", "pos": Vector2(344.0, 266.0), "scale": 1.1 },
+			{ "kind": "pillar", "pos": Vector2(518.0, 92.0), "scale": 1.1 },
+			{ "kind": "pillar", "pos": Vector2(762.0, 92.0), "scale": 1.1 },
+			{ "kind": "pillar", "pos": Vector2(936.0, 266.0), "scale": 1.1 },
+			# And the tallest one on the dais: the axle of the wheel.
+			{ "kind": "pillar", "pos": Vector2(640.0, 392.0), "scale": 1.5 },
+			{ "kind": "bones", "pos": Vector2(500.0, 360.0) },
+			{ "kind": "bones", "pos": Vector2(790.0, 300.0) },
+			{ "kind": "bones", "pos": Vector2(700.0, 470.0) },
+			# Four champions of four houses stand at the four gates, one per
+			# house: every one of them lost here first. The Champion's own
+			# winnings are heaped where the crowd cannot reach them.
+			{ "kind": "statue_soldier", "pos": Vector2(150.0, 200.0) },
+			{ "kind": "statue_orc", "pos": Vector2(1130.0, 200.0) },
+			{ "kind": "statue_orc", "pos": Vector2(150.0, 520.0) },
+			{ "kind": "statue_soldier", "pos": Vector2(1130.0, 520.0) },
+			{ "kind": "gold", "pos": Vector2(200.0, 660.0) },
+			{ "kind": "gold", "pos": Vector2(228.0, 642.0), "scale": 0.85 },
+			{ "kind": "gold", "pos": Vector2(1080.0, 660.0) },
+			{ "kind": "tool", "pos": Vector2(70.0, 620.0) },
+			{ "kind": "wood", "pos": Vector2(1212.0, 640.0) },
+			{ "kind": "meat", "pos": Vector2(70.0, 100.0) },
+			{ "kind": "rock", "pos": Vector2(1212.0, 100.0) },
+			{ "kind": "bush", "pos": Vector2(1226.0, 360.0) },
 		],
 		"start": Vector2(110.0, 610.0),
 		# The Unsworn enters the last arena burning pure red, so the kill window
@@ -510,6 +655,9 @@ const ROOMS: Array = [
 				"path": [Vector2(620.0, 110.0), Vector2(780.0, 110.0)],
 				"speed": 92.0,
 				"cone": 280.0,
+				# The stands empty onto the sand: an Aspirant is one of the
+				# crowd's own, axe first, wearing the champion's office.
+				"unit": "aspirant",
 			},
 			{
 				"color": Color(0.0, 0.0, 1.0),
@@ -517,6 +665,7 @@ const ROOMS: Array = [
 				"path": [Vector2(620.0, 600.0), Vector2(460.0, 600.0)],
 				"speed": 96.0,
 				"cone": 280.0,
+				"unit": "aspirant",
 			},
 		],
 		"guards": [

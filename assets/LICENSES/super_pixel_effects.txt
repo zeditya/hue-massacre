@@ -1,0 +1,58 @@
+The license which applies to the material in this zip file is found at http://untiedgames.com/files/license.txt.
+Here's a brief summary:
+
+1. You may not publicly distribute the contents of the asset pack zip file in whole or in part, unless as part of a game or application product in accordance with the license document.
+   For example:
+       Bundle the assets with your game: OK!
+       Pack the assets into your game's executable: OK!
+       However you need to make it work with your game: OK!
+       Reupload the assets to an asset store: Not permitted.
+
+2. If you use the contents of the asset pack zip file in a game or application product, please give attribution in the credits or wherever appropriate.
+   For example:
+       "(Name of asset pack) - Will Tice / unTied Games"
+       -- or --
+       "Pixel Art Assets - Will Tice / unTied Games"
+   Feel free to make it match the style of your other credits.
+
+3. Commercial use and non-commercial use are both OK!
+
+4. Bundling the assets with a game-making tool/engine (programs which have the primary function of creating games or applications) and distributing them together is not permitted.
+   Waivers to this restriction may be granted, see license for details.
+   For example:
+       Games with level editors including the assets: OK!
+       Use tool or engine (Unity/Godot/GameMaker/Unreal/etc) to make game including the assets: OK!
+       LARGE tool or engine maker (Unity/Godot/GameMaker/Unreal/etc) includes the assets with their tool/engine: Not permitted.
+       SMALL indie dev making a special tool / game creator / etc and not sure: Probably OK- get in touch.
+
+5. Use of the asset packs as AI training material is forbidden.
+
+6. That's it!
+   Feel free to give me a shoutout on Mastadon at @untiedgames@mastodon.gamedev.place if you want, or contact me at contact@untiedgames.com if you have any questions. Thanks and happy game dev!
+
+---
+
+WHAT THAT MEANS FOR THIS PROJECT
+--------------------------------
+
+- Commercial use: allowed (point 3 of the summary above).
+- Attribution: REQUIRED (point 2). The credit line used in this project is
+  "Super Pixel Effects Gigapack (Free Version) v3.1.0 - Will Tice / unTied
+  Games". See assets/ATTRIBUTION.md and the README credits.
+- Redistribution: the pack zip is never re-uploaded or repackaged (point 1).
+  Only the baked effect strips ship, as part of the game.
+- Bundling with the engine: not done (point 4) - the strips are shipped inside
+  the game project only.
+- AI training material: not used (point 5 forbids it; the art is shipped as
+  game content).
+
+WHAT WE ACTUALLY USE
+-------------------
+
+- impacts/symmetrical_impact_001_small_yellow -> assets/fx/impact.png
+- splatters/burst_splatter_001_large_red     -> assets/fx/splatter.png
+- magic_bursts/round_firework_burst_001_large_green -> assets/fx/magic.png
+- lightning/lightning_strike_001_large_violet -> assets/fx/lightning.png
+
+All four are converted to greyscale at bake time so the game's hue_tint shader
+can paint them in the colour the moment calls for (see tools/bake_itch_packs.sh).

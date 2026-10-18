@@ -4,11 +4,14 @@ extends Node2D
 ## ROOM - builds one level from LevelData and runs its rules.
 ##
 ## Draw order inside the room is explicit and fixed:
-##     room itself (floor + walls)  z = 0
-##     PaintLayer (the splats)      z = 1
-##     Guards                       z = 2
-##     Player                       z = 3
-## Anything with a higher z_index is drawn later, i.e. on top.
+##     room itself (floor pass)     z = 0   flagstones, mark, light pools, shadows
+##     PaintLayer (the splats)      z = -2
+##     BloodField (the gore)        z = -1  (just above the paint)
+##     everything solid             z = 0, sorted by its ground line:
+##         wall blocks, props, guards, the player, motes
+##     RoomFront (crowd, weather)   z = 10  may never be hidden
+## Anything with a higher z_index is drawn later, i.e. on top, and the y-sort
+## inside a z layer is what makes a knight vanish behind a pillar.
 ##
 ## The room is also the only place that knows the answers to:
 ##     "what colour is the floor here?"   -> ground_colour_at()
@@ -36,6 +39,8 @@ signal boss_summons_spawned(count: int)
 signal boss_charge_started
 ## A strike landed on a guard (before any kill). kind = ColorTheory.Hit.
 signal strike_landed(kind: int, at: Vector2)
+## A hit on the player left real damage (feedback and crowd reactions).
+signal player_hurt(at: Vector2)
 
 @export_group("Rules")
 ## The boss can only be cut while the player's hue sits on his COMPLEMENT,
@@ -50,7 +55,7 @@ signal strike_landed(kind: int, at: Vector2)
 ## Must match ColorTheory.FLOOR_GREY: the picture and the rules are one thing.
 @export var floor_colour: Color = Color(0.30, 0.30, 0.33)
 @export var floor_grid_colour: Color = Color(1.0, 1.0, 1.0, 0.03)
-@export var wall_colour: Color = Color(0.09, 0.09, 0.12)
+@export var wall_colour: Color = Color(0.30, 0.29, 0.32)
 @export var wall_edge_colour: Color = Color(0.24, 0.24, 0.30)
 @export var grid_step: float = 64.0
 ## Draw the arena art (baked sand, stone masonry, the stands, the braziers and
@@ -74,6 +79,9 @@ var room_index: int = 0
 ## The dictionary this room was built from.
 var data: Dictionary = {}
 var paint: PaintLayer = null
+## The look of the fight's blood: sprays, stains and pools. Purely cosmetic -
+## the RULES read `paint` for floor colour, so blood can never change a rule.
+var blood: BloodField = null
 var player: Player = null
 var guards: Array[Guard] = []
 var boss: Guard = null
@@ -96,7 +104,14 @@ var spawn_point: Vector2 = Vector2.ZERO
 var _walls: Array = []
 ## Per-room wall tint, from the room's "wall_color", so the four rooms do not
 ## all read as the same grey box.
-var _wall_tint: Color = Color(0.09, 0.09, 0.12)
+var _wall_tint: Color = Color(0.30, 0.29, 0.32)
+## The front layer: crowd, dust, weather and combat flashes, above everything.
+var front: RoomFront = null
+## Where the arena's fires burn, for the floor pass's light pools.
+var _lights: Array = []
+## The crowd's excitement this frame, published by game.gd. Read in _process so
+## the draw code never has to go looking for the game.
+var _excitement: float = 0.0
 var _player_gone: bool = false
 var _cleared: bool = false
 var _last_boss_vulnerable: bool = false
@@ -107,6 +122,12 @@ func _ready() -> void:
 	# before its children, so without this the room would read the blade state
 	# from before this frame's swing: the first frame of every cut would whiff.
 	process_physics_priority = 1
+
+	# The arena has DEPTH: its wall blocks, props and fighters are all sorted by
+	# the ground line they stand on, so a knight who walks behind a pillar is
+	# actually hidden by it. The flat layers opt out through their z_index,
+	# which is checked before the y-sort.
+	y_sort_enabled = true
 
 	var all_rooms: Array = LevelData.ROOMS
 	room_index = clampi(room_index, 0, all_rooms.size() - 1)
@@ -119,27 +140,54 @@ func _ready() -> void:
 	_wall_tint = data.get("wall_color", wall_colour)
 
 	_build_wall_bodies()
+	_build_walls_visual()
 
-	# The paint layer is added FIRST so it is earliest in the child order at
-	# its own z_index, but its z_index of 1 already guarantees the ordering.
+	# The paint layer is a picture ON THE FLOOR: it lies below every sorted
+	# object, so a fighter can never be drawn under a splat.
 	paint = PaintLayer.new()
 	paint.name = "Paint"
 	add_child(paint)
 
+	# The gore layer sits just above the paint: same tile of the world, but only
+	# a picture. Nothing reads it, so it can never break a colour rule.
+	blood = BloodField.new()
+	blood.name = "Blood"
+	add_child(blood)
+
 	_build_player()
 	_build_guards()
 	_build_motes()
+	_build_props()
+
+	# The front layer: anything that may never be hidden - the crowd leaning
+	# over the parapet, the dust, the weather, the combat flashes.
+	front = RoomFront.new()
+	front.name = "Front"
+	front.room = self
+	front.z_index = 10
+	add_child(front)
 
 	spawn_point = player.position
 	queue_redraw()
 
 
 func _process(_delta: float) -> void:
-	# The arena is never a still image: the braziers flicker, the crowd sways and
-	# the arena sigil breathes, so the room redraws every frame. It is cheap -
-	# the sand is one texture and the walls are a handful of rects - but it is
-	# worth knowing that this is why the room is not redrawn on demand.
+	# The arena is never a still image: the torches flicker, the crowd sways and
+	# the arena mark breathes, so the room redraws every frame.
 	queue_redraw()
+	_excitement = _read_crowd_excitement()
+
+
+## The crowd's excitement, published by game.gd once per frame (0 when nothing
+## publishes it - e.g. in the test scenes).
+func _read_crowd_excitement() -> float:
+	if get_tree() == null or get_tree().root == null:
+		return 0.0
+	var root: Window = get_tree().root
+	if root.has_node("Game"):
+		var game_instance: Game = root.get_node("Game")
+		return game_instance.get_crowd_excitement()
+	return 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +211,76 @@ func _build_wall_bodies() -> void:
 	add_child(body)
 
 
+## One WallNode per wall rect: the block with height that actually gets drawn.
+## The four border walls (which `LevelData.walls_for` always returns first) are
+## heavy - a tall face and a deep lift - and the interior obstacles are lower,
+## because the border is the arena's outer wall and the rest is furniture.
+func _build_walls_visual() -> void:
+	const BORDER_WALLS: int = 4
+	for i in _walls.size():
+		var r: Rect2 = _walls[i]
+		if r.size.x < 3.0 or r.size.y < 3.0:
+			continue
+		var heavy: bool = i < BORDER_WALLS
+		var lift: float = 12.0 if heavy else 8.0
+		var face: float = 18.0 if heavy else clampf(r.size.y * 0.55, 6.0, 15.0)
+		var node := WallNode.new()
+		node.name = "Wall%d" % i
+		add_child(node)
+		node.setup(r, _wall_tint, lift, face)
+
+
+## The arena's furniture: the braziers from the room data, watch-fire torches
+## along the long walls, and whatever dressing the room lists under "props".
+## Every one is drawn from its base, so they sort against the fighters.
+func _build_props() -> void:
+	var accent: Color = data.get("accent", Color(1.0, 0.82, 0.25))
+
+	# The braziers: the arena's official fires. Their pools join the floor
+	# pass; their flames are props like any other.
+	for b in data.get("braziers", []):
+		var pos: Vector2 = b
+		var brazier := PropNode.new()
+		brazier.name = "Brazier%d" % _lights.size()
+		add_child(brazier)
+		brazier.place(pos, "brazier", accent)
+		_lights.append(pos)
+
+	# Watch-fire torches on the long interior walls - the ring of fire that
+	# lights the reference battlefields. Placed just outside the wall's face so
+	# both torch and pool stay visible.
+	const BORDER_WALLS: int = 4
+	for i in _walls.size():
+		if i < BORDER_WALLS:
+			continue
+		var r: Rect2 = _walls[i]
+		var horizontal: bool = r.size.x >= r.size.y
+		var span: float = r.size.x if horizontal else r.size.y
+		if span < 140.0:
+			continue
+		var count: int = clampi(int(span / 200.0), 1, 3)
+		for t in count:
+			var f: float = (float(t) + 0.5) / float(count)
+			var at: Vector2 = Vector2(r.position.x + r.size.x * f, r.end.y + 3.0)
+			if not horizontal:
+				at = Vector2(r.end.x + 4.0, r.position.y + r.size.y * f)
+			var torch := PropNode.new()
+			torch.name = "Torch%d" % _lights.size()
+			add_child(torch)
+			torch.place(at, "torch", accent)
+			_lights.append(at)
+
+	# Loose dressing: rubble, bones, herald pillars. Purely a picture - the
+	# solid ones (plinths) are wall rects in the level data, not props.
+	var dressing: Array = data.get("props", [])
+	for j in dressing.size():
+		var p: Dictionary = dressing[j]
+		var prop := PropNode.new()
+		prop.name = "Prop%d" % j
+		add_child(prop)
+		prop.place(p.get("pos", Vector2.ZERO), p.get("kind", "rubble"), accent, float(p.get("scale", 1.0)))
+
+
 func _build_player() -> void:
 	player = Player.new()
 	player.name = "Player"
@@ -172,9 +290,13 @@ func _build_player() -> void:
 	# The room sits at the origin, so position and global_position agree here.
 	player.position = data["start"]
 	player.died.connect(_on_player_died)
+	# Blood on the player: a real hit leaves a spray of their own hue behind.
+	player.hurt.connect(_on_player_hurt)
 	# A swung blade is loud: nearby guards hear it and come to look. The same
 	# signal also runs the room's gentle auto-aim (see _on_player_struck).
 	player.struck.connect(_on_player_struck)
+	# Reference to blood field for footprints
+	player.blood = blood
 	add_child(player)
 
 
@@ -232,6 +354,21 @@ func _make_guard(spec: Dictionary) -> Guard:
 	guard.cone_angle_deg = float(spec.get("cone_angle", 64.0))
 	guard.hue_speed = float(spec.get("hue_speed", 0.0))
 	guard.hide_tolerance_deg = hide_tolerance_deg
+	# Which armour this one wears. A spec may name it outright ("unit"), which
+	# is how the Champion's summons march in as the stands' axe hands; failing
+	# that it is read off the build - the heavy carries the shield, the fast
+	# and fragile one is out of the crowd with a knife.
+	var unit_kind: String = str(spec.get("unit", ""))
+	if unit_kind.is_empty():
+		if guard.is_boss:
+			unit_kind = "champion"
+		elif guard.body_radius > LevelData.GUARD_RADIUS + 1.5:
+			unit_kind = "warden"
+		elif float(spec.get("hp", 60.0)) <= 50.0:
+			unit_kind = "harrier"
+		else:
+			unit_kind = "knight"
+	guard.unit = unit_kind
 	# Combat stats: a basic knight dies fast, the Champion of the Wheel
 	# takes a full duel's worth of shatters. Room specs may override both.
 	guard.max_hp = float(spec.get("hp", (400.0 if guard.is_boss else 60.0)))
@@ -330,9 +467,21 @@ func _resolve_strikes() -> void:
 			continue
 		var kind: int = ColorTheory.hit_kind(player.colour, guard.colour)
 		var damage: float = player.strike_damage_now() * ColorTheory.hit_multiplier(kind)
-		if guard.take_hit(damage, kind == ColorTheory.Hit.SHATTER, player.strike_is_heavy(),
+		var is_heavy: bool = player.strike_is_heavy()
+		var is_shatter: bool = (kind == ColorTheory.Hit.SHATTER)
+		if guard.take_hit(damage, is_shatter, is_heavy,
 				player.global_position, player.strike_serial):
 			strike_landed.emit(kind, guard.position)
+			report_strike_effect(kind, guard.position, player.colour, guard.colour, is_heavy)			# Every hit bleeds. A heavy swing sprays harder than a graze.
+			# Shatter hits spray dramatically more (arterial).
+			if blood != null:
+				var power: float = 1.0
+				if is_heavy:
+					power = 1.8
+				if is_shatter:
+					power = 2.5
+				blood.spray(guard.global_position, guard.global_position - player.global_position,
+					guard.colour, power, is_heavy, is_shatter)
 
 
 ## Scripted kills (and the test suite's short-cut for them) land here. Every
@@ -349,12 +498,43 @@ func _on_guard_killed(guard: Guard) -> void:
 	# 1. The knight's hue hits the sand, in his own colour.
 	#    A boss throws a much larger splat, which also fills the restore bar fast.
 	paint.spawn(guard.position, guard.colour, 2.2 if guard.is_boss else 1.0)
+	# A pool of blood spreads under the body - permanent-ish on the sand,
+	# so the arena grows more butchered as the melee goes on.
+	if blood != null:
+		var pool_scale: float = 3.0 if guard.is_boss else 1.0
+		blood.pool(guard.position, guard.colour, pool_scale)
+		# Wall splatter if guard dies near a wall
+		for wall in _walls:
+			var dist: float = _point_to_rect_dist(guard.position, wall)
+			if dist < 60.0:
+				# Find closest point on wall
+				var closest: Vector2 = Vector2(
+					clampf(guard.position.x, wall.position.x, wall.end.x),
+					clampf(guard.position.y, wall.position.y, wall.end.y)
+				)
+				var to_wall: Vector2 = (closest - guard.position).normalized()
+				# Wall normal pointing inward
+				var wall_normal: Vector2
+				if abs(closest.x - wall.position.x) < 5.0:
+					wall_normal = Vector2.RIGHT
+				elif abs(closest.x - wall.end.x) < 5.0:
+					wall_normal = Vector2.LEFT
+				elif abs(closest.y - wall.position.y) < 5.0:
+					wall_normal = Vector2.DOWN
+				else:
+					wall_normal = Vector2.UP
+				blood.splatter_on_wall(closest, to_wall, guard.colour, wall_normal)
+
 	# 2. The Unsworn DRINKS the colour. This is what makes the camouflage loop work:
 	#    the paint you just made matches the hue you now are, so the ground you
 	#    are standing on hides you from whoever is left.
 	#    (A previous version of this file forgot this line, and the test suite
 	#     caught it - the player stayed white and could never hide.)
 	player.absorb_colour(guard.colour)
+	# The colour changing hands is visible: the Unsworn takes the hue with a
+	# burst of it, right where the knight fell.
+	queue_fx("splash", guard.position, guard.colour, 0.9 if not guard.is_boss else 1.6)
+	report_kill_effect(guard.position, guard.colour)
 	# 3. Then the guard leaves the field.
 	guards.erase(guard)
 	guard_killed.emit(guard)
@@ -368,6 +548,12 @@ func _on_guard_killed(guard: Guard) -> void:
 	else:
 		_cleared = true
 		room_cleared.emit()
+
+
+static func _point_to_rect_dist(point: Vector2, rect: Rect2) -> float:
+	var dx: float = maxf(maxf(rect.position.x - point.x, 0.0), point.x - rect.end.x)
+	var dy: float = maxf(maxf(rect.position.y - point.y, 0.0), point.y - rect.end.y)
+	return sqrt(dx * dx + dy * dy)
 
 
 # ---------------------------------------------------------------------------
@@ -454,11 +640,25 @@ func _resolve_motes() -> void:
 		if player.position.distance_to(mote.position) <= player.body_radius + mote.radius:
 			mote.taken = true
 			player.drink(mote.colour)
+			# A mote going down the Unsworn's throat: the pack's spell burst, in
+			# the mote's own colour, so the hue that is about to be worn is seen
+			# before it is worn.
+			queue_fx("magic", mote.position, mote.colour, 1.0)
 
 
 func _on_player_died() -> void:
 	_player_gone = true
 	player_died.emit()
+
+
+## The Unsworn took a hit. Spray a little of their own blood behind them.
+func _on_player_hurt(amount: float, from_position: Vector2) -> void:
+	if blood == null:
+		return
+	var dir: Vector2 = (player.global_position - from_position).normalized()
+	if dir == Vector2.ZERO:
+		dir = Vector2.DOWN
+	blood.spray(player.global_position, dir, player.colour, amount / 20.0)
 
 
 ## The Unsworn swung the blade. Two jobs, in order:
@@ -532,6 +732,9 @@ func _on_boss_summons_requested(count: int) -> void:
 		var guard: Guard = _make_guard(specs[i])
 		guard.spawn_grace_until = time_in_room + LevelData.SPAWN_GRACE
 		guards.append(guard)
+		# An Aspirant does not walk on: he is called. The bolt lands with him,
+		# in the hue of the officer whose name he answers.
+		queue_fx("lightning", guard.position, guard.colour, 0.9)
 		spawned += 1
 	if spawned > 0:
 		boss_summons_spawned.emit(spawned)
@@ -632,32 +835,26 @@ func freeze() -> void:
 
 
 # ---------------------------------------------------------------------------
-# Drawing - the grey world itself
+# Drawing - the living arena
 # ---------------------------------------------------------------------------
 
 func _draw() -> void:
-	var size: Vector2 = LevelData.PLAYFIELD
+	# Collect fighter positions for sunlight shadows
+	var fighter_positions: Array[Vector2] = []
+	if player != null and is_instance_valid(player):
+		fighter_positions.append(player.global_position)
+	for guard in guards:
+		if is_instance_valid(guard) and not guard.dead:
+			fighter_positions.append(guard.global_position)
 
-	_draw_floor(size)
-
-	# The arena's own mark on the sand, under the walls.
+	# The ground pass: the laid flagstones, the arena's mark, the firelight
+	# pools and every fighter's shadow. Under the fighters, under the walls.
+	_draw_floor(LevelData.PLAYFIELD)
 	if arena_floor:
-		ArenaArt.draw_mark(self, data, time_in_room)
-
-	# Walls, drawn on top of the floor and the mark.
-	if arena_floor:
-		ArenaArt.draw_walls(self, _walls, _wall_tint)
+		ArenaArt.draw_floor_atmosphere(self, data, time_in_room, fighter_positions, _excitement, _lights)
 	else:
 		for r in _walls:
 			_draw_wall(r)
-
-	# The stands and the fires that light the sand. Decoration only: nothing in
-	# here is solid, so it can never block a fight.
-	if arena_floor:
-		var accent: Color = data.get("accent", UiStyle.GOLD)
-		ArenaArt.draw_braziers(self, data.get("braziers", []), time_in_room, accent)
-		ArenaArt.draw_stands(self, data, time_in_room)
-		ArenaArt.draw_dust(self, time_in_room, accent)
 
 	# The spawn ring: a visible countdown telling you the guards are still
 	# waking up, so the first second of a level is never a surprise death.
@@ -676,6 +873,15 @@ func _draw() -> void:
 			continue
 		draw_arc(guard.position, 30.0 + 26.0 * (1.0 - arrived), 0.0, TAU, 48,
 			Color(guard.colour.r, guard.colour.g, guard.colour.b, 0.45 * arrived), 2.0, true)
+
+
+## The front pass, called by RoomFront (z = 10): the crowd on the parapet, the
+## dust and weather in the air, the vignette, and the combat flashes. None of
+## it may ever be covered by a wall or a fighter.
+func draw_front(canvas: CanvasItem) -> void:
+	if arena_floor:
+		ArenaArt.draw_arena_front(canvas, data, time_in_room, _excitement)
+	_draw_combat_effects(canvas)
 
 
 ## One wall block, given a little height: a lit top band, the body, and a
@@ -719,3 +925,96 @@ func _draw_floor(size: Vector2) -> void:
 	while y < size.y:
 		draw_line(Vector2(0.0, y), Vector2(size.x, y), floor_grid_colour, 1.0)
 		y += grid_step
+
+
+# ---------------------------------------------------------------------------
+# Combat Effects Queue - visual feedback for hits, shatters, kills
+# ---------------------------------------------------------------------------
+
+## How long each pack effect runs, in seconds. Matched to the frame counts in
+## ArenaArt.FX so a burst plays exactly once across its life.
+const FX_DURATIONS: Dictionary = {
+	"impact": 0.38,
+	"splatter": 0.55,
+	"magic": 0.70,
+	"explosion": 0.42,
+	"splash": 0.42,
+	"dust": 0.40,
+	"lightning": 0.42,
+}
+
+var _combat_effects: Array = []
+
+## Queue a combat effect to be drawn for a few frames
+func queue_combat_effect(effect_type: String, pos: Vector2, colour: Color, intensity: float = 1.0) -> void:
+	_combat_effects.append({
+		"type": effect_type,
+		"pos": pos,
+		"colour": colour,
+		"intensity": intensity,
+		"time": 0.0,
+		"duration": 0.5  # seconds
+	})
+
+
+## Queue one of the packs' effects (see ArenaArt.FX): an impact burst, a spray
+## of blood, a roll's dust, the magic of a hue changing hands. `colour` is the
+## colour the moment belongs to - the attacker's, the victim's, the mote's.
+func queue_fx(effect: String, pos: Vector2, colour: Color, scale: float = 1.0) -> void:
+	_combat_effects.append({
+		"type": "fx",
+		"fx": effect,
+		"pos": pos,
+		"colour": colour,
+		"intensity": scale,
+		"time": 0.0,
+		"duration": float(FX_DURATIONS.get(effect, 0.45)),
+	})
+
+
+func _draw_combat_effects(canvas: CanvasItem) -> void:
+	var i: int = _combat_effects.size() - 1
+	while i >= 0:
+		var effect: Dictionary = _combat_effects[i]
+		effect["time"] += get_process_delta_time()
+		if effect["time"] >= effect["duration"]:
+			_combat_effects.remove_at(i)
+		else:
+			var t: float = effect["time"] / effect["duration"]
+			match effect["type"]:
+				"hit":
+					ArenaArt.draw_hit_flash(canvas, effect["pos"], effect["colour"], effect["intensity"], t)
+				"shatter":
+					ArenaArt.draw_shatter_effect(canvas, effect["pos"], effect["colour"], t)
+				"kill":
+					ArenaArt.draw_kill_effect(canvas, effect["pos"], effect["colour"], t)
+				"fx":
+					ArenaArt.draw_fx(canvas, effect["fx"], effect["pos"], effect["colour"], t, effect["intensity"])
+		i -= 1
+
+
+## Called from game.gd when strike lands. The drawn flash and the pack's burst
+## go down together: the flash is the IMPACT (white core, sparks), the burst is
+## the armour being struck, and both take the defender's hue - except on a
+## shatter, which is the player's own colour cancelling theirs.
+func report_strike_effect(kind: int, at: Vector2, player_colour: Color, guard_colour: Color, is_heavy: bool) -> void:
+	var intensity: float = 1.0
+	if is_heavy:
+		intensity = 1.5
+	if kind == ColorTheory.Hit.SHATTER:
+		intensity = 2.0
+		queue_combat_effect("shatter", at, player_colour, intensity)
+		queue_fx("explosion", at, player_colour, 1.25)
+	elif kind == ColorTheory.Hit.ABSORBED:
+		# Nothing bites: the blade turns on the armour. A small, wrong noise.
+		queue_combat_effect("hit", at, guard_colour, 0.7)
+		queue_fx("impact", at, guard_colour, 0.62)
+	else:
+		queue_combat_effect("hit", at, guard_colour, intensity)
+		queue_fx("impact", at, guard_colour, 0.85 + 0.25 * (intensity - 1.0))
+
+## Called from game.gd when guard killed
+func report_kill_effect(at: Vector2, colour: Color) -> void:
+	queue_combat_effect("kill", at, colour, 1.5)
+	# The wound is the loudest colour in the game: arterial, and it is his hue.
+	queue_fx("splatter", at, colour, 1.15)

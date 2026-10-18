@@ -45,9 +45,8 @@ var blobs: Array = []
 
 
 func _ready() -> void:
-	# Draw order inside the room is explicit: floor 0, paint 1, guards 2,
-	# player 3. Anything higher is drawn later, i.e. on top.
-	z_index = 1
+	# Paint is a picture on the floor: below every y-sorted object.
+	z_index = -2
 	set_process(true)
 
 

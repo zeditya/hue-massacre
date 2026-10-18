@@ -1,0 +1,41 @@
+TINY RPG CHARACTER ASSET PACK 01 V2.0 - Zerie
+=============================================
+
+Source: https://zerie.itch.io/tiny-rpg-character-asset-pack
+File downloaded: "Tiny RPG Character Asset Pack 01 v2.0 -Free Soldier&Orc.zip"
+(the free demo containing Soldier and Orc; the paid 22-character version was
+NOT purchased and nothing from it ships in this project).
+Terms below copied from the pack's itch.io page on 2026-10-18. The zip itself
+contains no licence file, so this file is the record of the page's terms at the
+time of use.
+
+LICENCE (verbatim from the itch.io page)
+----------------------------------------
+
+  Allowed
+    You may use these assets in both personal and commercial video game
+    projects. You may edit or modify these assets to fit your game projects.
+
+  Not Allowed
+    You may not redistribute, resell, or re-upload these assets, whether
+    modified or unmodified. You may not use these assets for AI training or
+    NFT projects. Credit is appreciated but not required.
+
+WHAT THAT MEANS FOR THIS PROJECT
+--------------------------------
+
+- Commercial use: allowed.
+- Modification: allowed. assets/props/statue_soldier.png and statue_orc.png are
+  frame 0 of the idle sheets, trimmed, converted to greyscale and scaled 2x so
+  they stand at knight height (see tools/bake_itch_packs.sh).
+- Redistribution: the raw sprites never leave the project; only the two baked
+  statue sheets ship, as part of the game.
+- AI training / NFT: not used, and never will be. The art is shipped as game
+  content only.
+- Credit: appreciated, not required. Given anyway in assets/ATTRIBUTION.md.
+
+ALSO WORTH RECORDING
+--------------------
+
+- Pack grid: 100x100 px cells.
+- The author states on the page: "Content: No generative AI was used."

@@ -144,6 +144,8 @@ var invuln_left: float = 0.0
 var hitstun_left: float = 0.0
 ## 0..1 fade of the red hurt flash. Purely visual.
 var hurt_flash: float = 0.0
+## Reference to blood field for bloody footprints
+var blood: BloodField = null
 
 ## Where the blade points while it is out. The room may turn it (auto-aim).
 var _strike_dir: Vector2 = Vector2.RIGHT
@@ -174,8 +176,9 @@ func _ready() -> void:
 	circle.radius = body_radius
 	shape.shape = circle
 	add_child(shape)
-	# Top of the room's draw order so the Unsworn is never hidden by a cone.
-	z_index = 3
+	# Sorted with the walls and props by the ground line: walk behind a block
+	# and its stones cover you, the way they should.
+	z_index = 0
 
 	# The character itself: a real animated figure instead of the old dot, with
 	# a hue-tint shader so the artwork can show the player's current colour.
@@ -263,6 +266,13 @@ func _physics_process(delta: float) -> void:
 	# Safety net: if a wall is ever missed, never let the Unsworn leave the room.
 	global_position.x = clampf(global_position.x, LevelData.PLAYER_RADIUS, LevelData.PLAYFIELD.x - LevelData.PLAYER_RADIUS)
 	global_position.y = clampf(global_position.y, LevelData.PLAYER_RADIUS, LevelData.PLAYFIELD.y - LevelData.PLAYER_RADIUS)
+
+	# Bloody footprints: if walking through blood, leave footprints
+	if blood != null and velocity.length() > 30.0 and roll_left <= 0.0:
+		if blood.is_in_blood(global_position):
+			var blood_colour: Color = blood.get_blood_at(global_position)
+			if blood_colour.a > 0.0:
+				blood.add_footprint(global_position, blood_colour, velocity.normalized())
 
 	# Age the afterimages.
 	for i in range(_trail.size() - 1, -1, -1):

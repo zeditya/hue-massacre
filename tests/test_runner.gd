@@ -1102,7 +1102,7 @@ func _test_integration() -> void:
 		"the view is zoomed in for Soul-Knight framing")
 	check_approx(_game.camera.zoom.y, _game.camera.zoom.x, 0.001, "and the zoom is uniform")
 
-	# The view may never leave the playfield: at 1.5x the camera centre is
+	# The view may never leave the playfield: at any zoom the camera centre is
 	# confined to the middle of the arena, so the border walls are always
 	# exactly the frame of the screen.
 	var clamped: Vector2 = _game._clamp_camera(Vector2(-500.0, -500.0))
@@ -1118,12 +1118,16 @@ func _test_integration() -> void:
 
 	# A corner spawn clamps the camera target into the corner: this is what
 	# load_room() snaps to, so a new room never slides in from the old one.
+	# The corner depends on the zoom, so the expectation is derived from it,
+	# never written down as a magic pair of numbers.
+	var half_view: Vector2 = LevelData.PLAYFIELD * 0.5 / _game.camera_zoom
+	var corner_cam: Vector2 = Vector2(half_view.x, LevelData.PLAYFIELD.y - half_view.y)
 	var saved_pos: Vector2 = _game.room.player.position
 	_game.room.player.position = Vector2(120.0, 640.0)
-	check(_game._clamp_camera(_game._camera_target()).distance_to(Vector2(426.67, 480.0)) < 0.1,
+	check(_game._clamp_camera(_game._camera_target()).distance_to(corner_cam) < 0.1,
 		"a corner spawn clamps the camera target to the arena corner")
 	_game._snap_camera()
-	check(_game._camera_follow.distance_to(Vector2(426.67, 480.0)) < 0.1,
+	check(_game._camera_follow.distance_to(corner_cam) < 0.1,
 		"and the snap puts the follow position exactly there")
 	_game.room.player.position = saved_pos
 	_game._snap_camera()

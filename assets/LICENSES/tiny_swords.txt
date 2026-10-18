@@ -1,0 +1,36 @@
+TINY SWORDS (Free Pack) - Pixel Frog
+====================================
+
+Source: https://pixelfrog-assets.itch.io/tiny-swords
+File downloaded: "Tiny Swords (Free Pack).zip" (the free tier; the paid Enemy
+Pack was NOT downloaded and nothing from it ships in this project).
+Terms below copied from the pack's itch.io page on 2026-10-18. The zip itself
+contains no licence file, so this file is the record of the page's terms at the
+time of use - re-check the page if the project is ever published commercially.
+
+LICENCE (verbatim from the itch.io page)
+----------------------------------------
+
+  Feel free to use this asset pack in both personal and commercial projects,
+  modifying the assets as needed. Crediting is not required, but it helps and
+  is always welcome. You may not redistribute, resell, or repackage the assets,
+  even if the files are modified.
+
+WHAT THAT MEANS FOR THIS PROJECT
+--------------------------------
+
+- Commercial use: allowed.
+- Modification: allowed. Every sheet in assets/ is derived: resized with
+  nearest-neighbour filtering and converted to greyscale so the game's
+  hue_tint shader can recolour it. See tools/bake_itch_packs.sh.
+- Redistribution: the RAW assets are never redistributed. Only the baked,
+  recolour-ready derivatives ship, and only as part of the game - which is what
+  the licence permits. The original zips are NOT in the repository.
+- Credit: not required, but this project credits Pixel Frog anyway
+  (see assets/ATTRIBUTION.md).
+
+ALSO WORTH RECORDING
+--------------------
+
+- Pack grid: 64x64 px tiles. Animation speed: 10 fps (100 ms per frame).
+- The author states on the page: "Content: No generative AI was used."

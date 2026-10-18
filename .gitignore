@@ -18,8 +18,22 @@ Color Theory Game Assignment Guide.pdf
 # from the submitted repo.
 /addons/
 
-# Working notes and the LMS deliverable, not game source. They carry personal
-# identifiers (name, SAP ID) that do not belong in a public repo.
-PROGRESS_SUMMARY.md
+# The paid reference pack's screenshots, and the arena backdrops baked from
+# them by tools/build_backdrops.py. The arena is allowed to LOOK like the
+# reference, not to contain any of its pixels: these paintings are derived from
+# artwork we do not own, so they are never committed, never exported, and the
+# game draws its arena entirely in code plus licensed packs. See
+# scripts/arena_art.gd (draw_backdrop) and assets/ATTRIBUTION.md.
+/gpt_assist/
+/assets/arenas/
+
+# Working notes. Kept on disk for the developer, out of the public repo.
+freebuff-chat-*.md
+
+# Working notes and the LMS deliverable, not game source. The LMS file carries
+# personal identifiers (name, SAP ID) and does not belong in a public repo.
+# PROGRESS_SUMMARY.md is deliberately NOT ignored any more: it is the
+# session-by-session log the project is maintained from, it holds no personal
+# data, and the next person (or the next agent) needs it to pick the work up.
 PROGRESS_REPORT.md
 submission.txt

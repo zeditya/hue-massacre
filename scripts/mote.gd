@@ -30,8 +30,8 @@ var _fade: float = 1.0
 
 
 func _ready() -> void:
-	# Above the floor and paint (z=1), below the guards (z=2).
-	z_index = 1
+	# Above the floor, paint and blood (z = -2 / -1), below the fighters.
+	z_index = -1
 	# Start the bob at a random phase so a row of motes does not pulse in unison.
 	_time = randf() * TAU
 
