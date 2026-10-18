@@ -1,0 +1,49 @@
+FREE FANTASY 200 SFX PACK - TomMusic
+====================================
+
+Source: https://tommusic.itch.io/free-fantasy-200-sfx-pack
+File downloaded: "Free Fantasy SFX Pack By TomMusic.zip" (317 MB download; 204
+SFX as both .ogg and .wav, plus 8 seamless ambience loops per format).
+
+The zip itself contains only a ReadMe.txt with contact details and no licence
+text, so this file is the record of the itch.io page's terms at the time of use
+(checked 2026-10-18). Re-check the page if the project is ever published
+commercially.
+
+LICENCE (verbatim from the itch.io page)
+----------------------------------------
+
+  Royalty-free! You can use this in your projects, commercial or otherwise,
+  credit is not mandatory but appreciated. The asset is not to be up for resale
+  or redistribution.
+
+The author confirmed the same in the page comments: "Absolutely! You can use
+these in any commercial project! I simply ask you credit me when you use
+them!"
+
+WHAT THAT MEANS FOR THIS PROJECT
+--------------------------------
+- MAY ship inside the game (personal or commercial), modified or not.
+- Credit is not required, but the author asks for it, so TomMusic is credited
+  in `assets/ATTRIBUTION.md` and in the README's credits.
+- MUST NOT be redistributed as files: the raw pack is never committed (the .zip
+  is gitignored) and only the selected, converted .ogg files used by the game
+  are staged in `assets/audio/`.
+
+WHAT IS WORTH TAKING (the game's own shopping list)
+---------------------------------------------------
+- `SFX/Attacks/Sword Attacks Hits and Blocks/` - Sword Attack 1-3, Sword
+  Blocked 1-3, **Sword Parry 1-3**, Sword Impact Hit 1-3, Sheath/Unsheath:
+  replaces the procedural sword/clang/parry sounds with real steel.
+- `SFX/Attacks/Bow Attacks Hits and Blocks/` - Bow Attack / Impact / Blocked /
+  Take Out: ready for the bow reward (Hall II) the day it lands.
+- `SFX/Footsteps/{Dirt,Stone,Water,Wood}/` - 50+ footsteps, so footsteps can be
+  surface-aware (the arena floor is stone; the paint pools are not).
+- `SFX/Spells/` - the ward/hue-magic sounds (Hall III's reward).
+- `SFX/Doors Gates and Chests/` - the opening's gate, the sword pickup, any
+  chest prop.
+- `SFX/Torch/` - braziers and torches already burn in the arenas.
+- `SFX/Chopping and Mining/`, `SFX/Waterfalls Rivers and Streams/` - ambience
+  dressing for the camp and the Hall III pools.
+- `BGS Loops/<biome>/{Day,Night,Rain,Storm}.ogg` - a seamless ambience bed per
+  hall (the report's Phase E "music bed", as ambience rather than score).

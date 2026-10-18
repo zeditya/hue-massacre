@@ -40,9 +40,12 @@ the colour wheel, and the same maths drives the hiding, the damage and the score
 
 ## 2. How to play
 
-The game opens **straight into the first arena** — there is no title screen, no
-menu and no story sequence to click through. Round one of the melee starts as soon
-as the window appears.
+The game opens **at the gate**: the dying Unsworn hands you his blade, tells you
+what the halls are and what you were chosen for, and the gate scene can be
+skipped with **Esc** or walked through with **Space**. Round one of the melee
+then starts as soon as you step into the first hall — no menu to click through,
+because the story *is* the first round's briefing rather than a screen in front
+of it.
 
 ### Controls
 
@@ -50,13 +53,20 @@ as the window appears.
 |---|---|
 | **W A S D** or **Arrow keys** | Move — this also aims your blade and your light |
 | **J** or **Left mouse button** | Strike — a 3-swing chain of 12 / 12 / 20; the third knocks back |
+| **Right mouse button** or **Shift** | **Guard** — hold to block the front; the *moment you raise it* is a parry window that staggers the attacker |
 | **Space** | Dodge roll — i-frames at the start of the roll |
-| **R** | Restart the arena immediately |
+| **R** | Restart the round immediately |
 | **Esc** | Pause — *Resume / Restart run / Quit game* |
 
 There is deliberately **no separate mouse aim.** The way you steer is the way you
 face and the way your blade swings. A swing gets one gentle pull onto a knight
 already standing in front of you; it never reaches behind your back.
+
+Guarding is directional — it stops the arc in front of you, not the one behind.
+Every fourth swing from a sworn comes **marked**: a red warning over his head and
+a red wedge on the floor, and it goes straight through a held guard. Roll it or
+parry it. A parry is the best second in the fight: the attacker staggers, your
+next blow lands heavy, and the crowd reacts.
 
 ### The loop
 
@@ -402,6 +412,21 @@ so the art is a mask for it rather than a palette competing with it.
   it must be removed before any monetised build
   (`assets/LICENSES/modern_interiors.txt`).
 
+### Audio credits
+
+Added 2026-10-18, licence-checked the same day (see §7; records in
+`assets/LICENSES/`):
+
+- **Free Fantasy 200 SFX Pack** — TomMusic.
+  <https://tommusic.itch.io/free-fantasy-200-sfx-pack> (royalty-free, commercial
+  use allowed; credit appreciated, not required — credited anyway).
+- **Ultimate UI SFX Pack (FREE)** — JDSherbert.
+  <https://jdsherbert.itch.io/ultimate-ui-sfx-pack> (**credit required** by the
+  licence; commercial use allowed; files not redistributed).
+- **Super Dialogue Audio Pack v1** — Dillon Becker. <https://dillonbecker.com>
+  (**CC BY 4.0 — attribution required**, adaptation allowed; where the voices
+  are trimmed or pitched, the credit notes it).
+
 Full terms, what was deliberately left out and why, and every exclusion is in
 [`assets/ATTRIBUTION.md`](assets/ATTRIBUTION.md).
 
@@ -409,11 +434,29 @@ Full terms, what was deliberately left out and why, and every exclusion is in
 
 ## 7. Audio
 
-There are **no audio files in this repo.** `scripts/audio_bank.gd` synthesises
-every sound effect procedurally at runtime — the blade, the shatter, the clang,
-the charge, the combo chime, the wave herald, the naming of the Unsworn. Each one
-is a short burst of generated samples played through a small pool of
-`AudioStreamPlayer`s.
+The sound of the game is **procedural first**: `scripts/audio_bank.gd`
+synthesises every effect at runtime — the blade, the shatter, the clang, the
+charge, the combo chime, the wave herald, the naming of the Unsworn — through a
+small pool of `AudioStreamPlayer`s. Nothing to download, nothing to keep in
+sync, and nothing that can break in a browser.
+
+On top of that, three **licence-checked** sample packs were added to the project
+on 2026-10-18 and are being wired in (see `PROGRESS_SUMMARY.md` §12.6):
+
+- **Free Fantasy 200 SFX Pack** — TomMusic, royalty-free: steel for sword and
+  parry, bow, footsteps per surface, spells, gates and chests, torch, and
+  seamless day/night/weather ambience loops.
+- **Ultimate UI SFX Pack (FREE)** — JDSherbert, **credit required**: cursor,
+  select, cancel, popup open/close, error, swipe.
+- **Super Dialogue Audio Pack v1** — Dillon Becker, **CC BY 4.0**: 1090
+  non-verbal lines — grunts, damage, death, shouting, greeting — cast per hall so
+  each hall sounds like a place. The English words stay on-screen, as barks; the
+  voices carry the weight under them.
+
+Full licence records are in `assets/LICENSES/` and the required credits are in
+[`assets/ATTRIBUTION.md`](assets/ATTRIBUTION.md). Until the bake lands, the game
+still plays the procedural bank alone — which is why a browser build is never
+silent even on the first frame.
 
 Browsers block audio until the player interacts with the page, so the first
 keypress or click also unlocks sound. Nothing is broken if the first second is

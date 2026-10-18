@@ -1,0 +1,62 @@
+SUPER DIALOGUE AUDIO PACK v1 - Dillon Becker
+============================================
+
+Source: https://dillonbecker.itch.io/sdap  (the pack's own page; the file
+downloaded is "Super Dialogue Audio Pack v1.zip", 80.6 MB)
+Author: Dillon Becker - https://dillonbecker.com
+
+The licence ships INSIDE the zip as
+`Step 1 - License and Contact Info/License.pdf`, so unlike the two SFX packs
+this one is verifiable from the download itself. Verbatim:
+
+  Super Dialogue Audio Pack V1
+  Produced by Dillon Becker (dillonbecker.com)
+
+  License Info
+  These files are licensed under Attribution 4.0 International (CC BY 4.0)
+  You are free to:
+  - Share - copy and redistribute the material in any medium or format
+  - Adapt - remix, transform, and build upon the material for any purpose,
+    even commercially.
+  Under the following terms:
+  - Attribution - You must give appropriate credit, provide a link to the
+    license, and indicate if changes were made. You may do so in any reasonable
+    manner, but not in any way that suggests the licensor endorses you or your
+    use.
+  Attribution should go to Dillon Becker.
+  Read full license text here:
+  https://creativecommons.org/licenses/by/4.0/legalcode
+
+WHAT THAT MEANS FOR THIS PROJECT
+--------------------------------
+- MAY ship inside the game, commercially, and MAY be edited (trimmed, pitched,
+  layered) - CC BY 4.0 is explicit about adaptation.
+- **Attribution IS required**, and because we adapt (trim/pitch), the
+  attribution must say so: "Dialogue voices - Super Dialogue Audio Pack v1 by
+  Dillon Becker (dillonbecker.com), CC BY 4.0, edited (trimmed/pitched) for
+  this game." It goes in `assets/ATTRIBUTION.md`, the README and the in-game
+  credits, with the licence link.
+- The raw pack is never committed (the .zip is gitignored); only the selected,
+  converted .ogg files ship in `assets/audio/voice/`, each named after the line
+  it serves so the mapping stays auditable.
+
+WHAT IS IN THE PACK (1090 .wav, by category and voice actor)
+------------------------------------------------------------
+`Step 2 - Audio Files/` holds ten categories, each split `Male/` and `Female/`,
+each of those split by actor (e.g. Alex Brodie, Ian Lampert, ...):
+
+  1 Completion · 2 Confirmation · 3 Greeting · 4 Farewell · 5 Refusal ·
+  6 Miscellaneous · 7 Damage · 8 Death · 9 Grunting · 10 Shouting
+
+These are non-verbal performances (a breath, a grunt, a shout), which is exactly
+what a Souls-like needs: the halls' sworn do not speak English, the *player*
+reads. Planned use:
+  - `7 Damage` / `8 Death` - the sworn react to being cut and to dying (one
+    voice cast per hall, so a hall sounds like a place).
+  - `9 Grunting` - the two-swing and heavy-swing exertions.
+  - `10 Shouting` - the alarm shout that wakes the hall (the "oath" bark),
+    and the boss's charge roar.
+  - `3 Greeting` / `5 Refusal` - the Warden's line through the opening's gate.
+  - `2 Confirmation` / `1 Completion` - the quarters-taken beats.
+The English *words* still come from the barks on screen; the voices carry the
+weight under them.

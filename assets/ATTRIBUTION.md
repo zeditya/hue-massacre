@@ -119,6 +119,63 @@ re-uploaded or repackaged, and it may not be used as AI training material.
 
 ---
 
+## Audio — three packs, licence-checked 2026-10-18 (staged in phase E)
+
+Until now the game's sound was **procedural only** (`scripts/audio_bank.gd`).
+Three sample packs were downloaded to the repo root on 2026-10-18 and
+licence-checked; the selected files will be baked into `assets/audio/` when the
+audio workstream lands (`PROGRESS_SUMMARY.md` §12.6). **Nothing has been
+extracted or committed yet** — the raw `.zip`s are gitignored and are never
+redistributed; only the files the game actually plays will be staged.
+
+### Free Fantasy 200 SFX Pack — TomMusic
+
+Source: <https://tommusic.itch.io/free-fantasy-200-sfx-pack>. 204 SFX as `.ogg`
+*and* `.wav`, plus 8 seamless ambience loops (day/night/rain/storm per biome).
+Licence record: `assets/LICENSES/tommusic_fantasy_sfx.txt`.
+
+> Royalty-free! You can use this in your projects, commercial or otherwise,
+> credit is not mandatory but appreciated. The asset is not to be up for resale
+> or redistribution.
+
+**Credit appreciated** (not required) — TomMusic is credited anyway. Planned
+use: steel for sword/parry/block, bow, footsteps per surface, spells, gates and
+chests, torch, ambience loops.
+
+### Ultimate UI SFX Pack (FREE) — JDSherbert
+
+Source: <https://jdsherbert.itch.io/ultimate-ui-sfx-pack>. Free tier, 56 files.
+Licence record: `assets/LICENSES/jdsherbert_ui_sfx.txt`.
+
+> Full credit is always required, as per the asset licence. […] You'd only need
+> to put my name somewhere in a txt or a credits roll. […] Just put my name
+> somewhere and don't redistribute the files.
+
+**Credit (required):** `JDSherbert`. Planned use: cursor, select, cancel, popup
+open/close, error, swipe — the menus, the opening's text advance, banners, HUD.
+
+### Super Dialogue Audio Pack v1 — Dillon Becker
+
+Source: <https://dillonbecker.com>. 1090 non-verbal lines; the licence ships
+inside the zip (`Step 1 - License and Contact Info/License.pdf`). Licence
+record: `assets/LICENSES/super_dialogue_audio.txt`.
+
+> These files are licensed under Attribution 4.0 International (CC BY 4.0) […]
+> Attribution should go to Dillon Becker.
+
+**Attribution required**, and because we will trim/pitch, the credit must note
+the material was adapted: `Super Dialogue Audio Pack v1 by Dillon Becker
+(dillonbecker.com) — CC BY 4.0, edited for this game.` Planned use: per-hall
+voice casts (damage, death, grunt, shout) and the bosses' vocal weight.
+
+### The credits screen (owed — a shipping blocker, not polish)
+
+Two of the three licences require *visible* credit. The game has no credits
+screen yet; one is part of phase E (pause menu **and** the ending card). These
+names must also stay in this file and in the README's credits.
+
+---
+
 ## Packs deliberately NOT used
 
 Recorded so the next person does not read these as oversights.

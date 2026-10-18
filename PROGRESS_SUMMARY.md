@@ -4,11 +4,13 @@
 > (assignment, history, codebase map, conventions, gotchas, next steps). This file
 > is the detailed session-by-session log.
 >
-> **The most recent work is §11** (the opening scene, guard/parry, footsteps, the
-> marked overhead). §10 is the RPG pivot it was built on top of; §9 is the arena
-> overhaul, and §10.4 / §11.7 are the live to-do lists. When you change something
-> here, add a new section rather than rewriting history — this file is the
-> handoff.
+> **The most recent work is §11–§12.** §11 is the session that opened the gate
+> (the opening scene, guard/parry, footsteps, the marked overhead) and §11.8 is
+> the audio the user landed at the end of the day. **§12 is the current road to a
+> finished product — read it first.** §10 is the RPG pivot it was built on top of
+> and §9 is the arena overhaul; §10.4 and §11.7 are historical lists. When you
+> change something here, add a new section rather than rewriting history — this
+> file is the handoff.
 
 **Repo:** `https://github.com/zeditya/hue-massacre` (branch `master`, live via GitHub Pages)  
 **Previous build:** tag `v1-stealth` → `ddb3a88` (stealth/Collector premise preserved)  
@@ -909,6 +911,9 @@ lands through a held guard and breaks it; and a roll through it is the answer.
 
 ### 11.7 Next move
 
+> *Historical — superseded on 2026-10-18 by §12, which is the standing plan for
+> finishing the game.*
+
 1. **Boss powers** — the marked overhead (§11.3), the Champion's dash and the
    warden's ground strike (§11.3a) are in. Still owed: the Sun's Warden's shield
    stance (a stance the player must break or get around), the Twins' blend on
@@ -920,4 +925,223 @@ lands through a held guard and breaks it; and a roll through it is the answer.
    the four hues mixing to white, and the Unsworn's one spoken line — the
    verses, hints and hall strings are all done and in `level_data.gd`.
 4. Web export re-check (`--export-release "Web"`) and a fresh round of captures.
+
+---
+
+### 11.8 The audio packs land — three of them, all licence-checked
+
+The user added three sound packs to the repo root on the evening of 2026-10-18
+(the `.zip`s are gitignored and stay local; **nothing has been extracted yet**):
+
+| Pack | Size | What is in it | Licence | Credit |
+|---|---|---|---|---|
+| **Free Fantasy 200 SFX Pack** — TomMusic | 317 MB | 204 SFX as `.ogg` **and** `.wav`, plus 8 seamless ambience loops (day/night/rain/storm per biome) | royalty-free, commercial OK, **no resale/redistribution** | appreciated, not required |
+| **Ultimate UI SFX Pack (FREE)** — JDSherbert | 5.3 MB | free tier, 56 UI files: cursor ×30, swipe ×12, select ×12, cancel ×12, popup open/close ×6, error ×5 | royalty-free, commercial OK, **files not redistributed** | **required** |
+| **Super Dialogue Audio Pack v1** — Dillon Becker | 80.6 MB | 1090 non-verbal lines: ten categories × male/female × voice actors (completion, confirmation, greeting, farewell, refusal, misc, damage, death, grunting, shouting) | **CC BY 4.0** (licence PDF inside the zip) | **required**, and adaptation must be noted |
+
+Licence records written this session (verbatim terms + "what that means for this
+project" + a shopping list of what to take from each):
+
+- `assets/LICENSES/tommusic_fantasy_sfx.txt`
+- `assets/LICENSES/jdsherbert_ui_sfx.txt`
+- `assets/LICENSES/super_dialogue_audio.txt`
+
+Both pack pages were checked live: TomMusic's page states the terms quoted (the
+zip's own ReadMe is contact details only); JDSherbert's page and the author's own
+comment replies state the credit requirement (that zip ships no readme; the
+licence is a separate download); SDAP is verifiable from inside its own zip.
+
+`assets/ATTRIBUTION.md` gained an "Audio — three packs" section and the README
+gained audio credits plus a rewritten §7 — including the one honest consequence:
+**an in-game credits screen is now owed**, because two of the three licences
+require *visible* credit. That screen is §12.6 and it is a shipping blocker, not
+polish.
+
+The planned mapping is written in the licence files and in §12.6; the short
+version: **TomMusic** = steel, bow, footsteps per surface, spells, gates/chests,
+torch, ambience; **JDSherbert** = menus, banners, the opening's text advance;
+**SDAP** = a voice cast per hall (damage/death/grunt/shout) and the bosses'
+weight, with the English words staying as on-screen barks.
+
+**Still true tonight:** no audio file is in the repo and the game still plays the
+procedural bank alone. Extraction is §12.6's first job.
+
+### 11.9 Where the project stands at the end of the day (2026-10-18)
+
+- **Tests:** 351 passed, 0 failed.
+- **Web export:** rebuilt earlier today — `build/web` 48 MB, `index.pck` 9.7 MB.
+- **Git:** everything committed and pushed to `origin/master`; working tree
+  clean. This session's commits delivered the gate scene, guard/parry,
+  footsteps, the marked overhead, the warden's ground strike, docs and the
+  cleanup; this evening's commit adds the three audio licence records, the
+  attribution/README updates, this log and the plan below.
+- **The user's brief is delivered:** the opening briefs the player (destiny,
+  task, who we are, why chosen; the Unsworn speaks; sword pickup; the gate),
+  camera shake only on deaths, sworn with dialogue who never forget you, four
+  named and versed halls, Souls-like boss powers (marked overhead, charge,
+  ground strike), guard/parry/combos on real keys, a decluttered HUD, the
+  white-light hope thread written into `docs/STORY.md` §10, and the standing
+  progress report (now this file).
+- **What is *not* done** is all in §12 below, in one place: Halls I–III have no
+  boss yet, no archer/healer/line units, quarters and the weapons they buy are
+  unbuilt, audio is unextracted, the ending and the credits screen are
+  unwritten, the trailer video is unshot — and the README still calls the halls
+  "arenas" (43 mentions; §12.7).
+
+---
+
+## 12. The road to a finished product — read this first
+
+Everything above is history; everything below is owed. Work it top to bottom —
+the order is dependency, not preference. Each workstream ends the same way:
+**tests green, a capture that shows the read, a commit pushed, and a new section
+in this file.**
+
+**Definition of done for the product:** a player can start at the gate, fight
+through four halls whose bosses each teach one colour-theory power, take a
+quarter from every warden, spend the quarters on new verbs, reach the ending
+where the four hues mix to white, and read a credits screen — in a browser, in a
+build whose licences are all satisfied, with a trailer video that makes the
+marker want to play it.
+
+### 12.1 NEXT SESSION — Hall I's Sun's Warden, the first true boss
+
+Only Hall IV declares `"boss": true` today (`scripts/level_data.gd`); Halls I–III
+end on a wave, not a boss. Build Hall I's in full as the template for the rest.
+
+- **Shield stance** — a raised shield a plain blow cannot pass. Break it with a
+  parry or a heavy guard-break (12.4), or *get around it*: the shield faces
+  where the warden faces, so the roll behind is the answer.
+- **Ground strike and charge** — already in from §11.3a; keep them and wire them
+  into the stance cycle.
+- **Intro beat** — he steps out of the gate line after the hall's verse; two or
+  three barks; the HUD gains a **boss bar** with his name in the hall's hue.
+- **Phase change at 50%** — shield down, slams faster, charge unlocked.
+- **Defeat beat + the quarter** — he yields the hall's quarter (§12.4) with a
+  banner, and the hall's colour drains as its warden does.
+- Files: `scripts/level_data.gd` (`"boss": true`, waves), `scripts/guard.gd`
+  (stance states), `scripts/room.gd` (intro/defeat beats), `ui/hud.gd` (boss
+  bar), `scripts/game.gd` (reward wiring).
+- **Acceptance:** a test per power with its named counterplay (hug him → the
+  slam punishes; face the stance → lose; parry/roll → win); captures of the
+  stance, the break, phase 2 and the defeat; a fresh player who mashes loses.
+
+### 12.2 Unit roles — make the halls feel garrisoned
+
+The fiction already reserves `SWORN ARCHER`, `THORN-SWORN` and `SWORN LANCE`;
+none of the roles exists yet.
+
+- **SWORN ARCHER** — keeps 260–320 px, steps back while winding, fires a
+  telegraphed line shot; the counter is to close the gap. Bow sounds are already
+  licensed. Hall II introduces them.
+- **A healer behind the line** — stands behind the melee and pulses healing to
+  nearby sworn, so the player must dive the back line or the fight never ends.
+  (The user asked for "monks heal behind the line"; the name is not in the
+  story's reserved list yet — name it in `docs/STORY.md` first, per the strings
+  rule.)
+- **SWORN LANCE / THORN-SWORN hold the line** — long reach, slow turn, a leash
+  they will not chase past; they make the player fight for the angle instead of
+  knifing a queue.
+- **Spacing and flanking** — approach slots around the player so the sworn stop
+  stacking in one line: thralls swarm, lancers hold, archers retreat.
+- **Acceptance:** one test and one capture per role, each with at least one bark
+  in its own voice.
+
+### 12.3 Halls II and III's bosses (Hall IV's Champion is already in)
+
+§12.1 is the template. Each boss needs an intro beat, a boss bar, the power the
+hall's verse promised, a 50% phase change and a quarter drop.
+
+- **Hall II — the Twins' Warden.** Fights as two bodies. On the first death the
+  two hues **blend** (additive mixing as a boss mechanic): the survivor takes
+  the mixed colour and its resistances change — the lesson stands up.
+- **Hall III — the Thorn Warden.** A **hue ward** only its complement breaks; a
+  **self-heal** in the pools that forces the player onto the colour wheel;
+  **thorns** that answer point-blank hugging.
+- **Hall IV — the Champion.** Exists (phases, charge, summons). Polish pass
+  only: phase telegraphs in his hue, the quarter drop, and the defeat beat that
+  hands off to the ending (§12.5).
+
+### 12.4 Quarters and the weapons they buy (phase D — 0% today)
+
+Each warden drops the **quarter of his hall** (ember, violet, thorn, gold). The
+HUD gains a row of four quarter sockets: grey until taken, filled with the hue
+after. Quarters are keys, not currency — taking one *is* the unlock, taught by a
+hint card at the moment of the drop.
+
+| Quarter | Verb | Key (proposed) | What it is |
+|---|---|---|---|
+| I — ember | **Heavy strike** | hold `K` | slow, wide, **breaks guards and stances** — the answer to §12.1's shield for players who cannot parry |
+| II — violet | **Bow** | `Q` | a primed ranged shot that spends the blade's absorbed hue as its arrow |
+| III — thorn | **Ward** | `E` | the hall's magic: raise a hue bubble that holds a line for a moment |
+| IV — gold | **the ending** | — | completing the run (§12.5) |
+
+- Keys land in `project.godot` beside `guard`; the opening's legend card and the
+  README controls table gain each verb **as it unlocks** — the legend is not
+  allowed to lie.
+- **Acceptance:** a test per verb (including "the legend lists only verbs that
+  exist" and "the input map has no orphans"), a capture per unlock, and the
+  exported build's input map re-checked.
+
+### 12.5 The ending — the white light
+
+The story's payoff (`docs/STORY.md` §10): a colour held alone is safe and
+useless; the four mixed make white light, which is hope.
+
+- After the Champion's fall: the four quarters blaze on the wheel, the grey
+  lifts from each hall in the order it was freed, and the Unsworn — who has one
+  line left — says it.
+- **The line is the game's last writing task.** It goes into `docs/STORY.md`
+  first (the strings rule) before it goes near code.
+- Then the **credits screen** (also required by the audio licences): reachable
+  from the pause menu **and** shown after the ending, carrying the attributions
+  from `assets/ATTRIBUTION.md`.
+- **Acceptance:** an end-to-end capture from gate to white light; tests for the
+  sequence's state transitions; a fresh export where the credits are reachable
+  from both the menu and the ending.
+
+### 12.6 Audio — bake the three packs in (phase E)
+
+- **Bake.** A `tools/` script extracts only the chosen files from the three
+  zips into `assets/audio/{sfx,ui,voice}/`: TomMusic is already `.ogg`,
+  JDSherbert has `.ogg` copies, SDAP is `.wav` and needs conversion (ffmpeg, or
+  Godot's own import). Budget ≤ ~5 MB OGG total; the raw zips stay gitignored
+  and are never redistributed. The "what to take" lists live in the licence
+  files.
+- **Bank.** `scripts/audio_bank.gd` grows a sample layer with an explicit
+  id → file mapping; the procedural synthesis stays as the fallback so a missing
+  file can never silence the game.
+- **Voice casting.** One actor per hall for damage/death/grunt/shout; the
+  Sun's Warden's death and the Champion's roar chosen individually; the
+  opening's gate gets greeting/refusal breaths. The Unsworn's ending line is
+  authored, not sourced: it needs either a recorded line or a deliberate,
+  chosen silence — whichever it is, §12.5 must say so.
+- **Ambience.** One seamless BGS loop per hall (the four moods already exist:
+  sun, twins, thorn, wheel), footstep surfaces matched to the floor art, ward
+  hum, quarter-pickup chime, UI clicks for menus and the opening's text.
+- **Acceptance:** audio audible in a fresh browser export; export size still
+  sane; `assets/LICENSES/` and `ATTRIBUTION.md` match exactly what ships.
+
+### 12.7 Docs truth pass (small, public, cheap)
+
+The README still calls the halls "arenas" (43 mentions) and predates the hall
+rename, the unit rename, the gate scene and the guard. Walk it once against the
+game's own strings (`scripts/level_data.gd`) and fix: §1 opener (the gate scene
+exists), §2 controls (guard/parry, then each quarter's verb), §4 halls and the
+unit table (Thrall, not Harrier), §7 audio (done this session), credits (done
+this session). `docs/STORY.md` rules; the README follows.
+
+### 12.8 Packaging — the last mile (phase F)
+
+- **The video** (last item): 60–90 s, from the real build at 1080p, no dev
+  overlays — gate → a hall fight showing a parry and a marked overhead → a boss
+  phase → the white light. This is the deliverable the marker actually watches.
+- **Final export + deploy:** `--export-release "Web"` → `build/web` → GitHub
+  Pages; verify from the live URL in a fresh browser profile (audio unlock
+  included).
+- **Close-out:** final captures, final test run, tag the release, and a final
+  section here that says so.
+
+**Rough sizing** (sessions, not hours): 12.1 = 1 big · 12.2 = 1 · 12.3 = 2 ·
+12.4 = 1–2 · 12.5 = 1 · 12.6 = 1–2 · 12.7 = 0.5 · 12.8 = 1 + editing.
 

@@ -1,0 +1,47 @@
+ULTIMATE UI SFX PACK (FREE) - JDSherbert
+========================================
+
+Source: https://jdsherbert.itch.io/ultimate-ui-sfx-pack
+File downloaded: "JDSherbert - Ultimate UI SFX Pack (FREE).zip" (5.3 MB; 56
+.wav plus .mp3/.ogg/.m4a copies - the free tier. The paid FULL pack was NOT
+downloaded and nothing from it ships.)
+
+The zip contains no readme of its own; the licence ships as a separate
+`LICENSE.pdf` in the same itch download and the page states the terms. This file
+is the record of those terms at the time of use (checked 2026-10-18).
+
+LICENCE (from the itch.io page and the author's own replies in its comments)
+----------------------------------------------------------------------------
+
+  Royalty free. 67 sound effects in the full version, freebies included in the
+  free tier.
+
+  "...you can use the sounds for free in your games etc., even if you make
+  money with them, as long as you give me credit... You're free to do anything
+  else you need [pitch, edits] ... Just put my name somewhere and don't
+  redistribute the files."
+
+  "Full credit is always required, as per the asset licence. This only helps
+  you, ... easier for me to link and help market your work. You'd only need to
+  put my name somewhere in a txt or a credits roll." (Author's answer to "does
+  buying remove the credit requirement?" - it does not.)
+
+WHAT THAT MEANS FOR THIS PROJECT
+--------------------------------
+- MAY ship inside the game, commercially, modified (pitch/trim) as needed.
+- **Credit IS required**: "JDSherbert" is credited in `assets/ATTRIBUTION.md`,
+  the README and the in-game credits. The page's own terms page is
+  https://jdsherbert.itch.io/terms-and-conditions.
+- MUST NOT be redistributed as files: raw .wav/.mp3/.m4a files are never
+  committed; only the converted .ogg files the game actually uses are staged in
+  `assets/audio/ui/`.
+
+WHAT IS WORTH TAKING
+--------------------
+- `Cursor` (30 variations) - the title card and the opening's "SPACE to
+  continue" prompts.
+- `Select` (12) / `Cancel` (12) - confirming a hall entry, backing out.
+- `Popup Open` / `Popup Close` (6 each) - the hall banner, the hint line, the
+  win/death pages.
+- `Error` (5) - a guard breaking, a wall, an illegal action.
+- `Swipe` (12) - the wheel strip and the verse card drawing on.
