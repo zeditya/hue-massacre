@@ -1002,9 +1002,46 @@ func _test_integration() -> void:
 		"restarting from the win screen begins a fresh run at room 1")
 	check(_game.score == 0 and _game.deaths == 0, "and resets the score and the death count")
 
+	# --- the whole melee in one scripted run ------------------------------
+	# The tests above prove each system on its own. This one proves the LOOP:
+	# arena 1 through the Champion, every wave pulled in on demand, ending on
+	# the victory page. It is slow on purpose (the real clear delay is honoured)
+	# and it is the check that the win/lose + score requirement is really met.
+	_game.start_run()
+	await _frames(3)
+	var arenas_cleared: int = 0
+	var steps: int = 0
+	while _game.state == Game.State.PLAY and arenas_cleared < LevelData.room_count() and steps < 12:
+		steps += 1
+		var run_room: Room = _game.room
+		if run_room == null:
+			break
+		run_room.release_all_waves()
+		await _frames(2)
+		for g in run_room.guards.duplicate():
+			if is_instance_valid(g) and not g.dead:
+				run_room._kill_guard(g)
+		await _frames(3)
+		if run_room._cleared:
+			arenas_cleared += 1
+			await get_tree().create_timer(2.4).timeout
+			await _frames(3)
+	check(arenas_cleared == 4, "a scripted run clears all four arenas",
+		"cleared %d" % arenas_cleared)
+	check(_game.state == Game.State.WIN, "and the melee ends on the victory page",
+		"state=%d" % _game.state)
+	check(_game.score > 0 and _game.screens.win_rank != "",
+		"with a real score and a rank", "score %d rank %s" % [_game.score, _game.screens.win_rank])
+	check(_game.screens.mode == Screens.Mode.WIN and _game.run_time > 0.0,
+		"and a run time to show for it")
+
+	# Back to a clean arena 1, which is the sandbox the next section wants.
+	_game.start_run()
+	await _frames(3)
+
 	# =====================================================================
 	# D. LIGHT, WAVES AND LEVEL ELEMENTS
-	# =====================================================================
+	# ======================================================================
 	# The game is now sitting in a clean arena 1, which makes a good sandbox.
 	print("\n--- D. LIGHT, WAVES AND LEVEL ELEMENTS")
 
