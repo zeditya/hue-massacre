@@ -1,7 +1,7 @@
 class_name Guard
 extends CharacterBody2D
 ##
-## GUARD - a Collector's thug carrying one stolen colour.
+## GUARD - a knight of the Grand Melee, carrying one house hue.
 ##
 ## THE DETECTION RULE (this is the colour theory exam question):
 ## a guard can only fill its detection meter when ALL THREE are true:
@@ -84,11 +84,11 @@ const BARKS := {
 }
 
 @export_group("Colour")
-## The stolen colour this guard carries. It becomes the splat on death.
+## The house hue this knight carries. It becomes the splat on death.
 @export var colour: Color = Color(1.0, 0.0, 0.0)
 ## Degrees/second the colour rotates around the wheel. Only the boss uses this.
 @export var hue_speed: float = 0.0
-## True for the Collector: bigger body, drawn ring of the whole hue wheel.
+## True for the Champion: bigger body, drawn ring of the whole hue wheel.
 @export var is_boss: bool = false
 
 @export_group("Body")
@@ -139,7 +139,7 @@ const BARKS := {
 @export var phase_two_ratio: float = 0.66
 ## HP ratio at or below which he enters phase III (summons + spins faster).
 @export var phase_three_ratio: float = 0.33
-## How much faster the stolen wheel spins once he is losing.
+## How much faster the wheel spins once he is losing.
 @export var phase_three_hue_scale: float = 1.8
 ## Aspirants called in when phase III begins.
 @export var summons_count: int = 2
@@ -268,7 +268,7 @@ func _ready() -> void:
 	if patrol_points.size() >= 2:
 		_facing = (patrol_points[1] - patrol_points[0]).angle()
 
-	# A real human figure, tinted to the stolen colour this guard carries. The
+	# A real human figure, tinted to the hue this knight carries. The
 	# hue is the whole point of the game, so the art is recoloured rather than
 	# drawn in its own fixed palette.
 	_sprite = AnimatedSprite2D.new()
@@ -316,7 +316,7 @@ func _process(delta: float) -> void:
 	# Pops up the instant detection starts filling, then eases back down.
 	_alert_pop = maxf(_alert_pop - delta * 3.0, 0.0)
 	_update_animation()
-	# The Collector drags its hue around the wheel, so its sprite has to be
+	# The Champion drags its hue around the wheel, so its sprite has to be
 	# re-tinted as the hue moves. Only the boss does this.
 	if not is_zero_approx(hue_speed):
 		SpriteBank.set_tint(_sprite.material, colour)
@@ -338,7 +338,7 @@ func _physics_process(delta: float) -> void:
 	if dead:
 		return
 
-	# --- the Champion drags the stolen wheel around -----------------------
+	# --- the Champion drags the wheel around ------------------------------
 	if not is_zero_approx(hue_speed):
 		colour = Color.from_hsv(fposmod(colour.h + (hue_speed / 360.0) * delta, 1.0), colour.s, colour.v, 1.0)
 
@@ -762,7 +762,7 @@ func _update_boss_phase() -> void:
 	phase_changed.emit(boss_phase)
 
 
-## A strike that glanced off without doing anything (the Collector's shield,
+## A strike that glanced off without doing anything (the Champion's shield,
 ## outside the complement window). Purely feedback.
 func clang() -> void:
 	clang_flash = 1.0

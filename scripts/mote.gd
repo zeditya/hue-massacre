@@ -1,9 +1,9 @@
 class_name Mote
 extends Node2D
 ##
-## MOTE - a floating shard of stolen colour you can pick up.
+## MOTE - a floating shard of loose colour you can pick up.
 ##
-## The guards carry the colour the Collectors stole; a mote is a chip of it that
+## Every knight carries a house hue; a mote is a chip of the wheel that
 ## has come loose and is drifting around the room. Touch one and you DRINK it:
 ## your hue snaps straight to the mote's hue, the way killing a guard would.
 ##

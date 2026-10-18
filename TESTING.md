@@ -2,7 +2,7 @@
 
 Two kinds of verification are recorded here:
 
-- **Automated** — **289 checks** in `tests/test_runner.gd`, run in a headless
+- **Automated** — **303 checks** in `tests/test_runner.gd`, run in a headless
   Godot engine. Reproducible in one command.
 - **Manual** — a checklist for the things a script cannot judge, mostly *feel* and
   *visuals*, each with the expected result so you can tick it off.
@@ -34,16 +34,16 @@ Godot 4.7.2-stable (official)
 =========================================================
 
 --- A. COLOUR THEORY MATHS                                 37 checks
---- B. LEVEL GEOMETRY                                      80 checks
---- C. INTEGRATION (real scene, scripted playthrough)     131 checks
+--- B. LEVEL GEOMETRY                                      88 checks
+--- C. INTEGRATION (real scene, scripted playthrough)     137 checks
 --- D. LIGHT, WAVES AND LEVEL ELEMENTS                     41 checks
 =========================================================
-RESULT: 289 passed, 0 failed
+RESULT: 303 passed, 0 failed
 =========================================================
 ```
 
 **Verified on:** Godot 4.7.2-stable (Linux build), headless renderer.
-**Result:** `289 passed, 0 failed`, process exit code `0`.
+**Result:** `303 passed, 0 failed`, process exit code `0`.
 
 ### A. Colour theory maths (37 checks)
 
@@ -63,9 +63,9 @@ re-deriving every hue constant from its RGB value, so the comments in
 | `bare grey floor always exposes you` | The starting condition is not accidentally safe |
 | `equal overlap of RED and BLUE paint averages to VIOLET (300)` | Mixing happens **in hue space**, not RGB |
 | `opposite hues that cancel still return a usable colour` | The degenerate blend returns, no NaN |
-| `a white spark takes the guard's hue outright` | Absorption, including the first kill |
+| `a colourless Unsworn takes the guard's hue outright` | Absorption, including the first kill |
 
-### B. Level geometry (80 checks)
+### B. Level geometry (88 checks)
 
 All 4 arenas, every knight route, every colour mote and every Aspirant spawn.
 
@@ -77,11 +77,12 @@ All 4 arenas, every knight route, every colour mote and every Aspirant spawn.
 | `<ARENA>: guard N route clears every wall` | **No patrol clips through a wall.** Every leg of the route is sampled in 4px steps against every wall rect, inflated by that knight's own radius |
 | `<ARENA>: guard N has a real patrol route` | Routes have at least 2 distinct points |
 | `<ARENA>: aspirant N's arrival route clears every wall` | The Champion's summons do not arrive inside the stonework |
+| `<ARENA>: has a verse for its house`, `has an accent colour and a sigil style` | Every arena can announce its house |
 | `waves are numbered 1..N with knights in each` | No empty wave, no skipped wave number |
 | `the boss hall fights its whole cast at once` | The Champion's arena is one fight, not a wave arena |
 | `<ARENA>: mote/waypoint/aspirant can be walked to` | **Nothing is sealed behind geometry** — the floor is flood-filled from the spawn at 6px resolution, so a pickup or patrol point in a closed pocket fails |
 
-### C. Integration — scripted playthrough (131 checks)
+### C. Integration — scripted playthrough (137 checks)
 
 This drives the **real** `scenes/main.tscn`, through the whole game, asserting on
 live game state. It is not a mock: it boots the actual scene and plays it.
@@ -94,6 +95,7 @@ live game state. It is not a mock: it boots the actual scene and plays it.
 | `and no page is blocking the arena` | The screen layer is idle on boot |
 | `the first arena is built on boot` / `and it is the first arena` | Round one is live immediately |
 | `the fight HUD is up from the first frame` | The player is not left without their vitals |
+| `and the arena's verse is announced on load`, `with the house sigil next to the score` | The house announces itself — this is what replaced the removed intro pages |
 | `the pause page has three rows` | The only pages left are pause / victory / defeat |
 
 **Characters — the sprite system**
@@ -110,9 +112,9 @@ live game state. It is not a mock: it boots the actual scene and plays it.
 | Check | Proves |
 |---|---|
 | `arena 1 fields 2 knights on its first wave`, `with 4 more waiting in the later waves`, `so the arena is a three-wave fight` | Wave data reaches the world |
-| `the spark starts colourless (white)` | Correct starting colour |
+| `the Unsworn starts colourless (white)` | Correct starting colour |
 | `killing a guard removes it from the room` | The kill lands |
-| `the spark is no longer colourless after a kill`, `absorbs the dead guard's hue` | Colour capture, checked by **saturation as well as hue** so a white→red change cannot pass vacuously |
+| `the Unsworn is no longer colourless after a kill`, `absorbs the dead guard's hue` | Colour capture, checked by **saturation as well as hue** so a white→red change cannot pass vacuously |
 | `one kill scores the base amount` | Scoring is wired |
 | `the floor under the kill is PAINTED, not bare grey`, `and it is the guard's hue` | The paint layer answers queries correctly |
 | `standing in paint of your own hue HIDES you`, `and reports zero contrast` | The core camouflage mechanic |
@@ -159,12 +161,13 @@ live game state. It is not a mock: it boots the actual scene and plays it.
 | `the beaten Champion does not vanish: he kneels on the sand` | The victory beat |
 | `clearing the Champion's arena wins the game`, `the win page is on screen`, `the win screen received a rank and a run time` | The loop closes |
 | `restarting from the win screen begins a fresh run at room 1`, `resets the score and the death count` | The loop is replayable |
+| `a scripted run clears all four arenas`, `and the melee ends on the victory page`, `with a real score and a rank` | **The complete loop**, in one run: arena 1 → the Champion → victory, through the real clear delays |
 
 **Death**
 
 | Check | Proves |
 |---|---|
-| `a lethal hit drops the spark to 0 vigour`, `0 vigour is the death the run remembers`, `the death counter went up` | Death is HP-based and tracked |
+| `a lethal hit drops the Unsworn to 0 vigour`, `0 vigour is the death the run remembers`, `the death counter went up` | Death is HP-based and tracked |
 | `the restart prompt is on screen`, `the room restarts by itself after a death`, `and restarts the SAME room` | Instant, input-free restart of the arena you died in |
 
 ### D. Light, waves and level elements (41 checks)
@@ -179,7 +182,7 @@ live game state. It is not a mock: it boots the actual scene and plays it.
 | `a guard abandons an unreachable search instead of walking into a wall forever` | Investigate has a give-up timeout |
 | `when one guard locks on, nearby allies come to help` | The alarm spreads |
 | `a guard says a line when it spots the player`, `the line is real words`, `a spoken line fades over time` | Knight speech is real and transient |
-| `every room has colour motes`, `standing on a mote drinks it`, `drinking a mote gives the spark a colour`, `and it is the mote's own hue` | The pickup changes your hue correctly |
+| `every room has colour motes`, `standing on a mote drinks it`, `drinking a mote gives the Unsworn a colour`, `and it is the mote's own hue` | The pickup changes your hue correctly |
 | `all four enriched rooms still build with guards present` | The richer geometry still loads |
 | `the pause menu has three rows`, `ESC pauses the run`, `the tree really is paused`, `the pause page is on screen` | Pause freezes the game |
 | `RESTART ROOM resumes the game`, `rebuilds the room from the top`, `ESC from the pause page resumes` | Pause is escapable and the restart works |

@@ -1,16 +1,16 @@
 class_name PaintLayer
 extends Node2D
 ##
-## PAINT LAYER - the stolen colour that ends up on the floor.
+## PAINT LAYER - the hue that ends up on the sand.
 ##
 ## Every kill splashes a puddle of the guard's colour here. The layer answers
-## the one question the whole stealth system depends on:
+## the one question the whole camouflage system depends on:
 ##
 ##     "What colour is the floor at this point?"
 ##
 ## Because overlapping puddles are averaged ON THE HUE WHEEL (see
 ## ColorTheory.blend), dropping red and blue paint in the same place really
-## does make the floor read violet - and then a violet spark standing there is
+## does make the floor read violet - and then a violet Unsworn standing there is
 ## camouflaged. That single behaviour is room 2's whole lesson.
 ##
 ## Drawing is done with `_draw()` circles, so there are zero image files.

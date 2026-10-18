@@ -11,7 +11,7 @@ extends RefCounted
 ##     background of this game changes colour constantly, so text has to stay
 ##     legible on top of grey floor, red paint and a white screen flash alike.
 ##   * Colours are picked from the wheel, never from taste. Headings are gold
-##     (the ceremonial colour of the Collectors' stolen hoard), alerts are the
+##     (the ceremonial colour of the crowd's bright banners), alerts are the
 ##     complement of whatever is underneath them.
 ##
 ## FONT: the game uses Godot's built-in font by default, so it needs zero
@@ -22,7 +22,7 @@ extends RefCounted
 const DISPLAY_FONT_PATH: String = "res://assets/fonts/display.ttf"
 
 # --- palette -------------------------------------------------------------
-const INK: Color = Color(0.035, 0.035, 0.050)          # near-black, the "drained" world
+const INK: Color = Color(0.035, 0.035, 0.050)          # near-black, the arena at dusk
 const INK_SOFT: Color = Color(0.070, 0.070, 0.100)
 const PAPER: Color = Color(0.965, 0.965, 1.000)        # main text
 const DIM: Color = Color(0.600, 0.615, 0.720)          # secondary text

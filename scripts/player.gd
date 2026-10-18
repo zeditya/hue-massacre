@@ -1,7 +1,7 @@
 class_name Player
 extends CharacterBody2D
 ##
-## PLAYER - the spark.
+## PLAYER - the Unsworn.
 ##
 ## Three things make this node interesting:
 ##   1. Two verbs, split cleanly. STRIKE (J / left mouse) is a three-swing
@@ -12,7 +12,7 @@ extends CharacterBody2D
 ##   2. `colour` is the player's current hue. It starts white/grey and is
 ##      re-mixed with every guard that dies (ColorTheory.absorb).
 ##   3. `visibility_now` is written by the room each frame. 0 means the floor
-##      under the spark matches their hue, so guards cannot build detection.
+##      under the Unsworn matches their hue, so guards cannot build detection.
 ##
 ## Two combat rules live in the room instead, because they need to see the
 ## whole battlefield: the hue multiplier on a landed swing, and the gentle
@@ -35,13 +35,13 @@ signal hurt(amount: float, from_position: Vector2)
 ## Walking speed in pixels/second. Guards patrol slower than this but chase
 ## faster than this, so you cannot simply outrun a fight - you dodge it.
 @export var move_speed: float = 240.0
-## How quickly the spark reaches walking speed (pixels/second/second).
-## High values = the spark answers the keys on the same frame you press them,
-## which is what keeps the stealth feel tight instead of floaty.
+## How quickly the Unsworn reaches walking speed (pixels/second/second).
+## High values = the Unsworn answers the keys on the same frame you press them,
+## which is what keeps the movement tight instead of floaty.
 @export var acceleration: float = 4200.0
-## How quickly the spark stops when you let go of the keys.
+## How quickly the Unsworn stops when you let go of the keys.
 @export var friction: float = 3800.0
-## Below this speed with no keys held, the spark snaps to a dead stop so it
+## Below this speed with no keys held, the Unsworn snaps to a dead stop so it
 ## never drifts a few pixels past where you meant to stand.
 @export var stop_snap_speed: float = 14.0
 ## Physics radius. Must match the collision shape built in _ready().
@@ -95,12 +95,12 @@ const HEAVY_ARC_SCALE: float = 1.35
 @export var afterimage_interval: float = 0.022
 
 @export_group("Colour")
-## Current hue of the spark. White going in; a mix of everything you kill.
+## Current hue of the Unsworn. White going in; a mix of everything you kill.
 @export var colour: Color = Color(1.0, 1.0, 1.0)
-## How far each kill pulls the spark's hue towards the guard's hue (0..1).
+## How far each kill pulls the Unsworn's hue towards the guard's hue (0..1).
 @export var absorb_amount: float = 0.5
 ## Hue distance (degrees) under which the floor counts as "a match" and the
-## spark is invisible. Also used by the HUD to explain hiding.
+## Unsworn is invisible. Also used by the HUD to explain hiding.
 @export var hide_tolerance_deg: float = 26.0
 
 @export_group("Combat")
@@ -129,9 +129,9 @@ var strike_serial: int = 0
 var roll_left: float = 0.0
 ## Counts down to 0; the next roll is allowed when it hits 0.
 var roll_cooldown_left: float = 0.0
-## 0..1 how camouflaged the spark is (written by the room every frame).
+## 0..1 how camouflaged the Unsworn is (written by the room every frame).
 var visibility_now: float = 1.0
-## True when standing in paint that matches the spark's hue.
+## True when standing in paint that matches the Unsworn's hue.
 var is_hidden: bool = false
 ## Frozen while the death animation plays.
 var frozen: bool = false
@@ -174,7 +174,7 @@ func _ready() -> void:
 	circle.radius = body_radius
 	shape.shape = circle
 	add_child(shape)
-	# Top of the room's draw order so the spark is never hidden by a cone.
+	# Top of the room's draw order so the Unsworn is never hidden by a cone.
 	z_index = 3
 
 	# The character itself: a real animated figure instead of the old dot, with
@@ -260,7 +260,7 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
-	# Safety net: if a wall is ever missed, never let the spark leave the room.
+	# Safety net: if a wall is ever missed, never let the Unsworn leave the room.
 	global_position.x = clampf(global_position.x, LevelData.PLAYER_RADIUS, LevelData.PLAYFIELD.x - LevelData.PLAYER_RADIUS)
 	global_position.y = clampf(global_position.y, LevelData.PLAYER_RADIUS, LevelData.PLAYFIELD.y - LevelData.PLAYER_RADIUS)
 
@@ -296,7 +296,7 @@ func _update_animation() -> void:
 	if _sprite == null:
 		return
 	# Apply the walk bob: a subtle vertical squash plus a small lift, so the
-	# spark reads as walking even now that it is a real sprite and not a dot.
+	# Unsworn reads as walking even now that it is a real sprite and not a dot.
 	var squash: float = _squash * 0.16
 	_sprite.scale = Vector2(1.0 + squash, 1.0 - squash)
 	_sprite.position = Vector2(0.0, -2.0 * _squash)
@@ -375,7 +375,7 @@ func is_striking() -> bool:
 	return strike_left > 0.0
 
 
-## True while the roll is carrying the spark.
+## True while the roll is carrying the Unsworn.
 func is_rolling() -> bool:
 	return roll_left > 0.0
 
@@ -459,7 +459,7 @@ func get_facing() -> float:
 	return _facing
 
 
-## Direction the light cone points. This is simply the way the spark faces,
+## Direction the light cone points. This is simply the way the Unsworn faces,
 ## which is driven entirely by WASD: the torch IS your movement direction, so
 ## there is no separate aiming to learn and nothing to fight the keyboard.
 func aim_angle() -> float:

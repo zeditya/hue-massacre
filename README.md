@@ -227,6 +227,10 @@ separate scripts):
 | **Warden** | 140 | 25 | slow | a wall that hits back |
 | **Harrier** | 45 | 10 | fast | rushes you, dies quickly |
 
+Every arena opens with **one verse for its house** (the herald's introduction,
+printed on load) followed by its lesson, so the teaching the removed intro pages
+used to do happens in the world instead of in front of it.
+
 Each arena is a **different kind of space**, and the architecture is doing work:
 Arena 1 is a ring you cannot hide in, Arena 2 is a crossing you have to own,
 Arena 3 is a pit with four gates and nowhere to run, Arena 4 is a wheel. Knight
@@ -293,7 +297,7 @@ res://
 │  ├─ hud.gd              vigour, hue swatch, wheel strip, waves, Champion phase, score
 │  └─ screens.gd          pause, victory and defeat pages — that is all of them
 ├─ tests/
-│  ├─ test_runner.gd      289 automated checks
+│  ├─ test_runner.gd      303 automated checks
 │  └─ test_runner.tscn    tiny scene to run them
 └─ tools/
    ├─ make_input_map.gd    one-off generator for project.godot's input map
@@ -329,6 +333,8 @@ Everything you see is drawn in code, and the arena is the biggest piece of it
   licks of flame and the warm pool it throws on the ground.
 - **Dust** drifting through the air at all times, so the arena is never a still
   picture.
+- **A house sigil** beside the score, drawn from the arena's own accent colour
+  (a sun, a cross, a ring, a wheel), so the round announces which house owns it.
 - **Characters** are real animated sprites, recoloured to *any* hue by
   `hue_tint.gdshader` — the imported art is tinted, never drawn in its own palette.
 - **The dark.** `darkness.gdshader` lays a semi-transparent night over the world,
@@ -394,7 +400,7 @@ Stated plainly:
 - **The automated suite cannot see the screen.** The headless engine does not
   render, so `_draw()` is never executed by the tests. The rules, the maths, the
   state machine, the arena geometry, the waves and the boss phases are all
-  machine-verified (**289 checks**), but the *look* — the sand, the masonry, the
+  machine-verified (**303 checks**), but the *look* — the sand, the masonry, the
   stands, the flames, the arena sigils, the HUD layout, the pages — is verified by
   rendering frames during development and by playing it. Treat the first
   playthrough as the real art check.

@@ -6,7 +6,7 @@ extends RefCounted
 ## WHY THIS EXISTS
 ##   The floor used to be a single flat grey rectangle. It is now a real tiled
 ##   floor taken from the 16x16 tileset in `assets/tiles/`, which gives the
-##   drained world some texture instead of a blank wash of grey.
+##   arena floor some texture instead of a blank wash of grey.
 ##
 ## THE RULE THAT MATTERS
 ##   `room.gd` must still "look like" the colour the game logic believes the
@@ -33,7 +33,7 @@ const FLOOR_TILE: Vector2i = Vector2i(14, 5)
 
 ## Multiplied over the tile when it is drawn. Tuned so the tiled floor's average
 ## colour lands on ColorTheory.FLOOR_GREY (0.30, 0.30, 0.33) - the floor is still
-## "the drained grey", just with texture.
+## "the bare grey", just with texture.
 const FLOOR_MODULATE: Color = Color(0.54, 0.58, 0.65)
 
 ## Built once and reused: the floor is identical in every room.

@@ -136,6 +136,8 @@ const ROOMS: Array = [
 		"house": "HOUSE OF THE CRIMSON SUN",
 		"lesson": "Simultaneous contrast",
 		"hint": "Colour is your armour. Kill a knight, stand in the colour he spills, and the sand under you matches your hue - so nothing can pick you out of it.",
+		# One verse per house, printed by the HUD when the arena loads.
+		"verse": "HOUSE OF THE CRIMSON SUN\nThey fight for a sun that never sets.\nYou fight for the colour you are standing in.",
 		"accent": Color(0.92, 0.30, 0.18),
 		"wall_color": Color(0.10, 0.09, 0.11),
 		"floor_style": "sun",
@@ -254,6 +256,8 @@ const ROOMS: Array = [
 		"house": "THE TWIN HOUSES",
 		"lesson": "Additive hue blending",
 		"hint": "Two houses fight here at once. Kill RED and BLUE where their paint meets in the crossing: red and blue average on the wheel to VIOLET - and the paint will too.",
+		# One verse per house, printed by the HUD when the arena loads.
+		"verse": "THE TWIN HOUSES\nTwo houses share this hall and share no colour.\nWhere their paint meets, a third colour is born.",
 		"accent": Color(0.30, 0.55, 0.95),
 		"wall_color": Color(0.10, 0.10, 0.12),
 		"floor_style": "cross",
@@ -364,6 +368,8 @@ const ROOMS: Array = [
 		"house": "HOUSE OF THE GREEN THORN",
 		"lesson": "Complementary contrast",
 		"hint": "Opposite hues on the wheel cancel out. Kill GREEN then PURPLE - or YELLOW then BLUE - inside three seconds and the score doubles.",
+		# One verse per house, printed by the HUD when the arena loads.
+		"verse": "HOUSE OF THE GREEN THORN\nHere the wheel is the whole floor.\nFind the hue opposite yours, and end it.",
 		"accent": Color(0.30, 0.90, 0.45),
 		"wall_color": Color(0.09, 0.10, 0.09),
 		"floor_style": "wheel",
@@ -462,6 +468,8 @@ const ROOMS: Array = [
 		"house": "THE CHAMPION OF THE WHEEL",
 		"lesson": "Complementary cancellation",
 		"hint": "The Champion spins his own hue around the wheel. Cut him only while YOUR hue sits on his complement - inside the gold band. Below a third of his vigour he calls his Aspirants.",
+		# One verse per house, printed by the HUD when the arena loads.
+		"verse": "THE CHAMPION OF THE WHEEL\nHe has worn every colour in one day.\nTake the one he is not wearing, and hold it.",
 		"accent": Color(1.0, 0.82, 0.25),
 		"wall_color": Color(0.12, 0.10, 0.10),
 		"floor_style": "spokes",

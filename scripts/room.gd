@@ -285,7 +285,7 @@ func _physics_process(delta: float) -> void:
 	_update_waves(delta)
 
 
-## Work out how visible the spark is right now, and store it on the player so
+## Work out how visible the Unsworn is right now, and store it on the player so
 ## both the drawing and the HUD can show it.
 func _update_camouflage() -> void:
 	var ground: Color = ground_colour_at(player.position)
@@ -325,7 +325,7 @@ func _resolve_strikes() -> void:
 		if absf(_angle_delta(to_guard.angle(), player.strike_angle())) > half:
 			continue
 		if guard.is_boss and not guard.vulnerable:
-			# The stolen wheel turns the blade aside, unless the hues cancel.
+			# The turning wheel turns the blade aside, unless the hues cancel.
 			guard.clang()
 			continue
 		var kind: int = ColorTheory.hit_kind(player.colour, guard.colour)
@@ -346,10 +346,10 @@ func _kill_guard(guard: Guard) -> void:
 ## test calling _kill_guard). The room does the accounting here, so no path
 ## can kill a guard without spilling its colour or feeding the player's hue.
 func _on_guard_killed(guard: Guard) -> void:
-	# 1. The stolen colour hits the floor, in the guard's own hue.
+	# 1. The knight's hue hits the sand, in his own colour.
 	#    A boss throws a much larger splat, which also fills the restore bar fast.
 	paint.spawn(guard.position, guard.colour, 2.2 if guard.is_boss else 1.0)
-	# 2. The spark DRINKS the colour. This is what makes the stealth loop work:
+	# 2. The Unsworn DRINKS the colour. This is what makes the camouflage loop work:
 	#    the paint you just made matches the hue you now are, so the ground you
 	#    are standing on hides you from whoever is left.
 	#    (A previous version of this file forgot this line, and the test suite
@@ -442,7 +442,7 @@ func _wave_ring_active() -> bool:
 	return false
 
 
-## Touching a mote drinks it: the spark takes its hue outright, and the mote
+## Touching a mote drinks it: the Unsworn takes its hue outright, and the mote
 ## fades away. Same distance test as the guards, so it cannot be missed by
 ## tunnelling through it on a lunge.
 func _resolve_motes() -> void:
@@ -461,7 +461,7 @@ func _on_player_died() -> void:
 	player_died.emit()
 
 
-## The spark swung the blade. Two jobs, in order:
+## The Unsworn swung the blade. Two jobs, in order:
 ##   1. GENTLE AUTO-AIM: if a knight already stands inside the swing's soft
 ##      arc (auto_aim_deg either side of where the player pointed), the swing
 ##      turns to face them. It never fires at a knight behind the player, so

@@ -23,11 +23,12 @@ extends RefCounted
 ## Everything here is `static`, so you never have to create a node to use it.
 ## Call it like: ColorTheory.is_complement(Color.RED, Color.CYAN, 30.0)
 
-## Below this saturation a colour reads as "grey" (no usable hue). The drained
-## world floor sits well under it, the spark and the guards sit well above it.
+## Below this saturation a colour reads as "grey" (no usable hue). The arena sand
+## sits well under it, and the Unsworn and the knights sit well above it.
 const GREY_SATURATION: float = 0.18
 
-## The drained world floor colour. Deliberately desaturated AND mid-value so
+## The bare arena floor colour the rules assume. Deliberately desaturated AND
+## mid-value so
 ## that a coloured player always pops against it.
 const FLOOR_GREY: Color = Color(0.30, 0.30, 0.33)
 
@@ -96,7 +97,7 @@ const HIT_MULTIPLIER_ABSORBED: float = 0.2
 
 
 ## Classify a strike by `attack_hue` against `armour_hue`.
-## Grey carries no hue, so a colourless spark always deals an ordinary cut.
+## Grey carries no hue, so a colourless Unsworn always deals an ordinary cut.
 static func hit_kind(attack_hue: Color, armour_hue: Color) -> Hit:
 	if is_grey(attack_hue) or is_grey(armour_hue):
 		return Hit.NEUTRAL
@@ -139,11 +140,11 @@ static func hit_name(kind: Hit) -> String:
 ##   0.0 = perfectly camouflaged (hues match within tolerance)
 ##   1.0 = maximum contrast (standing on plain grey, or a wildly different hue)
 ##
-## A grey floor has no hue to match, so a coloured spark always stands out:
+## A grey floor has no hue to match, so a coloured Unsworn always stands out:
 ## that is exactly why the first room feels dangerous.
 static func visibility(subject_colour: Color, ground: Color, tolerance_deg: float) -> float:
 	if is_grey(ground):
-		# No stolen colour in the floor here, so there is nothing to hide inside.
+		# No house colour in the floor here, so there is nothing to hide inside.
 		# A grey player on a grey floor also counts as "different enough" because
 		# of the brightness difference, so we still return full contrast.
 		return 1.0
@@ -177,16 +178,16 @@ static func mix(a: Color, b: Color, t: float) -> Color:
 
 ## The player's colour after killing a guard.
 ##
-## A colourless spark (white) simply TAKES the guard's hue - otherwise every
+## A colourless Unsworn (white) simply TAKES the guard's hue - otherwise every
 ## mix would drag it towards red (the hue of pure white) which looks wrong.
-## Once the spark already has a hue, it is pulled `amount` of the way towards
+## Once the Unsworn already has a hue, it is pulled `amount` of the way towards
 ## the guard's hue, and only the brightness is averaged.
 static func absorb(player_colour: Color, guard_colour: Color, amount: float) -> Color:
 	if is_grey(player_colour):
-		# First kill: inherit the stolen colour outright, but keep it vivid.
+		# First kill: inherit the knight's hue outright, but keep it vivid.
 		return Color.from_hsv(guard_colour.h, maxf(guard_colour.s, 0.80), 1.0, 1.0)
 	var out: Color = mix(player_colour, guard_colour, amount)
-	# Keep saturation high so the spark never turns to mud, and average the
+	# Keep saturation high so the Unsworn never turns to mud, and average the
 	# brightness so the sphere still reads as "mixed".
 	out.s = clampf(maxf(player_colour.s, guard_colour.s), 0.0, 1.0)
 	out.v = clampf(lerpf(player_colour.v, guard_colour.v, amount), 0.55, 1.0)
@@ -253,7 +254,7 @@ static func blend(colours: Array, weights: Array) -> Color:
 ## Human name of a hue, e.g. "VIOLET". Lets the HUD teach the wheel.
 static func color_name(c: Color) -> String:
 	if is_grey(c):
-		# Brightness bands. 0.12 matters: the drained floor sits at v = 0.33,
+		# Brightness bands. 0.12 matters: the bare floor sits at v = 0.33,
 		# which must read as GREY, not BLACK, or the HUD would lie about the
 		# one colour the whole game is played against.
 		if c.v > 0.75:

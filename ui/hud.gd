@@ -80,6 +80,16 @@ var hint_text: String = ""
 var hint_left: float = 0.0
 var hint_total: float = 8.0
 
+## The arena's verse (one per house, spec section 7). Shown once when the arena
+## loads, above the lesson hint, then it fades away for good.
+var verse_text: String = ""
+var verse_left: float = 0.0
+var verse_total: float = 9.0
+
+## The house sigil, drawn beside the score: a style plus the house colour.
+var sigil_style: String = ""
+var sigil_accent: Color = UiStyle.GOLD
+
 ## Speech bubbles pushed in by game.gd every frame. Each entry is a Dictionary:
 ## { "pos": Vector2, "text": String, "alpha": float, "colour": Color }. Drawn
 ## here (above the darkness layer) so a guard's line is readable even when the
@@ -100,6 +110,7 @@ func _process(delta: float) -> void:
 	flash_left = maxf(flash_left - delta, 0.0)
 	banner_left = maxf(banner_left - delta, 0.0)
 	hint_left = maxf(hint_left - delta, 0.0)
+	verse_left = maxf(verse_left - delta, 0.0)
 	# The HUD changes every frame (timers, bars), so just redraw every frame.
 	queue_redraw()
 
@@ -125,7 +136,14 @@ func show_banner(text: String, sub: String, colour: Color, seconds: float = 2.2)
 	banner_total = seconds
 
 
-## The room's teaching line, shown once when the room loads and then fading.
+## The herald's verse for this arena, printed once when it loads.
+func show_verse(text: String, seconds: float = 9.0) -> void:
+	verse_text = text
+	verse_left = seconds
+	verse_total = seconds
+
+
+## The arena's teaching line, shown once when the arena loads and then fading.
 func show_hint(text: String, seconds: float = 9.0) -> void:
 	hint_text = text
 	hint_left = seconds
@@ -137,9 +155,11 @@ func clear_messages() -> void:
 	banner_text = ""
 	banner_sub = ""
 	hint_text = ""
+	verse_text = ""
 	flash_left = 0.0
 	banner_left = 0.0
 	hint_left = 0.0
+	verse_left = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -226,6 +246,11 @@ func _draw_top_right() -> void:
 		var ratio: float = clampf(combo_time_left / maxf(combo_window, 0.01), 0.0, 1.0)
 		var bar_rect := Rect2(TOP_RIGHT_EDGE - 176.0, 84.0, 176.0, 6.0)
 		UiStyle.bar(self, bar_rect, ratio, mult_colour)
+
+	# The house sigil, drawn beside the score block: a procedural emblem in the
+	# arena's own colour, so every round announces which house is fighting.
+	if sigil_style != "":
+		ArenaArt.draw_sigil(self, Vector2(TOP_RIGHT_EDGE - 400.0, 42.0), 26.0, sigil_style, sigil_accent, _time)
 
 	# Status counts.
 	var status: String = "KNIGHTS LEFT %d   /   FALLS %d" % [guards_left, deaths]
@@ -325,7 +350,15 @@ func _draw_centre_messages() -> void:
 	var width: float = 900.0
 	var x: float = (1280.0 - width) * 0.5
 
-	# Room hints fade out slowly - long enough to read while sneaking.
+	# The arena's verse: two lines of the herald's introduction, in gold, above
+	# the lesson hint. It fades away so it never competes with a fight.
+	if verse_left > 0.0 and verse_text != "":
+		var va: float = clampf(verse_left / maxf(verse_total * 0.30, 0.01), 0.0, 1.0)
+		var vcol: Color = UiStyle.GOLD
+		vcol.a = va
+		UiStyle.paragraph(self, verse_text, Vector2(x, 470.0), width, 17, vcol, 3)
+
+	# Arena hints fade out slowly - long enough to read while a knight walks past.
 	if hint_left > 0.0 and hint_text != "":
 		var a: float = clampf(hint_left / maxf(hint_total * 0.35, 0.01), 0.0, 1.0)
 		var colour := UiStyle.PAPER

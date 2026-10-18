@@ -122,7 +122,7 @@ func _test_colour_theory() -> void:
 	check_approx(ColorTheory.visibility(ColorTheory.wheel(240.0), YELLOW, 26.0), 1.0, 0.001,
 		"a complementary floor exposes you completely (60 vs 240 = 180 apart)")
 	check_approx(ColorTheory.visibility(Color(1.0, 1.0, 1.0), RED, 26.0), 1.0, 0.001,
-		"a COLOURLESS spark can never hide in coloured paint")
+		"a COLOURLESS Unsworn can never hide in coloured paint")
 
 	# --- mixing: hue-space, not RGB --------------------------------------
 	var violet: Color = ColorTheory.blend([RED, BLUE], [1.0, 1.0])
@@ -137,7 +137,7 @@ func _test_colour_theory() -> void:
 
 	# --- absorption ------------------------------------------------------
 	var from_white: Color = ColorTheory.absorb(Color(1.0, 1.0, 1.0), RED, 0.5)
-	check_approx(from_white.h * 360.0, 0.0, 1.0, "a white spark takes the guard's hue outright")
+	check_approx(from_white.h * 360.0, 0.0, 1.0, "a colourless Unsworn takes the guard's hue outright")
 	check(from_white.s >= 0.8, "and takes it at full saturation", "s=%.2f" % from_white.s)
 
 	var red_then_blue: Color = ColorTheory.absorb(RED, BLUE, 0.5)
@@ -411,6 +411,14 @@ func _test_levels() -> void:
 			for p in sspec["path"]:
 				if not reach.has(_cell_key(Vector2(p))):
 					summons_ok = false
+		# --- the house has to be able to announce itself -------------------
+		# Each arena carries a verse (printed on load) and an accent colour, and
+		# the sigil is drawn from the arena's `floor_style`.
+		check(str(room.get("verse", "")).length() > 20,
+			"%s: has a verse for its house" % name)
+		check(room.get("accent") is Color and str(room.get("floor_style", "")) != "",
+			"%s: has an accent colour and a sigil style" % name)
+
 		check(summons_ok, "%s: every aspirant can be walked to" % name)
 
 
@@ -472,6 +480,9 @@ func _test_integration() -> void:
 	check(_game.room != null, "the first arena is built on boot")
 	check(_game.room_index == 0, "and it is the first arena")
 	check(_game.hud != null and _game.hud.visible, "the fight HUD is up from the first frame")
+	check(_game.hud.verse_left > 0.0 and _game.hud.verse_text != "",
+		"and the arena's verse is announced on load")
+	check(_game.hud.sigil_style != "", "with the house sigil next to the score")
 
 	# There is no menu left to navigate, and no story text anywhere: only the
 	# three interruption pages exist at all.
@@ -484,7 +495,7 @@ func _test_integration() -> void:
 	check(_game.room.remaining_guard_count() == 6, "with 4 more waiting in the later waves",
 		"remaining %d" % _game.room.remaining_guard_count())
 	check(_game.room.waves_total == 3, "so the arena is a three-wave fight")
-	check(_game.room.player.colour == Color(1.0, 1.0, 1.0), "the spark starts colourless (white)")
+	check(_game.room.player.colour == Color(1.0, 1.0, 1.0), "the Unsworn starts colourless (white)")
 
 	# --- the characters are real sprites, not dots -----------------------
 	var player_sprite: AnimatedSprite2D = _game.room.player.get_node_or_null("Sprite")
@@ -506,12 +517,12 @@ func _test_integration() -> void:
 	check(_game.room.guards.size() == 1, "killing a guard removes it from the room")
 	# Saturation must be checked as well as hue: pure white and pure red both
 	# report a hue of 0 degrees, so a hue-only assertion would pass even if the
-	# spark had absorbed nothing at all.
+	# Unsworn had absorbed nothing at all.
 	check(_game.room.player.colour.s > ColorTheory.GREY_SATURATION,
-		"the spark is no longer colourless after a kill",
+		"the Unsworn is no longer colourless after a kill",
 		"colour=%s s=%.2f" % [ColorTheory.hex(_game.room.player.colour), _game.room.player.colour.s])
 	check_approx(_game.room.player.colour.h * 360.0, guard_colour.h * 360.0, 1.0,
-		"the spark absorbs the dead guard's hue")
+		"the Unsworn absorbs the dead guard's hue")
 	check(_game.score == _game.base_kill_score, "one kill scores the base amount",
 		"score %d" % _game.score)
 
@@ -573,14 +584,14 @@ func _test_integration() -> void:
 	var facing: float = (arrived.patrol_points[1] - arrived.patrol_points[0]).angle()
 	var ahead: Vector2 = Vector2.from_angle(facing)
 	_game.room.player.colour = Color(1.0, 1.0, 1.0)
-	# Far enough ahead that the walking knight cannot pass the spark before
+	# Far enough ahead that the walking knight cannot pass the Unsworn before
 	# the grace is over.
 	_game.room.player.position = arrived.position + ahead * 200.0
 	await _physics_frames(6)
 	check(arrived.detection == 0.0, "a just-arrived knight is blind for its grace period",
 		"detection %.2f" % arrived.detection)
 	# Once the grace runs out, the same knight in the same cone must see the
-	# spark again: the blind moment is a delay, not a disarm.
+	# Unsworn again: the blind moment is a delay, not a disarm.
 	await get_tree().create_timer(LevelData.SPAWN_GRACE).timeout
 	_game.room.player.position = arrived.position + ahead * 150.0
 	await _physics_frames(40)
@@ -667,7 +678,7 @@ func _test_integration() -> void:
 	var deaths_before: int = _game.deaths
 	_game.room.player.take_damage(999.0, _game.room.player.position + Vector2(10.0, 0.0))
 	await _frames(3)
-	check(_game.room.player.hp <= 0.0, "a lethal hit drops the spark to 0 vigour")
+	check(_game.room.player.hp <= 0.0, "a lethal hit drops the Unsworn to 0 vigour")
 	check(_game.state == Game.State.DEAD, "and 0 vigour is the death the run remembers")
 	check(_game.deaths == deaths_before + 1, "the death counter went up")
 	check(_game.screens.mode == Screens.Mode.DEAD, "the restart prompt is on screen")
@@ -677,7 +688,7 @@ func _test_integration() -> void:
 	check(_game.room_index == room_before, "and restarts the SAME room")
 
 	# --- combat: vigour, hue strikes, the strike + dodge split ------------
-	# The old one-touch kills are gone: the spark has HP, knights have HP, and
+	# The old one-touch kills are gone: the Unsworn has HP, knights have HP, and
 	# the hue gap decides how hard a swing lands (complements SHATTER).
 	_game.load_room(0)
 	await _frames(3)
@@ -691,7 +702,7 @@ func _test_integration() -> void:
 	check(not InputMap.has_action("dash") and not InputMap.has_action("dash_aim"),
 		"the old lunge-dash verbs are gone")
 
-	check_approx(p_combat.hp, 100.0, 0.001, "the spark starts on full vigour (100 HP)")
+	check_approx(p_combat.hp, 100.0, 0.001, "the Unsworn starts on full vigour (100 HP)")
 	check_approx(knight.hp, 60.0, 0.001, "a basic knight starts on 60 HP")
 
 	# A full neutral chain: 12 / 12 / 20. The third swing is the heavy one.
@@ -857,27 +868,27 @@ func _test_integration() -> void:
 	_game.load_room(3)
 	await _frames(3)
 	check(_game.room.waves_total == 1, "the boss hall is one fight, not a wave arena")
-	check(_game.room.boss != null, "the boss room has a Collector")
-	check(_game.room.boss.hue_speed != 0.0, "the Collector's hue rotates")
+	check(_game.room.boss != null, "the boss room has a Champion")
+	check(_game.room.boss.hue_speed != 0.0, "the Champion's hue rotates")
 	check(_game.room.player.colour == Color(1.0, 0.0, 0.0),
-		"the spark enters the boss room burning pure red (no soft lock)")
+		"the Unsworn enters the boss room burning pure red (no soft lock)")
 
 	var boss: Guard = _game.room.boss
 	var hue_before: float = boss.colour.h
 	await _physics_frames(10)
-	check(absf(boss.colour.h - hue_before) > 0.0001, "the Collector's hue actually moves over time")
+	check(absf(boss.colour.h - hue_before) > 0.0001, "the Champion's hue actually moves over time")
 
 	# Wrong hue: swinging in must NOT kill him.
 	boss.colour = RED
 	await _physics_frames(2)
-	check(not boss.vulnerable, "with the player red, a red Collector is NOT vulnerable")
+	check(not boss.vulnerable, "with the player red, a red Champion is NOT vulnerable")
 
 	# Right hue: give the player his exact complement and let the room notice.
 	_game.room.player.colour = ColorTheory.complement(boss.colour)
 	await _physics_frames(2)
-	check(boss.vulnerable, "putting the player on the Collector's complement opens the kill window")
+	check(boss.vulnerable, "putting the player on the Champion's complement opens the kill window")
 
-	# A mistimed swing at an invulnerable Collector must clang off harmlessly.
+	# A mistimed swing at an invulnerable Champion must clang off harmlessly.
 	_game.load_room(3)
 	await _frames(3)
 	var boss2: Guard = _game.room.boss
@@ -886,7 +897,7 @@ func _test_integration() -> void:
 	_game.room.player.position = boss2.position + Vector2(-40.0, 0.0)
 	_game.room.player.begin_strike(Vector2.RIGHT)
 	await _physics_frames(2)
-	check(not boss2.dead, "striking an un-cancelled Collector does not wound him")
+	check(not boss2.dead, "striking an un-cancelled Champion does not wound him")
 	check_approx(boss2.hp, boss2.max_hp, 0.001, "his stolen wheel takes exactly zero damage")
 	check(_game.state == Game.State.PLAY, "and the clang no longer kills you: nobody dies")
 
@@ -977,7 +988,7 @@ func _test_integration() -> void:
 	_game.room.player.position = boss3.position + Vector2(-40.0, 0.0)
 	_game.room.player.begin_strike(Vector2.RIGHT)
 	await _physics_frames(2)
-	check(boss3.dead, "a complement strike inside the window kills the Collector")
+	check(boss3.dead, "a complement strike inside the window kills the Champion")
 	check(boss3.kneeling, "the beaten Champion does not vanish: he kneels on the sand")
 	check(boss3.is_boss and is_instance_valid(_game.room.boss),
 		"and the kneeling body is still the room's boss for the victory beat")
@@ -1117,10 +1128,10 @@ func _test_integration() -> void:
 	_game.room.player.position = saved_pos
 	_game._snap_camera()
 
-	# The light points the way the spark faces, driven by steering, not a mouse.
+	# The light points the way the Unsworn faces, driven by steering, not a mouse.
 	_game.room.player._facing = 1.25
 	check_approx(_game.room.player.aim_angle(), 1.25, 0.001,
-		"the light cone follows the spark's facing (WASD), not the mouse")
+		"the light cone follows the Unsworn's facing (WASD), not the mouse")
 
 	# --- hearing: a noise pulls a patrolling guard off its route ---------
 	var hg: Guard = _game.room.guards[0]
@@ -1187,7 +1198,7 @@ func _test_integration() -> void:
 	await _physics_frames(3)
 	check(mote.taken, "standing on a mote drinks it")
 	check(_game.room.player.colour.s > ColorTheory.GREY_SATURATION,
-		"drinking a mote gives the spark a colour",
+		"drinking a mote gives the Unsworn a colour",
 		"colour=%s" % ColorTheory.hex(_game.room.player.colour))
 	check_approx(_game.room.player.colour.h * 360.0, mote_hue, 2.0,
 		"and it is the mote's own hue")

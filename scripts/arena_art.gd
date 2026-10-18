@@ -332,6 +332,45 @@ static func _draw_banner(canvas: CanvasItem, top: Vector2, accent: Color, flippe
 	canvas.draw_arc(cloth.get_center(), 8.0, 0.0, TAU, 20, Color(0.95, 0.80, 0.35, 0.75), 2.0, true)
 
 
+## A house sigil: a hue ring with the house's own emblem inside it, drawn in the
+## arena's accent colour. Used by the HUD, so the round you are fighting is
+## announced by the mark of the house that owns it.
+static func draw_sigil(canvas: CanvasItem, centre: Vector2, radius: float,
+		style: String, accent: Color, time: float) -> void:
+	var breathe: float = 0.75 + 0.25 * sin(time * 2.0)
+	# The ring: the whole wheel, faintly, so every sigil is unmistakably colour.
+	var segments: int = 40
+	for i in segments:
+		var a0: float = TAU * float(i) / float(segments)
+		var a1: float = TAU * float(i + 1) / float(segments)
+		var hue: Color = ColorTheory.wheel(float(i) * (360.0 / float(segments)), 0.75, 0.95)
+		canvas.draw_arc(centre, radius, a0, a1, 3, Color(hue.r, hue.g, hue.b, 0.85), 3.0, true)
+	canvas.draw_circle(centre, radius - 4.0, Color(0.03, 0.03, 0.05, 0.85))
+	canvas.draw_arc(centre, radius, 0.0, TAU, 48, Color(accent.r, accent.g, accent.b, 0.35 * breathe), 1.5, true)
+
+	match style:
+		"cross":
+			# Two bars, the two houses: the mixing mark.
+			canvas.draw_rect(Rect2(centre - Vector2(radius - 7.0, 3.0), Vector2((radius - 7.0) * 2.0, 6.0)), accent, true)
+			canvas.draw_rect(Rect2(centre - Vector2(3.0, radius - 7.0), Vector2(6.0, (radius - 7.0) * 2.0)),
+				Color(0.95, 0.78, 0.35, 0.9), true)
+		"wheel":
+			for i in 3:
+				canvas.draw_arc(centre, radius - 7.0 - float(i) * 5.0, 0.0, TAU, 24, accent, 2.0, true)
+		"spokes":
+			for i in 4:
+				var a: float = TAU * float(i) / 4.0
+				canvas.draw_line(centre, centre + Vector2.RIGHT.rotated(a) * (radius - 7.0), accent, 3.0)
+			canvas.draw_circle(centre, 4.0, accent)
+		_:
+			# The sun: a disc with rays, which is house one's mark.
+			canvas.draw_circle(centre, 8.0, accent)
+			for i in 8:
+				var a2: float = TAU * float(i) / 8.0
+				canvas.draw_line(centre + Vector2.RIGHT.rotated(a2) * 11.0,
+					centre + Vector2.RIGHT.rotated(a2) * (radius - 6.0), accent, 2.0)
+
+
 ## Sand dust hanging in the air, so the arena is never a still picture. Each
 ## speck drifts on a couple of slow sines of the clock: cheap, and it makes the
 ## space feel like a place rather than a diagram.

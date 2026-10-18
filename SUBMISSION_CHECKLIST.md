@@ -10,11 +10,14 @@ The game code is finished and tested. Everything below is packaging.
 
 - [ ] Open the project in Godot 4.7 and press **F5**. It should play start to finish.
 - [ ] Run the automated suite and confirm it is still green:
-      `.. --headless --path . res://tests/test_runner.tscn` → `187 passed, 0 failed`
+      `.. --headless --path . res://tests/test_runner.tscn` → `303 passed, 0 failed`
       (full command in [HOW_TO_RUN.md §4](HOW_TO_RUN.md))
-- [ ] Play one complete run: start menu → story → 4 rooms → win screen. Time it.
+- [ ] Play one complete run: **arena 1 → arena 4 → the Champion → victory page**
+      (there is no menu and no story: the build opens in the arena). Time it.
 - [ ] Walk through the manual checklist in [TESTING.md §4](TESTING.md), especially
-      the **visual** items (the automated tests cannot see the screen).
+      the **visual** items (the automated tests cannot see the screen, and the
+      arena art — sand, masonry, stands, banners, braziers, sigils — has only ever
+      been checked numerically so far).
 - [ ] Fix anything the by-eye pass turns up. Re-run the suite after any change.
 
 ---
@@ -29,12 +32,10 @@ The game code is finished and tested. Everything below is packaging.
 - [ ] Add a **LICENSE** file if you want one (MIT is fine, and it is a nice touch).
 
 ```bash
-git init
-git add .
-git commit -m "Hue Massacre: a colour-theory stealth game in Godot 4"
-git branch -M main
-git remote add origin https://github.com/<you>/hue-massacre.git
-git push -u origin main
+# the repo already exists and has history: this is the everyday workflow
+git add -A
+git commit -m "..."
+git push origin master      # also redeploys the live Pages build
 ```
 
 ---
@@ -96,20 +97,20 @@ narrate gameplay. Gameplay-only narration will run out at about 6 minutes.
 
 | # | Segment | ~Time | What to cover |
 |---|---|---|---|
-| 1 | **Intro and pitch** | 2 min | Who you are, the assignment, and the one-line pitch: colour is the weapon, the camouflage and the score. |
-| 2 | **Story and intro cards** | 1.5 min | Play the title and the 5 cards. Point out the coloured last words. |
-| 3 | **Controls and the core loop** | 2 min | Play Room 1 live. Move, lunge, kill, absorb, hide. Explain one-hit kills both ways. |
-| 4 | **Colour theory: hue and contrast** | 3 min | Open `scripts/color_theory.gd`. Explain hue as an angle, why hues wrap at 360°, and `hue_gap` taking the shortest arc. Show the 26° hiding tolerance. |
-| 5 | **Colour theory: complements** | 3 min | The six hues and their exact degrees. The complement pairs, and why **Orange↔Blue at 150° deliberately fails** the 180°±25° test. This is the best bit — the wheel is measured, not vibed. |
-| 6 | **Colour theory: mixing** | 2 min | Open Room 2. Why blending goes the **shortest way around the wheel**, and why naive RGB mixing turns red+blue into a muddy yellow instead of violet. |
-| 7 | **The combo system** | 2.5 min | `game.gd`. The 3-second window, the multiplier, and the bug you found where the window was already zeroed. |
-| 8 | **Levels as data** | 2 min | `level_data.gd`. Rooms are dictionaries, not scene files. Show how to add a guard. |
-| 9 | **The boss** | 2.5 min | The rotating hue, the ~13s lap, the 1.8s window, and the design rule that keeps it from soft-locking. |
-| 10 | **Testing** | 3 min | Run the suite live and let it scroll. Explain that the headless engine **cannot see `_draw()`**, so the visuals were checked by eye. Explain the vacuous-pass bug. |
+| 1 | **Intro and pitch** | 1.5 min | Who you are, the assignment, and the one-line pitch: colour is the weapon, the camouflage and the score. |
+| 2 | **The melee, live** | 3 min | Play arena 1 start to finish. Move, strike the 12/12/20 chain, roll, kill, absorb the hue, stand in your own paint and vanish. Show the wave herald arriving. |
+| 3 | **Colour theory: hue and contrast** | 3 min | Open `scripts/color_theory.gd`. Hue as an angle, why hues wrap at 360°, `hue_gap` taking the shortest arc, the 26° hiding tolerance — and the sand-saturation rule (why the floor art must stay under 0.18). |
+| 4 | **Colour theory: complements** | 3 min | The six hues and their exact degrees. The complement pairs, and why **Orange↔Blue at 150° deliberately fails** the 180°±25° test. The wheel is measured, not vibed. |
+| 5 | **Colour theory: mixing** | 2 min | Play arena 2. Why blending goes the **shortest way around the wheel**, and why naive RGB mixing turns red+blue into a muddy yellow instead of violet — including the violet square painted on that arena's floor. |
+| 6 | **Hue-armour and the combo** | 2.5 min | `game.gd` + `room.gd`. Shatter ×2.5, absorbed ×0.2, the 3-second window, the multiplier, the +150 shatter bonus. |
+| 7 | **Arenas as data** | 2 min | `level_data.gd`. Arenas are dictionaries, not scene files: show the wall list, the wave tags, the knight archetypes (Aspirant / Warden / Harrier as stats) and how to move a patrol. |
+| 8 | **The Champion of the Wheel** | 3 min | The rotating hue, the ~13s lap, the 1.8s window, the three phases (sweeps → charge lane → Aspirants + faster wheel), the kneeling victory beat, and the invariant that keeps it from soft-locking. |
+| 9 | **How the look is drawn** | 2.5 min | `arena_art.gd`: the baked sand floor, masonry courses, the stands, banners and braziers, and the four arena sigils — all generated, no imported art beyond the character sheets. |
+| 10 | **Testing** | 2.5 min | Run the suite live and let it scroll (303 checks). Explain that the headless engine **cannot see `_draw()`**, so the visuals were checked by eye. Explain the vacuous-pass bug and the test that was passing because a knight was stuck inside a pillar. |
 | 11 | **Web export** | 2 min | The preset, why the build is single-threaded (COOP/COEP headers), and why audio needs a click. |
-| 12 | **Wrap-up** | 2 min | What you would add next, what you learned, honest limitations. |
+| 12 | **Wrap-up** | 1.5 min | What you would add next, what you learned, honest limitations. |
 
-**Total: ~27 minutes.** Comfortable margin.
+**Total: ~29 minutes.** Comfortable margin.
 
 - [ ] Record. Aim for 25–30 minutes so trimming cannot drop you under 20.
 - [ ] Edit: cut dead air and mistakes. **Re-time the final cut** — if it lands at
@@ -122,12 +123,11 @@ narrate gameplay. Gameplay-only narration will run out at about 6 minutes.
 
 ## Phase 5 — Finalise the README (10 min)
 
-- [ ] Replace **all four** placeholders at the top of `README.md`:
-      - `[[PASTE ITCH.IO OR GITHUB PAGES LINK HERE]]`
-      - `[[PASTE LINK TO AI_CHAT_HISTORY.pdf HERE]]`
-      - `[[PASTE YOUTUBE LINK HERE]]`
-      - `[[PASTE PUBLIC GITHUB REPO LINK HERE]]`
-- [ ] Read the README on the live GitHub page and click every link. All four must resolve.
+- [ ] Replace the remaining placeholder at the top of `README.md`:
+      - `[[PASTE YOUTUBE LINK HERE]]`  ← the video is the only outstanding link
+      (the playable build, the repo URL and the AI-chat PDF path are already filled
+      in — check that the PDF actually exists after Phase 2)
+- [ ] Read the README on the live GitHub page and click every link. All of them must resolve.
 - [ ] Confirm the **AI usage statement** is present and honest (§9).
 - [ ] Confirm the **limitations** section is present (§10).
 - [ ] `git add . && git commit -m "Add submission links" && git push`
@@ -154,9 +154,9 @@ Against the stated marking criteria, before you submit:
 | Marks | Requirement | Where it is satisfied |
 |---|---|---|
 | **40** | Colour theory as the **core mechanic** | Hiding is simultaneous contrast; combos are complementary contrast; absorption is additive hue blending; the boss is complementary cancellation. It is not a skin — every rule is hue maths, and **every hue constant is re-derived and verified by the test suite**. |
-| **30** | **Originality** | "Colour is both camouflage and weapon" is the whole game; being a visible colour in a grey world *is* the tension. The boss window, the deliberate Orange↔Blue non-combo, and the hide-in-your-own-paint loop are all design choices, not defaults. |
-| **15** | **Typography / readable themed UI** | One themed type scale in `ui/ui_style.gd`; a display face and a body face; the combo readout drawn in the **complement of the floor colour**; the last word of each story couplet coloured to match the wheel. |
-| **15** | **Complete loop with challenge and win/lose** | Title → 5 cards → 4 rooms → boss → win screen with score, time and rank. Instant restart on death, R to retry, escalating difficulty, and a score multiplier that rewards mastery. |
+| **30** | **Originality** | "Colour is both camouflage and weapon" is the whole game; the arena fiction, the three-phase Champion, the deliberately failing Orange↔Blue pair, and the four completely different arena layouts are design decisions, not defaults. |
+| **15** | **Typography / readable themed UI** | One themed type scale in `ui/ui_style.gd`; wide-tracked display headings against tight body text; outlined text so it survives any background; the combo readout drawn in the **complement of the floor colour**, so the UI itself demonstrates complementary contrast. |
+| **15** | **Complete loop with challenge and win/lose** | Arena 1 → arena 4 → the Champion → victory page with score, time and rank (S = "Named"). Instant restart on death, R to retry, escalating waves and enemy archetypes, a score multiplier that rewards mastery, and a scripted four-arena clear in the test suite proving the loop closes. |
 
 **Do not submit until the video is public and all four links in the README work.**
 Those are the two things that most often cost marks on an otherwise finished project.

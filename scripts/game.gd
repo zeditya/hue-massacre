@@ -29,7 +29,7 @@ enum State { PLAY, PAUSED, DEAD, WIN }
 ## and GREEN 120 <-> PURPLE 285 (165 apart) both score, while ORANGE 30 <->
 ## BLUE 240 (only 150 apart) does NOT. See the table in level_data.gd.
 @export var complement_tolerance_deg: float = 25.0
-## Half-width of the Collector's kill window.
+## Half-width of the Champion's kill window.
 @export var boss_kill_tolerance_deg: float = 25.0
 
 @export_group("Score")
@@ -37,11 +37,11 @@ enum State { PLAY, PAUSED, DEAD, WIN }
 @export var base_kill_score: int = 100
 ## Highest multiplier the combo chain can reach.
 @export var max_multiplier: int = 8
-## Flat bonus for putting the Collector down.
+## Flat bonus for putting the Champion down.
 @export var boss_kill_bonus: int = 1000
 ## Bonus for clearing an arena without ever being chased. The spec calls this
 ## the flawless bonus.
-@export var stealth_room_bonus: int = 250
+@export var flawless_room_bonus: int = 250
 ## Bonus per aura shattered (see room.strike_landed). The shatter is the
 ## colour-theory payoff, so it pays on its own as well as through the combo.
 @export var shatter_bonus: int = 150
@@ -79,7 +79,7 @@ enum State { PLAY, PAUSED, DEAD, WIN }
 @export var camera_follow_speed: float = 7.0
 
 @export_group("Darkness")
-## The drained city is dark; the spark's own light cone shows the way, like a
+## The arena is dark; the Unsworn's own torch shows the way, like a
 ## torch in a blacked-out hallway. It is dark, but the ground at your feet and
 ## the guards' lanterns stay readable - the dark is atmosphere, never a keyhole.
 ## Set this false for the original daylight look.
@@ -90,14 +90,14 @@ enum State { PLAY, PAUSED, DEAD, WIN }
 @export var light_cone_deg: float = 50.0
 ## How far the light cone reaches, in pixels. Long enough to see down a hallway.
 @export var light_range: float = 720.0
-## A small always-lit circle around the spark so they never lose themselves.
+## A small always-lit circle around the Unsworn so they never lose themselves.
 @export var light_near_radius: float = 95.0
-## A dim pool of visibility around the spark in every direction, so the ground
+## A dim pool of visibility around the Unsworn in every direction, so the ground
 ## right next to you is always readable even when you are not pointing at it.
 ## Kept short and weak so the forward cone still reads as a torch beam.
 @export var light_ambient_range: float = 150.0
 @export_range(0.0, 1.0) var light_ambient_strength: float = 0.30
-## How far each guard's lantern reaches. Guards glow with their stolen colour.
+## How far each knight's lantern reaches. Knights glow with their own hue.
 @export var guard_lantern_range: float = 150.0
 ## 0 = daylight, 1 = pitch black outside the light. Set high enough that the
 ## world genuinely reads as a dark hallway, but the ambient pool keeps it fair.
@@ -401,7 +401,11 @@ func load_room(index: int) -> void:
 		hud.boss_tolerance_deg = boss_kill_tolerance_deg
 		hud.boss_hue = -1.0
 		hud.boss_vulnerable = false
-		hud.show_hint(room.data["hint"], 9.0)
+		# The house announces itself: a verse, the lesson, and its sigil.
+		hud.sigil_style = str(room.data.get("floor_style", ""))
+		hud.sigil_accent = room.data.get("accent", UiStyle.GOLD)
+		hud.show_verse(str(room.data.get("verse", "")), 9.0)
+		hud.show_hint(room.data["hint"], 10.0)
 	_sync_hud()
 
 
@@ -591,8 +595,8 @@ func _on_room_cleared() -> void:
 
 	var bonus_text: String = ""
 	if not _spotted_this_room:
-		score += stealth_room_bonus
-		bonus_text = "+%d flawless arena" % stealth_room_bonus
+		score += flawless_room_bonus
+		bonus_text = "+%d flawless arena" % flawless_room_bonus
 
 	if hud != null:
 		hud.show_banner("ARENA CLEARED", bonus_text if bonus_text != "" else "the sand remembers", UiStyle.GOLD, 2.2)
@@ -824,6 +828,7 @@ func _sync_hud() -> void:
 		hud.boss_hue = -1.0
 		hud.boss_vulnerable = false
 		hud.boss_phase = 1
+		hud.sigil_style = ""
 		return
 
 	hud.guards_left = room.remaining_guard_count()

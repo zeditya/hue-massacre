@@ -89,7 +89,7 @@ itself in about a second and your score and arena number are kept.
 
 ## 4. Run the automated tests
 
-The project ships with a 289-check test suite. It runs in a headless engine (no
+The project ships with a 303-check test suite. It runs in a headless engine (no
 window) and prints a pass/fail line for every check.
 
 **From the editor:** open `tests/test_runner.tscn` in the FileSystem panel and
@@ -109,7 +109,7 @@ You should see the checks scroll past and then:
 
 ```
 =========================================================
-RESULT: 289 passed, 0 failed
+RESULT: 303 passed, 0 failed
 =========================================================
 ```
 
