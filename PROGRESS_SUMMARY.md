@@ -1004,6 +1004,23 @@ where the four hues mix to white, and read a credits screen — in a browser, in
 build whose licences are all satisfied, with a trailer video that makes the
 marker want to play it.
 
+**Every phase from §10.3 is accounted for here.** §12 is the same work as the
+A–F plan, re-cut by build order so each item has an acceptance criterion. The
+mapping (states are the rough ones from the status report):
+
+| §10.3 phase | Where it lives now | State |
+|---|---|---|
+| **A — story & opening** | delivered in §10–§11 (opening, verses, barks, naming); only the **ending** is left → §12.5 | ≈ 90% |
+| **B — the sworn get smart** | cones/aggro/LOS/the shout landed earlier; the **roles** (archers, healer, lancers, spacing) → §12.2 | ≈ 60% |
+| **C — four bosses** | Hall IV's Champion exists; Halls I–III → §12.1 (template) and §12.3 — intro beats, warden bars, reward beats included | ≈ 25% |
+| **D — weapons & magic** | quarters → heavy strike / bow / ward, HUD quarter row → §12.4; the "Champion's office" from §10.3 is his fight — polish in §12.3, hand-off to the finale in §12.5 | 0% |
+| **E — audio** | footsteps per surface/unit, weapon-specific impacts, deaths, ward hum, shard pickups, hall ambience, the **adaptive music bed** → §12.6 | ≈ 40% |
+| **F — packaging** | docs → §12.7; captures, export, deploy, video → §12.8 | ≈ 75% |
+
+One deliberate deviation from §10.3 as written, already documented where it
+happened: the opening's stage is **code-drawn** rather than assembled from Tiny
+Swords buildings/terrain/clouds/UI (§11.1) — pack portraits only.
+
 ### 12.1 NEXT SESSION — Hall I's Sun's Warden, the first true boss
 
 Only Hall IV declares `"boss": true` today (`scripts/level_data.gd`); Halls I–III
@@ -1116,9 +1133,16 @@ useless; the four mixed make white light, which is hope.
   opening's gate gets greeting/refusal breaths. The Unsworn's ending line is
   authored, not sourced: it needs either a recorded line or a deliberate,
   chosen silence — whichever it is, §12.5 must say so.
-- **Ambience.** One seamless BGS loop per hall (the four moods already exist:
-  sun, twins, thorn, wheel), footstep surfaces matched to the floor art, ward
-  hum, quarter-pickup chime, UI clicks for menus and the opening's text.
+- **Ambience and music.** One seamless BGS loop per hall (the four moods
+  already exist: sun, twins, thorn, wheel), and the **adaptive music bed** phase
+  E asked for — a drone + drums per hall whose intensity follows the crowd's
+  excitement rather than a jukebox. If a music pack is ever added it plugs in
+  here; until then the bank can synthesise the layers.
+- **Phase E's full checklist, so nothing goes quietly missing:** footsteps per
+  surface *and per unit*, weapon-specific impacts, deaths (via the voice cast),
+  ward hum, quarter- and shard-pickups, hall ambience, adaptive music, and the
+  UI clicks for menus, banners and the opening's text. Anything left procedural
+  is a written decision, not an omission.
 - **Acceptance:** audio audible in a fresh browser export; export size still
   sane; `assets/LICENSES/` and `ATTRIBUTION.md` match exactly what ships.
 
