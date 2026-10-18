@@ -16,6 +16,8 @@ const OUT_DIR := "res://build/capture/melee"
 var _game: Node = null
 var _f: int = 0
 var _knight: Guard = null
+## The boss under test for the ground-strike frames.
+var _boss: Guard = null
 
 
 func _init() -> void:
@@ -60,6 +62,25 @@ func _stand(guard_raise: bool) -> void:
 		p.end_guard()
 
 
+## Put the boss in the open lane with the player just under it, boots planted:
+## the exact situation the ground strike exists to punish.
+func _place_boss() -> void:
+	_boss = _game.room.boss
+	if _boss == null:
+		return
+	var p: Player = _game.room.player
+	_boss.dead = false
+	_boss.hp = _boss.max_hp
+	_boss.velocity = Vector2.ZERO
+	_boss.global_position = Vector2(620.0, 300.0)
+	p.global_position = _boss.global_position + Vector2(0.0, 70.0)
+	p.hp = p.max_hp
+	p.velocity = Vector2.ZERO
+	p.hitstun_left = 0.0
+	p.invuln_left = 0.0
+	p.end_guard()
+
+
 func _process(_delta: float) -> bool:
 	_f += 1
 	match _f:
@@ -102,6 +123,33 @@ func _process(_delta: float) -> bool:
 			_snap("perilous")
 		136:
 			_snap("perilous_b")
-		139:
+		# The warden's ground strike: the disc that hurts, then the shockwave.
+		# Hall I's warden leads a later wave, so use the boss room if the hall
+		# has not put a warden on the sand yet.
+		150:
+			if _game.room.boss == null:
+				_game.load_room(3)
+		156:
+			_place_boss()
+		159:
+			if _boss != null:
+				_boss.state = Guard.State.CHASE
+				_boss.detection = 1.0
+				_boss.stagger_left = 0.0
+				_boss.attack_state = Guard.Attack.NONE
+				_boss._attack_cooldown_left = 0.0
+				_boss._slam_cooldown_left = 0.0
+				_boss._slam_left = 0.0
+		163:
+			if _boss != null:
+				_boss._slam_left = _boss.slam_windup * 0.30
+		166:
+			_snap("slam_windup")
+		169:
+			if _boss != null:
+				_boss._slam_left = 0.0
+		173:
+			_snap("slam_landed")
+		178:
 			quit(0)
 	return false

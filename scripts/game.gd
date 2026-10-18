@@ -448,6 +448,7 @@ func load_room(index: int) -> void:
 	room.strike_landed.connect(_on_strike_landed)
 	room.player_parried.connect(_on_player_parried)
 	room.perilous_taught.connect(_on_perilous_taught)
+	room.boss_slam.connect(_on_boss_slam)
 	room.wave_started.connect(_on_wave_started)
 	room.wave_cleared.connect(_on_wave_cleared)
 	world_root.add_child(room)
@@ -695,6 +696,20 @@ func _on_perilous_taught() -> void:
 	audio.play("vulnerable")
 	if hud != null:
 		hud.show_hint("A MARKED blow cannot be blocked. Roll through it, or parry it on the beat.", 8.0)
+
+
+## A warden's ground strike erupts. Deep, low and short: the hall spending its
+## own colour on the floor. Still no camera shake - that rule belongs to deaths,
+## and a boss whose every move shook the screen is exactly what the user asked to
+## stop. The ring, the burst and the low wave carry it instead.
+func _on_boss_slam(at: Vector2, _radius: float, ring_colour: Color) -> void:
+	audio.play("wave", randf_range(0.50, 0.60))
+	audio.play("hit", randf_range(0.62, 0.70))
+	# The crowd loves a monster doing monster things, whichever way it goes.
+	crowd_excitement = minf(crowd_excitement + 0.12, 1.0)
+	# The hall's own hue washes the screen for a beat, so the strike is legible
+	# even when the player is inside the ring and cannot see the ring itself.
+	_flash(ring_colour, 0.12)
 
 
 func _on_player_died() -> void:

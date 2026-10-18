@@ -35,10 +35,15 @@ signal charge_started()
 ## Emitted as a knight commits to the MARKED overhead - the blow a held guard
 ## does not stop. The room teaches the read on it, once per room.
 signal perilous_started()
+## Emitted when a warden's ground strike erupts: the hall's own colour comes up
+## out of the floor. The room paints the shockwave and game.gd sounds it, so the
+## ring carries the warden's hue without the room having to guess it.
+signal slam_landed(at: Vector2, radius: float, ring_colour: Color)
 
 enum State { PATROL, INVESTIGATE, CHASE }
-## Swing state machine: NONE -> WINDUP -> RECOVER -> NONE.
-enum Attack { NONE, WINDUP, RECOVER }
+## Swing state machine: NONE -> WINDUP -> RECOVER -> NONE. A WARDEN also has
+## SLAM: the ground strike that comes up through the floor of its own hall.
+enum Attack { NONE, WINDUP, RECOVER, SLAM }
 ## Boss charge state machine: NONE -> WINDUP -> DASH -> RECOVER -> NONE.
 enum Charge { NONE, WINDUP, DASH, RECOVER }
 
@@ -121,6 +126,13 @@ const BARKS := {
 		"Guard THAT, hueless.",
 		"Hold, and die holding!",
 	],
+	# A warden reaching for the floor of its own hall. Short, because a warden
+	# does not explain itself to a thief.
+	"slam": [
+		"KNEEL.",
+		"This ground is ours.",
+		"Stand there. STAND THERE.",
+	],
 	# Boss only: the wait before the charging dash, and the summons.
 	"charge": [
 		"The wheel will not be denied!",
@@ -198,6 +210,23 @@ const BARKS := {
 @export var perilous_damage_scale: float = 2.2
 ## Its reach, as a multiple of the ordinary swing.
 @export var perilous_reach_scale: float = 1.15
+
+@export_group("Warden slam")
+## The hall's wardens fight their own floor: when the player hugs them, they
+## strike the ground and the colour comes up through it in a ring. It is the
+## answer to standing under a boss and trading - the one place a big enemy is
+## otherwise safe to be farmed from.
+@export var slam_windup: float = 1.05
+## Radius of the ring, in pixels. The drawn disc IS the radius that hurts.
+@export var slam_radius: float = 168.0
+## Damage when the ring erupts.
+@export var slam_damage: float = 30.0
+## Open window after the strike, for the player who rolled out of it.
+@export var slam_recover: float = 0.9
+## Seconds between slams.
+@export var slam_cooldown: float = 7.0
+## How close the player has to be for the warden to reach for the floor.
+@export var slam_trigger_range: float = 100.0
 
 @export_group("Boss phases")
 ## HP ratio at or below which the Champion enters phase II (adds the charge).
@@ -288,6 +317,12 @@ var _reach_now: float = 60.0
 var _perilous: bool = false
 ## Swings since the last overhead, so they arrive on a rhythm.
 var _swings_since_perilous: int = 0
+## Counts down inside Attack.SLAM and its recovery.
+var _slam_left: float = 0.0
+## Counts down between slams.
+var _slam_cooldown_left: float = 0.0
+## 1 -> 0 fade of the shockwave drawn right after the ring erupts.
+var _slam_ring: float = 0.0
 ## The pack's warning sign, held over a knight winding up the marked blow.
 var _warn_mark: Texture2D = null
 ## Counts down between swings.
@@ -394,6 +429,7 @@ func _process(delta: float) -> void:
 	hit_flash = maxf(hit_flash - delta * 4.0, 0.0)
 	clang_flash = maxf(clang_flash - delta * 4.0, 0.0)
 	_swing_flash = maxf(_swing_flash - delta * 3.5, 0.0)
+	_slam_ring = maxf(_slam_ring - delta * 1.6, 0.0)
 	_guard_pose_left = maxf(_guard_pose_left - delta, 0.0)
 	# A staggered knight reels visibly, so the armour break cannot be missed.
 	if _sprite != null:
@@ -735,9 +771,26 @@ func _do_chase(delta: float) -> void:
 			_attack_left = maxf(_attack_left - delta, 0.0)
 			if _attack_left <= 0.0:
 				attack_state = Attack.NONE
+		Attack.SLAM:
+			# The warden plants and reaches for the floor. Planted throughout:
+			# the ring is coming up out of the ground under the player's boots,
+			# so walking out of it is the whole answer until the last moment.
+			velocity = Vector2.ZERO
+			_slam_left = maxf(_slam_left - delta, 0.0)
+			if _slam_left <= 0.0:
+				_slam_land(player)
 		_:
 			_attack_cooldown_left = maxf(_attack_cooldown_left - delta, 0.0)
 			_charge_cooldown_left = maxf(_charge_cooldown_left - delta, 0.0)
+			_slam_cooldown_left = maxf(_slam_cooldown_left - delta, 0.0)
+			# A warden that is being hugged drops the sword and hits the floor:
+			# everything inside the ring takes it, through any guard, and the
+			# player's roll is the answer. Checked before the swing so that
+			# closing in on a boss is not a way to make it harmless.
+			if is_boss and not player.frozen and _slam_cooldown_left <= 0.0 \
+					and dist <= slam_trigger_range:
+				_start_slam()
+				return
 			# Phase II of the Champion opens with a long, telegraphed charge:
 			# the lane is drawn on the ground for charge_windup seconds, and
 			# then he commits. It is the one attack you must roll, not walk,
@@ -757,6 +810,41 @@ func _do_chase(delta: float) -> void:
 				velocity = Vector2.RIGHT.rotated(_facing) * chase_speed
 			else:
 				velocity = Vector2.ZERO
+
+
+## The warden commits to the ground strike. One and a quarter seconds of
+## telegraph, and the disc drawn during it is exactly `slam_radius`: what the
+## player sees is what will hurt, which is the only reason a one-shot ring this
+## big is allowed to be unblockable.
+func _start_slam() -> void:
+	attack_state = Attack.SLAM
+	_slam_left = slam_windup
+	_swing_flash = 0.0
+	_say("slam")
+	_begin_attack()
+
+
+## The ring erupts. Everyone inside it takes it through their guard - it comes up
+## out of the floor, so there is nothing in front of the player to hold a blade
+## against - and the roll's i-frames are the whole counterplay. The shockwave is
+## the room's to paint and game.gd's to sound.
+func _slam_land(player: Player) -> void:
+	attack_state = Attack.RECOVER
+	_attack_left = slam_recover
+	_slam_cooldown_left = slam_cooldown
+	_slam_ring = 1.0
+	slam_landed.emit(global_position, slam_radius, colour)
+	if player == null:
+		return
+	var gap: float = player.global_position.distance_to(global_position)
+	if gap <= slam_radius + player.body_radius:
+		player.take_damage(slam_damage, global_position, true)
+
+
+## True while the marked overhead is winding up (the room's teaching hook and
+## the tests both read it).
+func is_perilous_windup() -> bool:
+	return attack_state == Attack.WINDUP and _perilous
 
 
 ## The three-beat charge: hold the lane, sprint it, then stand open for a
@@ -1129,6 +1217,28 @@ func _draw() -> void:
 		_draw_wedge(deg_to_rad(attack_half_deg), _reach_now,
 			Color(1.0, 0.95, 0.82, 0.38 * _swing_flash),
 			Color(1.0, 1.0, 1.0, 0.55 * _swing_flash))
+	# --- the warden's ground strike ---------------------------------------
+	# A disc of the hall's own colour, drawn at exactly the radius that hurts,
+	# filling up as the warden reaches for the floor. The read is spatial, not
+	# directional: the answer is to be OUT of it, and the answer is visible from
+	# the first frame.
+	if attack_state == Attack.SLAM:
+		var st: float = clampf(1.0 - _slam_left / maxf(slam_windup, 0.01), 0.0, 1.0)
+		var disc_r: float = slam_radius * (0.62 + 0.38 * st)
+		draw_circle(Vector2.ZERO, disc_r, Color(colour.r, colour.g, colour.b, 0.06 + 0.16 * st))
+		draw_arc(Vector2.ZERO, slam_radius, 0.0, TAU, 64,
+			Color(colour.r, colour.g, colour.b, 0.35 + 0.55 * st), 2.0 + 2.0 * st, true)
+		# The last fraction of a second, the disc burns white: leave now.
+		if st > 0.82:
+			var warn: float = (st - 0.82) / 0.18
+			draw_arc(Vector2.ZERO, slam_radius, 0.0, TAU, 64,
+				Color(1.0, 0.96, 0.90, 0.55 * warn), 3.0 + 2.0 * warn, true)
+	if _slam_ring > 0.0:
+		# The shockwave itself: the ring running outward past the radius that
+		# hurt, so the player can see how close they were.
+		var ring_r: float = slam_radius * (1.0 + 0.28 * (1.0 - _slam_ring))
+		draw_arc(Vector2.ZERO, ring_r, 0.0, TAU, 64,
+			Color(colour.r, colour.g, colour.b, 0.85 * _slam_ring), 5.0 * _slam_ring + 1.0, true)
 
 	# --- ground shadow ----------------------------------------------------
 	# The body itself is the character sprite (built in _ready). This just stops

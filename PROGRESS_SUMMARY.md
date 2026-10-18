@@ -842,6 +842,21 @@ this" are one visual rule. **Parrying it still works** — that is the reward fo
 reading the beat instead of running from it — and the room teaches the whole rule
 *once* per room with a hint line the first time any sworn commits to one.
 
+### 11.3a The warden's ground strike
+
+A boss being hugged now hits the **floor** instead of the player: the Sun's
+Warden's line is *"KNEEL."*, and the ring that comes up is drawn at exactly
+`slam_radius` (168px) in the **hall's own hue**, filling as the warden reaches
+down, burning white in the last fifth of a second, and then running outward as a
+shockwave past the radius that hurt. It is **unblockable** (it comes up through
+the boots — there is nothing in front of the player to hold a blade against) and
+the roll's i-frames are the entire counterplay, which is why the telegraph is
+purely spatial: *be out of the disc*. It exists to punish the one thing that
+otherwise trivialises a big slow boss, which is standing under it and trading.
+
+Second capture pass: `build/capture/melee/slam_windup.png` (the disc + the bark)
+and `slam_landed.png` (the shockwave + vigour 100 → 70 through a held guard).
+
 ### 11.4 Bugs found by measuring, not by looking
 
 - **`Transform2D.scaled()` pre-multiplies: it scales the ORIGIN too.** Using it to
@@ -865,7 +880,7 @@ reading the beat instead of running from it — and the room teaches the whole r
 | Tool | What it is for |
 |---|---|
 | `tools/capture_opening.gd` | Ten staged frames of the opening, flow-faithful (search-based beats, shot in force, frozen beats). |
-| `tools/capture_melee.gd` | One frame each of the three new reads: the ward, the parry ring, the marked overhead. |
+| `tools/capture_melee.gd` | One frame each of the new reads: the ward, the parry ring, the marked overhead, and the warden's ground strike (windup + shockwave). |
 | `tools/bake_itch_packs.sh` | Extended (sections 9–10) with the props, FX, UI and marks used above; every file carries its provenance comment. |
 
 Removed: `tools/dbg_opening.gd` (superseded by `capture_opening.gd`) and the
@@ -876,7 +891,7 @@ one-off `tools/add_guard_action.gd` (the `guard` action now lives in
 
 ```bash
 flatpak run org.godotengine.Godot --headless --path . res://tests/test_runner.tscn
-#  ->  RESULT: 344 passed, 0 failed   (was 303 before this session)
+#  ->  RESULT: 351 passed, 0 failed   (was 303 before this session)
 
 flatpak run org.godotengine.Godot --path . --script res://tools/capture_opening.gd
 flatpak run org.godotengine.Godot --path . --script res://tools/capture_melee.gd
@@ -888,14 +903,16 @@ the window does not land and announces itself; a late guard still blocks and doe
 *not* stun; a blow from behind lands whole; a heavy blow breaks the guard; the
 room blames the knight who swung and staggers him; the parry pays its bonus; the
 marked overhead winds up longer, reaches further, goes through a held guard and
-is still beaten by a parry; walking makes footfalls.
+is still beaten by a parry; walking makes footfalls; a warden with the player
+under it reaches for the floor; walking out of the ring costs nothing; the ring
+lands through a held guard and breaks it; and a roll through it is the answer.
 
 ### 11.7 Next move
 
-1. **Boss powers** (the user's "Sekiro/Elden Ring-inspired" ask, only partly
-   done: the charge and the marked overhead are in; the Sun's Warden's shield
-   stance + slam, the Twins' blend, and the Thorn Warden's ward/heal/thorns are
-   still to be hunted down in `guard.gd`).
+1. **Boss powers** — the marked overhead (§11.3), the Champion's dash and the
+   warden's ground strike (§11.3a) are in. Still owed: the Sun's Warden's shield
+   stance (a stance the player must break or get around), the Twins' blend on
+   death, and the Thorn Warden's hue ward / self-heal / thorns.
 2. **Smarter unit-role movement**: archers keep their range, monks stand behind
    the line, thralls swarm instead of queueing.
 3. `docs/STORY.md` is current as of this session (§4 is the opening, §10 has the

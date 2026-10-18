@@ -45,6 +45,8 @@ signal player_parried(at: Vector2, staggered: bool)
 ## The first marked (unblockable) overhead of a room was committed to. game.gd
 ## teaches the read on it, once.
 signal perilous_taught
+## A warden's ground strike erupted, in the warden's own hue. game.gd sounds it.
+signal boss_slam(at: Vector2, radius: float, ring_colour: Color)
 ## A hit on the player left real damage (feedback and crowd reactions).
 signal player_hurt(at: Vector2)
 
@@ -410,6 +412,7 @@ func _make_guard(spec: Dictionary) -> Guard:
 	guard.killed.connect(_on_guard_killed)
 	guard.spotted.connect(_on_guard_spotted)
 	guard.perilous_started.connect(_on_guard_perilous_started)
+	guard.slam_landed.connect(_on_guard_slam_landed)
 	if guard.is_boss:
 		guard.phase_changed.connect(_on_boss_phase_changed)
 		guard.summons_requested.connect(_on_boss_summons_requested)
@@ -736,6 +739,16 @@ func _nearest_guard_in_arc(direction: float, half: float, max_dist: float) -> Gu
 		best = guard
 		best_dist = d
 	return best
+
+
+## A warden's ground strike. The colour that comes up through the floor is the
+## hall's own, so the ring is painted in it: an impact burst plus the shatter's
+## flash, which is the same vocabulary a kill uses - the hall is spending itself
+## on the player, and it looks like it.
+func _on_guard_slam_landed(at: Vector2, radius: float, ring_colour: Color) -> void:
+	queue_fx("impact", at, ring_colour, 1.1)
+	queue_combat_effect("shatter", at, ring_colour, 1.0)
+	boss_slam.emit(at, radius, ring_colour)
 
 
 ## The Unsworn caught a blow on the blade in the parry window. The blow itself

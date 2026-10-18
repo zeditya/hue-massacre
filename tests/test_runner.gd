@@ -1178,6 +1178,67 @@ func _test_integration() -> void:
 	check(charger.charge_state == Guard.Charge.RECOVER or charger.charge_state == Guard.Charge.NONE,
 		"and the Champion is left open for a punish after the charge")
 
+	# --- the warden's ground strike ---------------------------------------
+	# A boss being hugged hits the FLOOR instead of the player. The ring is
+	# unblockable - it comes up through the boots, so there is nothing in front
+	# of the player to hold a blade against - and the roll is the whole answer.
+	_game.load_room(3)
+	await _frames(3)
+	var slammer: Guard = _game.room.boss
+	check(Guard.BARKS.has("slam"), "the wardens have a word for the ground strike")
+	slammer.state = Guard.State.CHASE
+	slammer.detection = 1.0
+	slammer.stagger_left = 0.0
+	slammer.attack_state = Guard.Attack.NONE
+	slammer._attack_cooldown_left = 0.0
+	slammer._slam_cooldown_left = 0.0
+	slammer.position = Vector2(620.0, 240.0)
+	_game.room.player.position = slammer.position + Vector2(0.0, 60.0)
+	_game.room.player.hp = 100.0
+	_game.room.player.hitstun_left = 0.0
+	_game.room.player.invuln_left = 0.0
+	await _physics_frames(3)
+	check(slammer.attack_state == Guard.Attack.SLAM,
+		"a warden with the player under it reaches for the floor")
+
+	# The telegraph IS the radius: walking out of the disc costs nothing.
+	_game.room.player.position = slammer.position + Vector2(0.0, slammer.slam_radius + 90.0)
+	await get_tree().create_timer(slammer.slam_windup + 0.15).timeout
+	check_approx(_game.room.player.hp, 100.0, 0.001, "walking out of the ring costs nothing")
+	check(slammer._slam_cooldown_left > 0.0, "and the warden cannot simply slam again at once")
+
+	# Inside the ring with the guard up: the floor does not care.
+	slammer.attack_state = Guard.Attack.SLAM
+	slammer._slam_left = 0.0
+	_game.room.player.position = slammer.position + Vector2(0.0, 40.0)
+	_game.room.player.hp = 100.0
+	_game.room.player.hitstun_left = 0.0
+	_game.room.player.invuln_left = 0.0
+	# Facing the warden (the guard is a wall in front, so facing matters even
+	# for an unblockable blow: it is the DIFFERENCE the guard cannot change).
+	_game.room.player._facing = -PI * 0.5
+	_game.room.player.begin_guard()
+	_game.room.player.parry_left = 0.0
+	slammer._slam_land(_game.room.player)
+	check(_game.room.player.hp < 100.0, "the ring lands through a held guard",
+		"hp %.1f" % _game.room.player.hp)
+	check(not _game.room.player.is_guarding(), "and breaks the guard open")
+
+	# The roll, on the other hand, is exactly what the ring is asking for.
+	_game.room.player.hp = 100.0
+	_game.room.player.hitstun_left = 0.0
+	_game.room.player.begin_roll(Vector2.RIGHT)
+	slammer._slam_land(_game.room.player)
+	check_approx(_game.room.player.hp, 100.0, 0.001, "and a roll through it is the whole answer")
+	_game.room.player.roll_left = 0.0
+	_game.room.player.invuln_left = 0.0
+	_game.room.player.end_guard()
+	slammer.attack_state = Guard.Attack.NONE
+	slammer._attack_left = 0.0
+	slammer._slam_left = 0.0
+	slammer._slam_ring = 0.0
+	_game.room.player.hp = 100.0
+
 	# A well-timed swing must win the game. (A fresh load of the boss room.)
 	_game.load_room(3)
 	await _frames(3)
