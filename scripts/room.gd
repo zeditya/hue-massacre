@@ -28,6 +28,12 @@ signal wave_started(wave: int, total: int, count: int)
 ## The current wave has fallen; the next one is already on its way.
 signal wave_cleared(wave: int)
 signal boss_vulnerable_changed(is_vulnerable: bool)
+## The Champion crossed into a new phase (2 adds the charge, 3 the summons).
+signal boss_phase_changed(phase: int)
+## The Champion called his Aspirants and they are now on the floor.
+signal boss_summons_spawned(count: int)
+## The Champion committed to a charging dash (feedback hook for game.gd).
+signal boss_charge_started
 ## A strike landed on a guard (before any kill). kind = ColorTheory.Hit.
 signal strike_landed(kind: int, at: Vector2)
 
@@ -47,10 +53,12 @@ signal strike_landed(kind: int, at: Vector2)
 @export var wall_colour: Color = Color(0.09, 0.09, 0.12)
 @export var wall_edge_colour: Color = Color(0.24, 0.24, 0.30)
 @export var grid_step: float = 64.0
-## Draw the tiled Modern Interiors floor instead of the flat grey wash. Turn it
-## off for the original flat-grey look. This only changes the PICTURE: collision
-## and the colour rules are identical either way.
-@export var tiled_floor: bool = true
+## Draw the arena art (baked sand, stone masonry, the stands, the braziers and
+## this arena's sigil) instead of the original flat grey wash. This only changes
+## the PICTURE: collision and the colour rules are identical either way - the
+## sand is deliberately desaturated enough to still count as "no colour" to
+## ColorTheory.visibility().
+@export var arena_floor: bool = true
 
 ## Guards within this range hear a lunge and come to investigate.
 @export var hear_radius: float = 260.0
@@ -127,10 +135,11 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	# Only the spawn rings animate: the room-start ring for the first couple
-	# of seconds, and a fresh ring around every knight that just marched in.
-	if time_in_room < LevelData.SPAWN_GRACE or _wave_ring_active():
-		queue_redraw()
+	# The arena is never a still image: the braziers flicker, the crowd sways and
+	# the arena sigil breathes, so the room redraws every frame. It is cheap -
+	# the sand is one texture and the walls are a handful of rects - but it is
+	# worth knowing that this is why the room is not redrawn on demand.
+	queue_redraw()
 
 
 # ---------------------------------------------------------------------------
@@ -227,6 +236,12 @@ func _make_guard(spec: Dictionary) -> Guard:
 	# takes a full duel's worth of shatters. Room specs may override both.
 	guard.max_hp = float(spec.get("hp", (400.0 if guard.is_boss else 60.0)))
 	guard.damage = float(spec.get("damage", (25.0 if guard.is_boss else 12.0)))
+	# The Champion's three-phase tuning comes from the room data, so the duel
+	# is balanced in level_data.gd next to everything else.
+	if guard.is_boss:
+		guard.phase_two_ratio = float(spec.get("phase_two_ratio", guard.phase_two_ratio))
+		guard.phase_three_ratio = float(spec.get("phase_three_ratio", guard.phase_three_ratio))
+		guard.summons_count = int(spec.get("summons_count", guard.summons_count))
 
 	var route := PackedVector2Array()
 	for point in spec["path"]:
@@ -237,6 +252,10 @@ func _make_guard(spec: Dictionary) -> Guard:
 	guard.room = self
 	guard.killed.connect(_on_guard_killed)
 	guard.spotted.connect(_on_guard_spotted)
+	if guard.is_boss:
+		guard.phase_changed.connect(_on_boss_phase_changed)
+		guard.summons_requested.connect(_on_boss_summons_requested)
+		guard.charge_started.connect(func() -> void: boss_charge_started.emit())
 	add_child(guard)
 	return guard
 
@@ -277,7 +296,7 @@ func _update_camouflage() -> void:
 	player.is_hidden = vis <= 0.0
 
 
-## The Collector is only killable while the player's hue is on his complement.
+## The Champion is only killable while the player's hue is on his complement.
 func _update_boss_windows() -> void:
 	if boss == null or boss.dead:
 		return
@@ -494,6 +513,31 @@ func _on_guard_spotted(pos: Vector2) -> void:
 
 
 # ---------------------------------------------------------------------------
+# The Champion's phases
+# ---------------------------------------------------------------------------
+
+## Phase II and III are announced here so the game only has to listen once.
+func _on_boss_phase_changed(phase: int) -> void:
+	boss_phase_changed.emit(phase)
+
+
+## The Champion called for help: the next `count` entries of the room's
+## "summons" list march onto the floor. They join `guards`, so the arena is
+## not clear until they are down, and they get the same arrival grace every
+## wave gets - an Aspirant never appears already swinging.
+func _on_boss_summons_requested(count: int) -> void:
+	var specs: Array = data.get("summons", [])
+	var spawned: int = 0
+	for i in mini(count, specs.size()):
+		var guard: Guard = _make_guard(specs[i])
+		guard.spawn_grace_until = time_in_room + LevelData.SPAWN_GRACE
+		guards.append(guard)
+		spawned += 1
+	if spawned > 0:
+		boss_summons_spawned.emit(spawned)
+
+
+# ---------------------------------------------------------------------------
 # Public queries used by guards, the HUD and the game controller
 # ---------------------------------------------------------------------------
 
@@ -596,9 +640,24 @@ func _draw() -> void:
 
 	_draw_floor(size)
 
-	# Walls, drawn on top of the floor.
-	for r in _walls:
-		_draw_wall(r)
+	# The arena's own mark on the sand, under the walls.
+	if arena_floor:
+		ArenaArt.draw_mark(self, data, time_in_room)
+
+	# Walls, drawn on top of the floor and the mark.
+	if arena_floor:
+		ArenaArt.draw_walls(self, _walls, _wall_tint)
+	else:
+		for r in _walls:
+			_draw_wall(r)
+
+	# The stands and the fires that light the sand. Decoration only: nothing in
+	# here is solid, so it can never block a fight.
+	if arena_floor:
+		var accent: Color = data.get("accent", UiStyle.GOLD)
+		ArenaArt.draw_braziers(self, data.get("braziers", []), time_in_room, accent)
+		ArenaArt.draw_stands(self, data, time_in_room)
+		ArenaArt.draw_dust(self, time_in_room, accent)
 
 	# The spawn ring: a visible countdown telling you the guards are still
 	# waking up, so the first second of a level is never a surprise death.
@@ -638,15 +697,14 @@ func _draw_wall(r: Rect2) -> void:
 	draw_rect(r, wall_edge_colour, false, 1.5)
 
 
-## The floor under everything. Prefers the baked tiled floor and falls back to
-## the original flat grey wash if the tileset is missing.
+## The floor under everything. Prefers the baked arena sand and falls back to
+## the original flat grey wash if the arena art could not be baked.
 func _draw_floor(size: Vector2) -> void:
-	if tiled_floor:
-		var tex: Texture2D = TileBank.floor_texture()
+	if arena_floor:
+		var tex: Texture2D = ArenaArt.floor_texture(data)
 		if tex != null:
-			# FLOOR_MODULATE darkens the tile to ColorTheory.FLOOR_GREY, so the
-			# picture still shows the exact grey the rules measure against.
-			draw_texture(tex, Vector2.ZERO, TileBank.FLOOR_MODULATE)
+			# The bake is half resolution; stretching it gives the sand its grain.
+			draw_texture_rect(tex, Rect2(Vector2.ZERO, size), false)
 			return
 
 	# Bare grey floor. This is the colour the camera sees when nothing matches.

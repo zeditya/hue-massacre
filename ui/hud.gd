@@ -59,6 +59,8 @@ var floor_colour: Color = ColorTheory.FLOOR_GREY
 var boss_hue: float = -1.0
 var boss_vulnerable: bool = false
 var boss_tolerance_deg: float = 25.0
+## The Champion's phase (1..3). 1 for every room without a boss.
+var boss_phase: int = 1
 
 var spotted: bool = false
 
@@ -202,7 +204,7 @@ func _draw_top_left() -> void:
 	# progress indicator is itself part of the colour theory.
 	var fill: Color = ColorTheory.wheel(120.0 * restore + 30.0, 0.85, 1.0)
 	UiStyle.bar(self, restore_rect, restore, fill)
-	UiStyle.text(self, "COLOUR RESTORED  %d%%" % int(round(restore * 100.0)),
+	UiStyle.text(self, "SAND PAINTED  %d%%" % int(round(restore * 100.0)),
 		Vector2(TOP_LEFT_X, 138.0), 12, UiStyle.DIM)
 
 
@@ -226,7 +228,7 @@ func _draw_top_right() -> void:
 		UiStyle.bar(self, bar_rect, ratio, mult_colour)
 
 	# Status counts.
-	var status: String = "GUARDS LEFT %d   /   DEATHS %d" % [guards_left, deaths]
+	var status: String = "KNIGHTS LEFT %d   /   FALLS %d" % [guards_left, deaths]
 	UiStyle.text(self, status, Vector2(box_x, 112.0), 13, UiStyle.DIM, HORIZONTAL_ALIGNMENT_RIGHT, 356.0)
 
 	# Wave state, only in rooms that fight in waves.
@@ -236,6 +238,17 @@ func _draw_top_right() -> void:
 		if next_wave_in > 0.0:
 			UiStyle.text(self, "NEXT WAVE IN %.1fs" % next_wave_in,
 				Vector2(box_x, 148.0), 11, UiStyle.DIM, HORIZONTAL_ALIGNMENT_RIGHT, 356.0)
+
+	# The Champion's phase, with three pips that fill as the duel escalates.
+	if boss_hue >= 0.0:
+		var roman: Array = ["I", "II", "III"]
+		UiStyle.text(self, UiStyle.tracked("CHAMPION  PHASE %s" % roman[clampi(boss_phase - 1, 0, 2)]),
+			Vector2(box_x, 132.0), 13, UiStyle.GOLD, HORIZONTAL_ALIGNMENT_RIGHT, 356.0)
+		for i in 3:
+			var px: float = TOP_RIGHT_EDGE - 10.0 - float(2 - i) * 14.0
+			var lit: bool = (i + 1) <= boss_phase
+			draw_circle(Vector2(px, 148.0), 4.0,
+				UiStyle.GOLD if lit else Color(0.0, 0.0, 0.0, 0.55))
 
 
 func _draw_player_panel() -> void:

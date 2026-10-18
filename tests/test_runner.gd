@@ -8,10 +8,12 @@ extends Node
 ##
 ## Three layers, because they catch different things:
 ##   A. COLOUR MATHS  - the pure functions that the whole game rests on.
-##   B. LEVEL GEOMETRY- proves no guard patrol route clips through a wall,
-##                      which is the classic hand-built-level mistake.
-##   C. INTEGRATION   - boots the real main.tscn and plays it: kills guards,
-##                      triggers a combo, hides in paint, dies, kills the boss.
+##   B. LEVEL GEOMETRY- proves no knight patrol route, mote or Aspirant spawn
+##                      clips through a wall or is sealed off, which is the
+##                      classic hand-built-level mistake.
+##   C. INTEGRATION   - boots the real main.tscn and plays it: kills knights,
+##                      runs the waves, triggers a combo, dies and restarts, and
+##                      fights the Champion through all three of his phases.
 ##
 ## What this CANNOT check: anything that only happens in _draw(), because the
 ## headless build has no renderer. Those are covered by the manual checklist.
@@ -300,6 +302,54 @@ func _test_levels() -> void:
 
 			check(route.size() >= 2, "%s: guard %d has a real patrol route" % [name, i])
 
+		# --- the Champion's Aspirants must arrive somewhere standable -----
+		# They are spawned mid-fight, so a summon point buried in a wall would
+		# drop a knight into the stonework at the worst possible moment.
+		for i in room.get("summons", []).size():
+			var sspec: Dictionary = room["summons"][i]
+			var sradius: float = float(sspec.get("radius", LevelData.GUARD_RADIUS))
+			var sworst: float = INF
+			var sroute: Array = [Vector2(sspec["pos"])]
+			for p in sspec["path"]:
+				sroute.append(Vector2(p))
+			for k in range(1, sroute.size()):
+				var sa: Vector2 = sroute[k - 1]
+				var sb: Vector2 = sroute[k]
+				var slen: float = sa.distance_to(sb)
+				var ssteps: int = maxi(int(slen / 4.0), 1)
+				for s in ssteps + 1:
+					var sample: Vector2 = sa.lerp(sb, float(s) / float(ssteps))
+					for r in walls:
+						sworst = minf(sworst, _point_rect_distance(sample, r))
+			check(sworst >= sradius + 2.0,
+				"%s: aspirant %d's arrival route clears every wall" % [name, i],
+				"closest approach %.1f" % sworst)
+
+		# --- the Champion's Aspirants must arrive on open ground ----------
+		# Summons are spawned at runtime, so they never pass through the guard
+		# route checks above. Give them the same treatment: their spawn point
+		# and every patrol leg have to clear the walls, and the flood-fill
+		# below proves the player can walk to them.
+		var summon_specs: Array = room.get("summons", [])
+		for i in summon_specs.size():
+			var sspec: Dictionary = summon_specs[i]
+			var sradius: float = float(sspec.get("radius", LevelData.GUARD_RADIUS))
+			var sworst: float = INF
+			var spoints: Array = [Vector2(sspec["pos"])]
+			for p in sspec["path"]:
+				spoints.append(Vector2(p))
+			for k in range(1, spoints.size()):
+				var a: Vector2 = spoints[k - 1]
+				var b: Vector2 = spoints[k]
+				var steps: int = maxi(int(a.distance_to(b) / 4.0), 1)
+				for s in steps + 1:
+					var sample: Vector2 = a.lerp(b, float(s) / float(steps))
+					for r in walls:
+						sworst = minf(sworst, _point_rect_distance(sample, r))
+			check(sworst >= sradius + 2.0,
+				"%s: Aspirant %d route clears every wall" % [name, i],
+				"closest approach %.1f" % sworst)
+
 		# --- waves: numbered 1..N with knights in every one -----------------
 		var spec_waves: Array = []
 		for wspec in spec_list:
@@ -346,13 +396,22 @@ func _test_levels() -> void:
 		check(motes_ok, "%s: every colour mote can be walked to" % name)
 
 		var routes_ok: bool = true
-		for spec in spec_list:
+		for spec in spec_list + room.get("summons", []):
 			if not reach.has(_cell_key(Vector2(spec["pos"]))):
 				routes_ok = false
 			for p in spec["path"]:
 				if not reach.has(_cell_key(Vector2(p))):
 					routes_ok = false
 		check(routes_ok, "%s: every guard waypoint can be walked to" % name)
+
+		var summons_ok: bool = true
+		for sspec in room.get("summons", []):
+			if not reach.has(_cell_key(Vector2(sspec["pos"]))):
+				summons_ok = false
+			for p in sspec["path"]:
+				if not reach.has(_cell_key(Vector2(p))):
+					summons_ok = false
+		check(summons_ok, "%s: every aspirant can be walked to" % name)
 
 
 # ---------------------------------------------------------------------------
@@ -404,61 +463,27 @@ func _test_integration() -> void:
 	add_child(_game)
 	await _frames(3)
 
-	check(_game.state == Game.State.TITLE, "the game boots to the title screen")
-	check(_game.screens != null and _game.screens.mode == Screens.Mode.TITLE,
-		"the title page is showing")
-	check(_game.room == null, "no room is built while on the title screen")
+	# --- the game opens IN the arena --------------------------------------
+	# The start menu and the story cards were deliberately cut: the build boots
+	# straight into round one of the melee, with no page to click through.
+	check(_game.state == Game.State.PLAY, "the game boots straight into play")
+	check(_game.screens != null and _game.screens.mode == Screens.Mode.NONE,
+		"and no page is blocking the arena")
+	check(_game.room != null, "the first arena is built on boot")
+	check(_game.room_index == 0, "and it is the first arena")
+	check(_game.hud != null and _game.hud.visible, "the fight HUD is up from the first frame")
 
-	# --- the start menu ---------------------------------------------------
-	check(Screens.MENU_ITEMS.size() == 3, "the start menu has three rows")
-	check(_game.screens.mode == Screens.Mode.TITLE, "booting shows the start menu")
-	check(_game.screens.menu_index == 0, "the start menu opens with START GAME selected")
-	_game.screens.menu_move(-1)
-	check(_game.screens.menu_index == Screens.MENU_ITEMS.size() - 1,
-		"moving up from the top row wraps to the bottom", "index %d" % _game.screens.menu_index)
-	_game.screens.menu_move(1)
-	check(_game.screens.menu_index == 0, "and moving down wraps back to the top")
-	# The HOW TO PLAY row opens the rules page, and ESC returns to the menu.
-	_game.screens.menu_index = 1
-	_game.screens.advance()
-	check(_game.screens.mode == Screens.Mode.HOWTO, "the HOW TO PLAY row opens the rules page")
-	_game.screens.back()
-	check(_game.screens.mode == Screens.Mode.TITLE, "and ESC goes back to the menu")
-	_game.screens.menu_index = 0
+	# There is no menu left to navigate, and no story text anywhere: only the
+	# three interruption pages exist at all.
+	check(Screens.PAUSE_ITEMS.size() == 3, "the pause page has three rows")
 
-	# --- the story scene, then the story cards ---------------------------
-	_game._on_start_requested()
-	check(_game.state == Game.State.INTRO, "requesting start moves to the intro")
-	check(_game.screens.mode == Screens.Mode.STORY,
-		"start first shows the story scene (the spark in the grey city)")
-	check(Screens.STORY_LINE == "We have to bring the colours back.",
-		"the story line is the one the brief asked for")
-	# Advancing the story hands off to the five rhyme cards.
-	_game.screens.advance()
-	check(_game.screens.mode == Screens.Mode.INTRO, "the story scene leads into the rhyme cards")
-
-	check(Screens.CARDS.size() == 5, "the intro has exactly 5 story cards")
-	var card_ok: bool = true
-	for card in Screens.CARDS:
-		if (card["lines"] as Array).size() != 2 or (card["colours"] as Array).size() != 2:
-			card_ok = false
-	check(card_ok, "every story card has 2 rhyming lines, each with its own tint")
-
-	# The cards refuse to advance for card_min_time, so wait past it honestly
-	# instead of poking at the private timer.
-	await get_tree().create_timer(0.6).timeout
-	_game.screens.card_index = 4
-	_game.screens.advance()
-	check(_game.state == Game.State.PLAY, "finishing the cards starts the run")
-
-	# --- room 1 -----------------------------------------------------------
 	await _frames(2)
 	check(_game.room != null, "room 1 is built")
-	check(_game.room.guards.size() == 2, "room 1 fields 2 guards on its first wave",
+	check(_game.room.guards.size() == 2, "arena 1 fields 2 knights on its first wave",
 		"active %d" % _game.room.guards.size())
-	check(_game.room.remaining_guard_count() == 4, "with 2 more waiting for wave 2",
+	check(_game.room.remaining_guard_count() == 6, "with 4 more waiting in the later waves",
 		"remaining %d" % _game.room.remaining_guard_count())
-	check(_game.room.waves_total == 2, "so the arena is a two-wave fight")
+	check(_game.room.waves_total == 3, "so the arena is a three-wave fight")
 	check(_game.room.player.colour == Color(1.0, 1.0, 1.0), "the spark starts colourless (white)")
 
 	# --- the characters are real sprites, not dots -----------------------
@@ -529,8 +554,8 @@ func _test_integration() -> void:
 	check(not _game.room._cleared, "clearing wave 1 does NOT clear the arena")
 	check(_game.room.intermission_left > 0.0, "it starts the intermission instead")
 	check(_game.room.guards.is_empty(), "the floor stands empty while the next wave is called")
-	check(_game.room.remaining_guard_count() == 2, "the reserved knights still count as left")
-	check(_game.hud.guards_left == 2, "and the HUD counts them too", "hud %d" % _game.hud.guards_left)
+	check(_game.room.remaining_guard_count() == 4, "the reserved knights still count as left")
+	check(_game.hud.guards_left == 4, "and the HUD counts them too", "hud %d" % _game.hud.guards_left)
 
 	# The next wave marches in when the pause runs out, and it gets the same
 	# blind moment every knight gets at room start: no ambush arrivals.
@@ -542,7 +567,7 @@ func _test_integration() -> void:
 	check(_game.room.current_wave == 2, "then wave 2 marches in",
 		"current_wave %d" % _game.room.current_wave)
 	check(_game.room.guards.size() == 2, "with both of its knights on the floor")
-	check(_game.room.remaining_guard_count() == 2, "and the reserve now empty")
+	check(_game.room.remaining_guard_count() == 4, "and only the third wave still in reserve")
 
 	var arrived: Guard = _game.room.guards[0]
 	var facing: float = (arrived.patrol_points[1] - arrived.patrol_points[0]).angle()
@@ -563,6 +588,14 @@ func _test_integration() -> void:
 		"detection %.2f" % arrived.detection)
 
 	# --- clearing the arena advances --------------------------------------
+	# Wave 3 is still in the wings; pull it in rather than sitting through
+	# another intermission, then take the floor.
+	for g in _game.room.guards.duplicate():
+		_game.room._kill_guard(g)
+	await _frames(2)
+	check(not _game.room._cleared, "clearing wave 2 still does not clear a three-wave arena")
+	_game.room.release_all_waves()
+	await _frames(2)
 	for g in _game.room.guards.duplicate():
 		_game.room._kill_guard(g)
 	await _frames(2)
@@ -571,8 +604,8 @@ func _test_integration() -> void:
 	await get_tree().create_timer(2.4).timeout
 	await _frames(2)
 	check(_game.room_index == 1, "the game advanced to room 2", "index %d" % _game.room_index)
-	check(_game.room.guards.size() == 2, "room 2 opens with its first wave of 2")
-	check(_game.room.remaining_guard_count() == 3, "and 1 more knight waits in reserve")
+	check(_game.room.guards.size() == 2, "arena 2 opens with its first wave of 2")
+	check(_game.room.remaining_guard_count() == 5, "and 3 more knights wait in reserve")
 
 	# --- the complement combo --------------------------------------------
 	_game.load_room(2)
@@ -664,7 +697,7 @@ func _test_integration() -> void:
 	# A full neutral chain: 12 / 12 / 20. The third swing is the heavy one.
 	p_combat.colour = Color.WHITE
 	knight.colour = RED
-	knight.position = Vector2(450.0, 500.0)
+	knight.position = Vector2(440.0, 500.0)
 	p_combat.position = Vector2(400.0, 500.0)
 	p_combat.begin_strike(Vector2.RIGHT)
 	await _physics_frames(2)
@@ -673,13 +706,13 @@ func _test_integration() -> void:
 	await _physics_frames(4)
 	check_approx(knight.hp, 48.0, 0.001, "one swing hits once, however long the blade is out")
 
-	knight.position = Vector2(450.0, 500.0)
+	knight.position = Vector2(440.0, 500.0)
 	p_combat.position = Vector2(400.0, 500.0)
 	p_combat.begin_strike(Vector2.RIGHT)
 	await _physics_frames(2)
 	check_approx(knight.hp, 36.0, 0.6, "swing 2 continues the chain (48 - 12 = 36)")
 
-	knight.position = Vector2(450.0, 500.0)
+	knight.position = Vector2(440.0, 500.0)
 	p_combat.position = Vector2(400.0, 500.0)
 	p_combat.begin_strike(Vector2.RIGHT)
 	await _physics_frames(2)
@@ -690,12 +723,12 @@ func _test_integration() -> void:
 	p_combat.colour = RED
 	knight.colour = ColorTheory.complement(RED)
 	knight.hp = 60.0
-	knight.position = Vector2(450.0, 500.0)
+	knight.position = Vector2(440.0, 500.0)
 	p_combat.position = Vector2(400.0, 500.0)
 	p_combat.begin_strike(Vector2.RIGHT)
 	await _physics_frames(2)
 	check_approx(knight.hp, 30.0, 0.6, "a complement SHATTERS: x2.5 (60 - 30 = 30)")
-	knight.position = Vector2(450.0, 500.0)
+	knight.position = Vector2(440.0, 500.0)
 	p_combat.position = Vector2(400.0, 500.0)
 	p_combat.begin_strike(Vector2.RIGHT)
 	await _physics_frames(2)
@@ -707,7 +740,7 @@ func _test_integration() -> void:
 	var p_absorb: Player = _game.room.player
 	var knight_absorb: Guard = _game.room.guards[0]
 	p_absorb.colour = knight_absorb.colour
-	knight_absorb.position = Vector2(450.0, 500.0)
+	knight_absorb.position = Vector2(440.0, 500.0)
 	p_absorb.position = Vector2(400.0, 500.0)
 	p_absorb.begin_strike(Vector2.RIGHT)
 	await _physics_frames(2)
@@ -857,6 +890,78 @@ func _test_integration() -> void:
 	check_approx(boss2.hp, boss2.max_hp, 0.001, "his stolen wheel takes exactly zero damage")
 	check(_game.state == Game.State.PLAY, "and the clang no longer kills you: nobody dies")
 
+	# --- the Champion's three phases --------------------------------------
+	# Phase I sweeps, phase II adds the telegraphed charge, phase III calls the
+	# Aspirants and spins the wheel faster. Each is driven by HP thresholds, so
+	# each is testable without waiting for a real duel.
+	_game.load_room(3)
+	await _frames(3)
+	var champ: Guard = _game.room.boss
+	var base_hue_speed: float = champ.hue_speed
+	var cast_before: int = _game.room.guards.size()
+	check(champ.boss_phase == 1, "the Champion starts in phase I")
+	check(_game.room.guards.size() == 3, "phase I is the Champion plus his two escorts")
+
+	# Two neutral cuts take him from 400 to 100 HP: past both thresholds.
+	champ.take_hit(150.0, false, false, champ.position + Vector2(-40.0, 0.0), 70001)
+	check(champ.boss_phase == 2, "dropping below two-thirds of his vigour opens phase II")
+	check_approx(champ.hue_speed, base_hue_speed, 0.001,
+		"and phase II does not touch the speed of the wheel")
+	check(_game.room.guards.size() == cast_before, "phase II calls no new knights (it adds the charge)")
+
+	champ.take_hit(150.0, false, false, champ.position + Vector2(-40.0, 0.0), 70002)
+	check(champ.boss_phase == 3, "dropping below a third opens phase III")
+	check(champ.hue_speed > base_hue_speed * 1.5,
+		"and phase III spins the wheel markedly faster",
+		"%.1f -> %.1f deg/s" % [base_hue_speed, champ.hue_speed])
+	check(_game.room.guards.size() == cast_before + 2, "phase III calls two Aspirants")
+	var summons: Array = _game.room.guards.slice(cast_before)
+	var summon_grace: bool = true
+	var summon_hues: Array = []
+	for g in summons:
+		if g.spawn_grace_until <= _game.room.time_in_room:
+			summon_grace = false
+		summon_hues.append(g.colour)
+	check(summon_grace, "and every Aspirant arrives with the same blind grace a wave gets")
+	check(ColorTheory.is_complement(summon_hues[0], summon_hues[1], 25.0),
+		"the two Aspirants are a complementary pair - killing them shifts your hue")
+
+	# The window must still reopen after the phase change, or the faster wheel
+	# would turn the duel into a soft lock.
+	champ.colour = RED
+	_game.room.player.colour = ColorTheory.complement(RED)
+	await _physics_frames(2)
+	check(champ.vulnerable, "the kill window still opens in phase III (no soft lock)")
+
+	# --- the telegraphed charging dash ------------------------------------
+	# Phase II's charge is a locked lane: a windup, then a committed sprint.
+	_game.load_room(3)
+	await _frames(3)
+	var charger: Guard = _game.room.boss
+	charger.take_hit(150.0, false, false, charger.position + Vector2(-40.0, 0.0), 70003)
+	# The hit also flinches him; skip that flinch so the charge is what we test.
+	charger.stagger_left = 0.0
+	check(charger.boss_phase == 2, "a fresh Champion reaches phase II for the charge test")
+	# Put the duel in the middle of the arena's open lane, 220px apart.
+	charger.position = Vector2(620.0, 110.0)
+	charger.velocity = Vector2.ZERO
+	charger.state = Guard.State.CHASE
+	charger.detection = 1.0
+	charger._charge_cooldown_left = 0.0
+	_game.room.player.position = Vector2(620.0, 330.0)
+	await _physics_frames(3)
+	check(charger.charge_state == Guard.Charge.WINDUP,
+		"phase II winds up a charging dash instead of walking in")
+	var player_hp_charge: float = _game.room.player.hp
+	await get_tree().create_timer(charger.charge_windup + 0.10).timeout
+	check(charger.charge_state == Guard.Charge.DASH, "the lane locks in and the dash begins")
+	await get_tree().create_timer(charger.charge_duration + 0.15).timeout
+	await _physics_frames(2)
+	check(_game.room.player.hp < player_hp_charge, "the dash lands and costs vigour",
+		"hp %.0f -> %.0f" % [player_hp_charge, _game.room.player.hp])
+	check(charger.charge_state == Guard.Charge.RECOVER or charger.charge_state == Guard.Charge.NONE,
+		"and the Champion is left open for a punish after the charge")
+
 	# A well-timed swing must win the game. (A fresh load of the boss room.)
 	_game.load_room(3)
 	await _frames(3)
@@ -873,6 +978,9 @@ func _test_integration() -> void:
 	_game.room.player.begin_strike(Vector2.RIGHT)
 	await _physics_frames(2)
 	check(boss3.dead, "a complement strike inside the window kills the Collector")
+	check(boss3.kneeling, "the beaten Champion does not vanish: he kneels on the sand")
+	check(boss3.is_boss and is_instance_valid(_game.room.boss),
+		"and the kneeling body is still the room's boss for the victory beat")
 
 	# Clear the remaining small guards to finish the room.
 	for g in _game.room.guards.duplicate():
@@ -895,10 +1003,10 @@ func _test_integration() -> void:
 	check(_game.score == 0 and _game.deaths == 0, "and resets the score and the death count")
 
 	# =====================================================================
-	# D. STEALTH, DARKNESS AND LEVEL ELEMENTS
+	# D. LIGHT, WAVES AND LEVEL ELEMENTS
 	# =====================================================================
-	# The game is now sitting in a clean room 1, which makes a good sandbox.
-	print("\n--- D. STEALTH, DARKNESS AND LEVEL ELEMENTS")
+	# The game is now sitting in a clean arena 1, which makes a good sandbox.
+	print("\n--- D. LIGHT, WAVES AND LEVEL ELEMENTS")
 
 	# --- darkness is wired and follows the player ------------------------
 	check(_game.darkness != null, "the darkness layer exists")

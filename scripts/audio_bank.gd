@@ -45,6 +45,8 @@ const SFX := {
 	"clang":      {"f0": 1500.0,"f1": 900.0, "dur": 0.16, "decay": 1.3, "wave": Wave.SQUARE, "db": -7.0},
 	"shatter":    {"f0": 1900.0,"f1": 300.0, "dur": 0.24, "decay": 0.9, "wave": Wave.NOISE,  "db": -2.0},
 	"wave":       {"f0": 170.0, "f1": 430.0, "dur": 0.50, "decay": 0.55,"wave": Wave.SQUARE, "db": -5.0},
+	"charge":     {"f0": 130.0, "f1": 620.0, "dur": 0.62, "decay": 0.45,"wave": Wave.NOISE,  "db": -4.0},
+	"named":      {"f0": 300.0, "f1": 900.0, "dur": 1.60, "decay": 0.24,"wave": Wave.SINE,   "db": -2.0},
 }
 
 var _streams: Dictionary = {}

@@ -24,10 +24,20 @@ extends CharacterBody2D
 signal killed(guard: Guard)
 ## Emitted the moment this guard locks on. The room uses it to spread the alarm.
 signal spotted(pos: Vector2)
+## Boss only: the Champion crossed into a new phase (2 or 3). The game uses
+## this for the herald's announcement.
+signal phase_changed(phase: int)
+## Boss only: the Champion calls his Aspirants. The room answers by spawning
+## the next entries of the room's "summons" list.
+signal summons_requested(count: int)
+## Boss only: the charge telegraph finished and he is committed to the dash.
+signal charge_started()
 
 enum State { PATROL, INVESTIGATE, CHASE }
 ## Swing state machine: NONE -> WINDUP -> RECOVER -> NONE.
 enum Attack { NONE, WINDUP, RECOVER }
+## Boss charge state machine: NONE -> WINDUP -> DASH -> RECOVER -> NONE.
+enum Charge { NONE, WINDUP, DASH, RECOVER }
 
 ## Things guards say. "%s" is replaced with the guard's own colour name, so a
 ## blue guard shouts about the blue one, and the banter teaches the wheel.
@@ -59,6 +69,17 @@ const BARKS := {
 		"My hue - it cracks!",
 		"No! Not my colour!",
 		"The wheel hates me...",
+	],
+	# Boss only: the wait before the charging dash, and the summons.
+	"charge": [
+		"The wheel will not be denied!",
+		"Stand and take your colour!",
+		"I am the Champion - I do not miss!",
+	],
+	"summon": [
+		"Aspirants! To the Champion!",
+		"Let the melee be joined!",
+		"Crowd, claim your due!",
 	],
 }
 
@@ -113,6 +134,30 @@ const BARKS := {
 ## Seconds knocked silly by a complement shatter (armour break).
 @export var stagger_time: float = 1.0
 
+@export_group("Boss phases")
+## HP ratio at or below which the Champion enters phase II (adds the charge).
+@export var phase_two_ratio: float = 0.66
+## HP ratio at or below which he enters phase III (summons + spins faster).
+@export var phase_three_ratio: float = 0.33
+## How much faster the stolen wheel spins once he is losing.
+@export var phase_three_hue_scale: float = 1.8
+## Aspirants called in when phase III begins.
+@export var summons_count: int = 2
+
+@export_group("Boss charge")
+## The telegraphed dash: a long, locked lane then a committed sprint.
+@export var charge_windup: float = 0.65
+@export var charge_duration: float = 0.55
+@export var charge_recover: float = 0.75
+@export var charge_speed: float = 620.0
+@export var charge_damage: float = 22.0
+## Seconds between charges. Phase III uses this too, so the duel still breathes.
+@export var charge_cooldown: float = 3.4
+## Only charges if the player is between these distances: too close and a
+## normal sweep is the fairer attack, too far and the dash would be uncatchable.
+@export var charge_min_range: float = 90.0
+@export var charge_range: float = 300.0
+
 @export_group("Vision")
 ## How far the cone reaches, in pixels.
 @export var cone_length: float = 310.0
@@ -153,6 +198,14 @@ var clang_flash: float = 0.0
 var stagger_left: float = 0.0
 ## Which beat of a swing this guard is on.
 var attack_state: Attack = Attack.NONE
+## Boss only: which of his three phases he is in. Phases change on HP
+## thresholds and never go backwards.
+var boss_phase: int = 1
+## Boss only: the charging-dash state machine.
+var charge_state: Charge = Charge.NONE
+## True once the Champion has been beaten: he stays on the floor, kneeling,
+## while the crowd goes quiet instead of vanishing in a white pop.
+var kneeling: bool = false
 ## Counts down inside WINDUP and RECOVER.
 var _attack_left: float = 0.0
 ## Counts down between swings.
@@ -161,6 +214,15 @@ var _attack_cooldown_left: float = 0.0
 var _swing_flash: float = 0.0
 ## Serial of the last lunge that hit this guard, so one lunge hits once.
 var _last_strike_serial: int = -1
+## Counts down inside Charge.WINDUP / DASH / RECOVER.
+var _charge_left: float = 0.0
+var _charge_cooldown_left: float = 0.0
+## Direction locked in at the end of the windup: the dash cannot be steered.
+var _charge_dir: Vector2 = Vector2.RIGHT
+## One dash may only hit the player once.
+var _charge_hit: bool = false
+## The authored rotation speed, so phase III can scale it without compounding.
+var _base_hue_speed: float = 0.0
 
 var _facing: float = 0.0
 var _point_index: int = 0
@@ -216,6 +278,7 @@ func _ready() -> void:
 	_sprite.material = SpriteBank.tint_material(colour)
 	add_child(_sprite)
 	hp = max_hp
+	_base_hue_speed = hue_speed
 	_update_animation()
 
 
@@ -229,9 +292,12 @@ func _process(delta: float) -> void:
 	if _sprite != null:
 		_sprite.rotation = sin(_time * 34.0) * 0.22 if stagger_left > 0.0 else 0.0
 	if dead:
-		_death_left = maxf(_death_left - delta, 0.0)
-		if _death_left <= 0.0:
-			queue_free()
+		# A beaten Champion does not pop out of the world: he kneels there until
+		# the victory page takes over (_death_left is effectively infinite).
+		if not kneeling:
+			_death_left = maxf(_death_left - delta, 0.0)
+			if _death_left <= 0.0:
+				queue_free()
 		queue_redraw()
 		return
 
@@ -272,7 +338,7 @@ func _physics_process(delta: float) -> void:
 	if dead:
 		return
 
-	# --- the Collector drags the stolen wheel around ----------------------
+	# --- the Champion drags the stolen wheel around -----------------------
 	if not is_zero_approx(hue_speed):
 		colour = Color.from_hsv(fposmod(colour.h + (hue_speed / 360.0) * delta, 1.0), colour.s, colour.v, 1.0)
 
@@ -367,6 +433,7 @@ func _perceive(delta: float) -> void:
 				_investigate_left = investigate_time
 				detection = 0.0
 				attack_state = Attack.NONE
+				charge_state = Charge.NONE
 				_say("lost")
 
 
@@ -481,6 +548,12 @@ func _do_chase(delta: float) -> void:
 	# Snappier turning while hunting: they are locked on now.
 	_turn_towards(to_player.angle(), delta, turn_speed_deg * 2.2)
 
+	# The boss's charge is its own commitment: while it is running, nothing else
+	# in the chase (walking, sweeping) may happen.
+	if is_boss and charge_state != Charge.NONE:
+		_do_charge(delta, player)
+		return
+
 	match attack_state:
 		Attack.WINDUP:
 			# Braced for the swing: planted, and the telegraph in _draw is
@@ -497,6 +570,20 @@ func _do_chase(delta: float) -> void:
 				attack_state = Attack.NONE
 		_:
 			_attack_cooldown_left = maxf(_attack_cooldown_left - delta, 0.0)
+			_charge_cooldown_left = maxf(_charge_cooldown_left - delta, 0.0)
+			# Phase II of the Champion opens with a long, telegraphed charge:
+			# the lane is drawn on the ground for charge_windup seconds, and
+			# then he commits. It is the one attack you must roll, not walk,
+			# away from.
+			if is_boss and boss_phase >= 2 and not player.frozen \
+					and _charge_cooldown_left <= 0.0 \
+					and dist >= charge_min_range and dist <= charge_range:
+				charge_state = Charge.WINDUP
+				_charge_left = charge_windup
+				_charge_hit = false
+				velocity = Vector2.ZERO
+				_say("charge")
+				return
 			if dist <= attack_range and _attack_cooldown_left <= 0.0 and not player.frozen:
 				attack_state = Attack.WINDUP
 				_attack_left = attack_windup
@@ -504,6 +591,47 @@ func _do_chase(delta: float) -> void:
 				velocity = Vector2.RIGHT.rotated(_facing) * chase_speed
 			else:
 				velocity = Vector2.ZERO
+
+
+## The three-beat charge: hold the lane, sprint it, then stand open for a
+## moment. The player can roll through the dash (i-frames) or step out of the
+## lane during the telegraph, which is the whole read.
+func _do_charge(delta: float, player: Player) -> void:
+	match charge_state:
+		Charge.WINDUP:
+			velocity = Vector2.ZERO
+			# Still tracking during the telegraph, so the lane is the player's
+			# problem to solve - but the committed direction is frozen at the end.
+			_turn_towards((player.global_position - global_position).angle(), delta, turn_speed_deg * 1.6)
+			_charge_left = maxf(_charge_left - delta, 0.0)
+			if _charge_left <= 0.0:
+				charge_state = Charge.DASH
+				_charge_left = charge_duration
+				_charge_dir = Vector2.RIGHT.rotated(_facing)
+				_charge_hit = false
+				charge_started.emit()
+		Charge.DASH:
+			# No steering: the Champion has committed his weight.
+			velocity = _charge_dir * charge_speed
+			_charge_left = maxf(_charge_left - delta, 0.0)
+			var gap: float = player.global_position.distance_to(global_position)
+			if not _charge_hit and gap <= body_radius + player.body_radius + 8.0:
+				_charge_hit = true
+				player.take_damage(charge_damage, global_position)
+			# Stop at a wall rather than grinding against it, so the punish
+			# window opens where the dash actually ended.
+			if _charge_left <= 0.0 or is_on_wall():
+				charge_state = Charge.RECOVER
+				_charge_left = charge_recover
+				velocity = Vector2.ZERO
+		Charge.RECOVER:
+			velocity = Vector2.ZERO
+			_charge_left = maxf(_charge_left - delta, 0.0)
+			if _charge_left <= 0.0:
+				charge_state = Charge.NONE
+				_charge_cooldown_left = charge_cooldown
+		_:
+			charge_state = Charge.NONE
 
 
 ## The blade falls: anything still inside the arc takes the hit.
@@ -535,7 +663,7 @@ func _snap_to_nearest_point() -> void:
 ## A noise was heard at `at` (a lunge nearby, or an ally shouting). Break off
 ## and go and look, unless already hunting the player for real.
 func hear(at: Vector2) -> void:
-	if dead or state == State.CHASE:
+	if dead or dormant or state == State.CHASE:
 		return
 	state = State.INVESTIGATE
 	_last_seen = at
@@ -578,6 +706,11 @@ func take_hit(amount: float, shatter: bool, heavy: bool, from_position: Vector2,
 
 	hp = maxf(hp - amount, 0.0)
 	hit_flash = 1.0
+	# A shatter breaks the charge too: catching the Champion mid-dash with his
+	# complement is the reward for reading the lane.
+	if shatter and charge_state != Charge.NONE:
+		charge_state = Charge.NONE
+		_charge_cooldown_left = charge_cooldown * 0.5
 	# Everything flinches briefly; a shatter knocks the knight down properly,
 	# and the heavy third swing staggers even through neutral armour.
 	var flinch: float = 0.18
@@ -597,9 +730,36 @@ func take_hit(amount: float, shatter: bool, heavy: bool, from_position: Vector2,
 	if shatter:
 		_say("stagger")
 
+	# Losing a third of his vigour moves the Champion into the next phase. The
+	# check is skipped on the killing blow: a dead man does not summon help.
+	if hp > 0.0 and is_boss:
+		_update_boss_phase()
+
 	if hp <= 0.0:
 		die()
 	return true
+
+
+## Phase thresholds. Phase II adds the charging dash; phase III calls the
+## Aspirants and spins the wheel faster. Phases only ever move forwards, so a
+## big single hit can skip II entirely - and still lands in the right place.
+func _update_boss_phase() -> void:
+	if not is_boss or dead:
+		return
+	var ratio: float = health_ratio()
+	var want: int = 1
+	if ratio <= phase_three_ratio:
+		want = 3
+	elif ratio <= phase_two_ratio:
+		want = 2
+	if want <= boss_phase:
+		return
+	boss_phase = want
+	if boss_phase == 3:
+		hue_speed = _base_hue_speed * phase_three_hue_scale
+		summons_requested.emit(summons_count)
+		_say("summon")
+	phase_changed.emit(boss_phase)
 
 
 ## A strike that glanced off without doing anything (the Collector's shield,
@@ -623,6 +783,8 @@ func health_ratio() -> float:
 func sleep_for_wave() -> void:
 	dormant = true
 	detection = 0.0
+	charge_state = Charge.NONE
+	attack_state = Attack.NONE
 	visible = false
 	set_process(false)
 	set_physics_process(false)
@@ -635,6 +797,7 @@ func wake_for_wave() -> void:
 	detection = 0.0
 	state = State.PATROL
 	attack_state = Attack.NONE
+	charge_state = Charge.NONE
 	velocity = Vector2.ZERO
 	spawn_grace_until = (room.time_in_room if room != null else 0.0) + LevelData.SPAWN_GRACE
 	visible = true
@@ -654,8 +817,18 @@ func die() -> void:
 	dead = true
 	detection = 0.0
 	attack_state = Attack.NONE
+	charge_state = Charge.NONE
 	velocity = Vector2.ZERO
 	_death_left = 0.30
+	# The Champion's death is a beat, not a pop: he kneels in the sand and
+	# stays there (the win page follows a couple of seconds later).
+	if is_boss:
+		kneeling = true
+		_death_left = 1.0e9
+		if _sprite != null:
+			_sprite.rotation = -1.1
+			_sprite.stop()
+			_sprite.modulate = Color(0.72, 0.72, 0.78)
 	# Stop colliding with anything the moment we are dead.
 	set_physics_process(false)
 	for child in get_children():
@@ -670,6 +843,18 @@ func die() -> void:
 
 func _draw() -> void:
 	if dead:
+		if kneeling:
+			# The beaten Champion: a low shadow, the broken ring of the wheel
+			# bleeding out around him, and one last pulse of his hue.
+			var breathe: float = 0.5 + 0.5 * sin(_time * 2.0)
+			draw_circle(Vector2(0.0, body_radius * 0.9), body_radius * 1.5, Color(0.0, 0.0, 0.0, 0.45))
+			draw_arc(Vector2.ZERO, body_radius + 16.0, 0.0, TAU, 40,
+				Color(colour.r, colour.g, colour.b, 0.25 + 0.25 * breathe), 3.0, true)
+			var font: Font = ThemeDB.fallback_font
+			if font != null:
+				draw_string(font, Vector2(-70.0, body_radius + 26.0), "THE CHAMPION KNEELS",
+					HORIZONTAL_ALIGNMENT_CENTER, 140.0, 12, Color(1.0, 1.0, 1.0, 0.85))
+			return
 		# A quick white pop instead of an enemy that simply vanishes.
 		var t: float = 1.0 - clampf(_death_left / 0.26, 0.0, 1.0)
 		draw_circle(Vector2.ZERO, body_radius * (1.0 + t * 1.6), Color(1.0, 1.0, 1.0, (1.0 - t) * 0.8))
@@ -700,6 +885,22 @@ func _draw() -> void:
 	var outline: PackedVector2Array = points.duplicate()
 	outline.append(Vector2.ZERO)
 	draw_polyline(outline, cone_edge, 1.5)
+
+	# --- boss charge telegraph --------------------------------------------
+	# A long, hot lane painted on the sand: at full charge the wedge is already
+	# committed, so the lane you see is exactly the lane he will run.
+	if is_boss and charge_state != Charge.NONE:
+		var lane_dir: Vector2 = _charge_dir if charge_state != Charge.WINDUP else Vector2.RIGHT.rotated(_facing)
+		var lane_len: float = charge_speed * charge_duration
+		var t_end: Vector2 = lane_dir * lane_len
+		var side: Vector2 = lane_dir.orthogonal() * (body_radius + 4.0)
+		if charge_state == Charge.WINDUP:
+			var ct: float = clampf(1.0 - _charge_left / maxf(charge_windup, 0.01), 0.0, 1.0)
+			draw_line(Vector2.ZERO, t_end, Color(1.0, 0.35, 0.20, 0.10 + 0.25 * ct), body_radius * 1.7)
+			draw_line(side, t_end + side, Color(1.0, 0.85, 0.65, 0.30 + 0.60 * ct), 2.5)
+			draw_line(-side, t_end - side, Color(1.0, 0.85, 0.65, 0.30 + 0.60 * ct), 2.5)
+		else:
+			draw_line(Vector2.ZERO, t_end, Color(1.0, 0.20, 0.10, 0.22), body_radius * 1.9)
 
 	# --- swing telegraph and blade arc ------------------------------------
 	# The windup wedge grows towards the swing's reach; the flashing wedge
@@ -761,7 +962,7 @@ func _draw() -> void:
 	elif state == State.INVESTIGATE:
 		draw_circle(Vector2(0.0, -body_radius - 22.0), 4.0, Color(1.0, 0.85, 0.2, 0.9))
 
-	# --- Collectors' boss extras -----------------------------------------
+	# --- Champion of the Wheel extras ------------------------------------
 	if is_boss:
 		# A ring of the whole hue wheel, spinning with the boss's hue: a visual
 		# reminder that he is the one holding the wheel.
@@ -778,6 +979,12 @@ func _draw() -> void:
 			var pulse: float = 0.6 + 0.4 * sin(_time * 14.0)
 			draw_circle(Vector2.ZERO, body_radius + 20.0, Color(1.0, 1.0, 1.0, 0.10 * pulse))
 			draw_arc(Vector2.ZERO, body_radius + 17.0, 0.0, TAU, 40, Color(1.0, 1.0, 1.0, 0.9), 3.0, true)
+		# Phase pips above the ring: three small marks that fill as he loses
+		# ground, so the duel's shape is readable between hits.
+		for i in 3:
+			var pip: Vector2 = Vector2((float(i) - 1.0) * 12.0, -body_radius - 54.0)
+			var lit: bool = (i + 1) <= boss_phase
+			draw_circle(pip, 3.2, Color(1.0, 0.86, 0.35, 0.95) if lit else Color(0.0, 0.0, 0.0, 0.55))
 
 	# --- floating label (typography that teaches the wheel) --------------
 	var font: Font = ThemeDB.fallback_font

@@ -5,9 +5,12 @@ class_name Game
 ##
 ## It owns everything that is not the room itself:
 ##   * the four layers (world, HUD, screens, full-screen effects)
-##   * the state machine: TITLE -> INTRO -> PLAY -> (DEAD | WIN)
+##   * the state machine: PLAY -> (PAUSED | DEAD | WIN)
 ##   * the score and the COMPLEMENT COMBO
 ##   * the juice: screen shake, screen flash and hit stop
+##
+## There is no menu and no story sequence: the game boots straight into the
+## first arena. The only pages are pause, victory and defeat.
 ##
 ## It is also the only script that knows about colour theory ACROSS rooms,
 ## because the combo is defined by two kills from different guards.
@@ -15,7 +18,7 @@ class_name Game
 ## Nothing here is built in the editor. Every node is created in _ready(), which
 ## means there is exactly one file to read to understand the whole game shell.
 
-enum State { TITLE, INTRO, PLAY, PAUSED, DEAD, WIN }
+enum State { PLAY, PAUSED, DEAD, WIN }
 
 @export_group("Colour rules")
 ## Hue distance (degrees) under which floor paint hides the player.
@@ -36,8 +39,12 @@ enum State { TITLE, INTRO, PLAY, PAUSED, DEAD, WIN }
 @export var max_multiplier: int = 8
 ## Flat bonus for putting the Collector down.
 @export var boss_kill_bonus: int = 1000
-## Bonus for clearing a room without ever being chased.
-@export var stealth_room_bonus: int = 500
+## Bonus for clearing an arena without ever being chased. The spec calls this
+## the flawless bonus.
+@export var stealth_room_bonus: int = 250
+## Bonus per aura shattered (see room.strike_landed). The shatter is the
+## colour-theory payoff, so it pays on its own as well as through the combo.
+@export var shatter_bonus: int = 150
 
 @export_group("Combo")
 ## Two complementary kills must land inside this many seconds to chain.
@@ -99,7 +106,7 @@ enum State { TITLE, INTRO, PLAY, PAUSED, DEAD, WIN }
 ## shader. Extra guards simply go unlit.
 @export var guard_light_count: int = 8
 
-var state: State = State.TITLE
+var state: State = State.PLAY
 var room: Room = null
 var room_index: int = 0
 
@@ -151,7 +158,9 @@ func _ready() -> void:
 	audio = AudioBank.new()
 	audio.name = "Audio"
 	add_child(audio)
-	start_title()
+	# Straight into the melee. No title page, no story cards: the arena is the
+	# whole opening. The controls and the rule live in the HUD hints.
+	start_run()
 
 
 func _process(delta: float) -> void:
@@ -237,13 +246,11 @@ func _build_layers() -> void:
 	add_child(_screens_layer)
 	screens = Screens.new()
 	screens.name = "Screens"
-	screens.start_requested.connect(_on_start_requested)
-	screens.intro_finished.connect(_on_intro_finished)
 	screens.restart_requested.connect(_on_screen_restart)
-	screens.title_requested.connect(start_title)
 	screens.quit_requested.connect(_on_quit_requested)
 	screens.resume_requested.connect(_on_resume_requested)
 	screens.room_restart_requested.connect(_on_pause_restart_room)
+	screens.run_restart_requested.connect(start_run)
 	_screens_layer.add_child(screens)
 
 	# 5. Effects that must sit on top of EVERYTHING, including the pages.
@@ -301,36 +308,8 @@ func _unhandled_input(event: InputEvent) -> void:
 # State machine
 # ---------------------------------------------------------------------------
 
-func start_title() -> void:
-	get_tree().paused = false
-	Engine.time_scale = 1.0
-	_hit_stop_until_msec = 0
-	_clear_room()
-	state = State.TITLE
-	_busy = false
-	score = 0
-	deaths = 0
-	run_time = 0.0
-	_reset_combo()
-	screens.show_title()
-	if hud != null:
-		hud.visible = false
-		hud.clear_messages()
-
-
-func _on_start_requested() -> void:
-	state = State.INTRO
-	# Start with the story scene (the spark in the grey city), which then hands
-	# off to the five rhyme cards, which then hands off to the run.
-	screens.show_story()
-
-
-func _on_intro_finished() -> void:
-	start_run()
-
-
-## The QUIT row on the start menu. On the web build there is no process to
-## quit, so this simply returns to the title if the engine refuses.
+## The QUIT row on the pause page. On the web build there is no process to
+## quit, so this simply tries and lets the engine refuse.
 func _on_quit_requested() -> void:
 	get_tree().quit()
 
@@ -365,8 +344,10 @@ func _on_pause_restart_room() -> void:
 	load_room(room_index)
 
 
-## Begin a fresh run at room 1 with a clean score.
+## Begin a fresh run at room 1 with a clean score. This is also what boots the
+## game, so it must work before any room has ever existed.
 func start_run() -> void:
+	get_tree().paused = false
 	Engine.time_scale = 1.0
 	score = 0
 	deaths = 0
@@ -400,6 +381,9 @@ func load_room(index: int) -> void:
 	room.player_died.connect(_on_player_died)
 	room.room_cleared.connect(_on_room_cleared)
 	room.boss_vulnerable_changed.connect(_on_boss_vulnerable_changed)
+	room.boss_phase_changed.connect(_on_boss_phase_changed)
+	room.boss_summons_spawned.connect(_on_boss_summons_spawned)
+	room.boss_charge_started.connect(_on_boss_charge_started)
 	room.strike_landed.connect(_on_strike_landed)
 	room.wave_started.connect(_on_wave_started)
 	room.wave_cleared.connect(_on_wave_cleared)
@@ -486,8 +470,56 @@ func _on_guard_killed(guard: Guard) -> void:
 		_add_shake(combo_shake)
 		_flash(guard.colour, 0.75)
 		audio.play("boss_down")
-		if hud != null:
-			hud.show_banner("THE COLLECTOR FALLS", "the last stolen hue pours out of him", guard.colour, 2.4)
+		# The victory beat: he kneels, the crowd goes silent, and the Unsworn
+		# is finally named. It runs while the room-clear sequence holds the
+		# win page back, so the duel ends on a held shot rather than a cut.
+		_boss_victory_beat()
+
+
+## Three held beats after the Champion falls, timed to land inside the 2.1 s
+## room-clear pause before the win page appears.
+func _boss_victory_beat() -> void:
+	if hud != null:
+		hud.show_banner("THE CHAMPION KNEELS", "the crowd falls silent", UiStyle.GOLD, 1.5)
+	await get_tree().create_timer(0.9).timeout
+	if hud != null:
+		hud.show_flash("the sand remembers every hue you spilled", UiStyle.PAPER, 1.2)
+	await get_tree().create_timer(0.7).timeout
+	if hud != null:
+		hud.show_banner("THE UNSWORN IS NAMED", "a house of one, and every colour his", UiStyle.GOLD, 1.6)
+	audio.play("named")
+
+
+## Phase II adds the charging dash; phase III calls the Aspirants. Each is a
+## herald's line, in the same voice as the wave banners.
+func _on_boss_phase_changed(phase: int) -> void:
+	audio.play("wave", 0.75)
+	_add_shake(kill_shake)
+	if hud == null:
+		return
+	var title: String = "PHASE II - THE CHARGE" if phase == 2 else "PHASE III - THE ASPIRANTS"
+	var sub: String = "he plants his feet and comes for you" if phase == 2 else "he calls the melee and spins the wheel faster"
+	hud.show_banner(title, sub, UiStyle.GOLD, 2.0)
+	if phase >= 3:
+		hud.show_flash("his hue is turning faster now", UiStyle.ALERT, 1.6)
+
+
+## The Champion's Aspirants have arrived. They are extra knights in the same
+## fight, not a new wave, so the banner says so.
+func _on_boss_summons_spawned(count: int) -> void:
+	audio.play("wave", 1.25)
+	_add_shake(roll_shake)
+	if hud == null:
+		return
+	var noun: String = "Aspirant" if count == 1 else "Aspirants"
+	hud.show_flash("%d %s enter the arena" % [count, noun], UiStyle.PAPER, 1.6)
+
+
+## The dash is committed: a shove of the camera and a low whoosh, so the lane
+## is felt as well as seen.
+func _on_boss_charge_started() -> void:
+	_add_shake(combo_shake * 0.45)
+	audio.play("charge")
 
 
 ## The complement payoff: a white flash, a hard shake and a bigger multiplier.
@@ -507,6 +539,10 @@ func _trigger_combo(colour: Color) -> void:
 func _on_strike_landed(kind: int, _at: Vector2) -> void:
 	match kind:
 		ColorTheory.Hit.SHATTER:
+			# Breaking an oath-aura pays on its own, before any kill: the shatter
+			# IS the colour-theory payoff, so it should not depend on the kill
+			# landing (spec section 6).
+			score += shatter_bonus
 			_add_shake(combo_shake * 0.55)
 			_flash(Color(1.0, 1.0, 1.0), 0.16)
 			_set_hit_stop()
@@ -556,10 +592,10 @@ func _on_room_cleared() -> void:
 	var bonus_text: String = ""
 	if not _spotted_this_room:
 		score += stealth_room_bonus
-		bonus_text = "+%d unspotted bonus" % stealth_room_bonus
+		bonus_text = "+%d flawless arena" % stealth_room_bonus
 
 	if hud != null:
-		hud.show_banner("ROOM CLEARED", bonus_text if bonus_text != "" else "colour is coming back", UiStyle.GOLD, 2.2)
+		hud.show_banner("ARENA CLEARED", bonus_text if bonus_text != "" else "the sand remembers", UiStyle.GOLD, 2.2)
 
 	var last_room: bool = room_index >= LevelData.room_count() - 1
 	await get_tree().create_timer(2.1).timeout
@@ -616,17 +652,17 @@ func _win() -> void:
 	screens.show_win(score, deaths, run_time, _rank())
 
 
-## Rank is a simple, honest measure of how carefully the run was played.
+## The spec's end-of-run rank is earned by SCORE, not survival: shatters,
+## complement chains and flawless arenas are what an "S - Named" run is made
+## of. Thresholds are tuned against a clean four-arena run.
 func _rank() -> String:
-	if deaths == 0:
+	if score >= 9000:
 		return "S"
-	if deaths <= 2:
+	if score >= 6000:
 		return "A"
-	if deaths <= 5:
+	if score >= 3000:
 		return "B"
-	if deaths <= 9:
-		return "C"
-	return "D"
+	return "C"
 
 
 ## The win or death page asks to play again.
@@ -787,6 +823,7 @@ func _sync_hud() -> void:
 		hud.barks = []
 		hud.boss_hue = -1.0
 		hud.boss_vulnerable = false
+		hud.boss_phase = 1
 		return
 
 	hud.guards_left = room.remaining_guard_count()
@@ -825,9 +862,11 @@ func _sync_hud() -> void:
 	if room.boss != null and is_instance_valid(room.boss) and not room.boss.dead:
 		hud.boss_hue = float(ColorTheory.hue_degrees(room.boss.colour))
 		hud.boss_vulnerable = room.boss.vulnerable
+		hud.boss_phase = room.boss.boss_phase
 	else:
 		hud.boss_hue = -1.0
 		hud.boss_vulnerable = false
+		hud.boss_phase = 1
 
 
 # ---------------------------------------------------------------------------

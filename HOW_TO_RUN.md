@@ -45,39 +45,39 @@ size and the renderer are all already set in `project.godot`.
 
 Press **F5** (or the ▶ play button, top-right).
 
-The game opens on a **start menu** — *START GAME / HOW TO PLAY / QUIT* — with a
-strip of the whole hue wheel above it. A window opens at 1280×720, resizable.
+A window opens at 1280×720, resizable, and you are **already in the first
+arena**: there is no title screen, no menu and no story sequence. Round one of
+the melee starts as soon as the window appears.
 
 **Controls**
 
 | Input | Action |
 |---|---|
-| **W A S D** / **Arrow keys** | Move — this also aims your light cone and your blade |
+| **W A S D** / **Arrow keys** | Move — this also aims your blade and your light |
 | **J** / **Left click** | Strike — 3-swing chain of 12 / 12 / 20; the third knocks back |
 | **Space** | Dodge roll — i-frames at the start of the roll |
-| **R** | Restart the current room |
-| **Esc** | Pause — *Resume / Restart room / Quit to menu* |
-| **W / S** on a menu | Move the highlight; **Space / Enter / click** selects |
+| **R** | Restart the current arena |
+| **Esc** | Pause — *Resume / Restart run / Quit game* |
 
 There is deliberately **no separate mouse aim**: the way you steer is the way you
-face, the way your blade swings, and the way your light cone points. A swing gets
-one gentle pull onto a knight already in front of you — never behind your back.
+face and the way your blade swings. A swing gets one gentle pull onto a knight
+already in front of you — never behind your back.
 
 **A 30-second first run**, so you can tell it works:
 
-1. Choose **START GAME**. A short story scene plays (the spark alone in the grey
-   city), then the five rhyme cards — press **Space** (or click) to move through
-   them.
-2. In Room 1 you are a white spark on a grey floor with two guards.
-3. Walk up to the **red** guard, point at him with **W A S D**, then press **J**
-   two or three times to chain swings. He dies and splatters red paint on the
-   floor.
-4. Stand in that red paint. **Your own colour is now red** (see the swatch in the
-   top-left HUD), so the floor matches you and the remaining guard cannot see you.
-5. Walk to the **yellow** guard and cut him down to clear the room. If a swing
-   comes your way, **Space** rolls you through it, unharmed.
+1. Arena 1 loads with a ~1.4s grace ring under you before any knight can see.
+2. You are the Unsworn, colourless (white), on sand, with **two** knights: RED and
+   YELLOW.
+3. Walk up to the **red** knight, point at him with **W A S D**, then press **J**
+   two or three times to chain swings. He dies and spills red paint.
+4. Stand in that red paint. **Your own hue is now red** (see the swatch in the
+   bottom-left HUD), so the sand matches you and the remaining knight cannot build
+   detection on you.
+5. Cut the **yellow** knight down. Wave 2 then marches in from the north and south
+   gates — the herald's banner and the countdown say so.
 
-If all five steps happen, the build is good.
+If all five steps happen, the build is good. Dying is cheap: the arena reloads by
+itself in about a second and your score and arena number are kept.
 
 > **If you see a black window or a shader warning:** open
 > **Project → Project Settings → Rendering → Renderer** and confirm it is
@@ -89,7 +89,7 @@ If all five steps happen, the build is good.
 
 ## 4. Run the automated tests
 
-The project ships with an 187-check test suite. It runs in a headless engine (no
+The project ships with a 289-check test suite. It runs in a headless engine (no
 window) and prints a pass/fail line for every check.
 
 **From the editor:** open `tests/test_runner.tscn` in the FileSystem panel and
@@ -109,7 +109,7 @@ You should see the checks scroll past and then:
 
 ```
 =========================================================
-RESULT: 187 passed, 0 failed
+RESULT: 289 passed, 0 failed
 =========================================================
 ```
 
