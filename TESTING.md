@@ -233,8 +233,10 @@ result, so a failure is unambiguous.
 |---|---|---|
 | 1 | Press F5 | A 1280×720 window opens **already in the arena**. No title screen, no menu, no story cards, no error text. |
 | 2 | Look at the arena itself | Warm sand with visible grain, stone walls with brick courses, a crowd of silhouettes behind the top and bottom walls, banners hanging over the sand, four braziers with moving flames, dust drifting. Never a flat grey box. |
-| 3 | Look at the middle of the floor | Arena 1 shows a red-orange sun sigil; the other arenas show their own marks. |
-| 4 | Wait out the first second | A white ring around you counts down the ~1.4s grace before any knight can see you. |
+| 3 | Look at the middle of the floor | Arena 1 shows a red-orange sun sigil; the others show their own marks (a cross with a violet centre, a full colour wheel, the wheel's spokes). |
+| 4 | Read the top of the screen | A gold **verse for the house** appears above the lesson hint and fades after ~9s, never competing with a fight. |
+| 5 | Look beside the score (top right) | The **house sigil**: a hue ring with that house's emblem inside, in the arena's accent colour. It changes every round. |
+| 6 | Wait out the first second | A white ring around you counts down the ~1.4s grace before any knight can see you. |
 
 ### Arena 1 — The Open Sand (matching)
 
