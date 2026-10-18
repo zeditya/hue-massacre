@@ -131,13 +131,13 @@ const ROOMS: Array = [
 	# =======================================================================
 	{
 		"id": 0,
-		"name": "ARENA 01",
-		"title": "THE OPEN SAND",
-		"house": "HOUSE OF THE CRIMSON SUN",
+		"name": "HALL I",
+		"title": "THE SUN'S HALL",
+		"house": "THE SUN'S WARDEN",
 		"lesson": "Simultaneous contrast",
-		"hint": "Colour is your armour. Kill a knight, stand in the colour he spills, and the sand under you matches your hue - so nothing can pick you out of it.",
-		# One verse per house, printed by the HUD when the arena loads.
-		"verse": "HOUSE OF THE CRIMSON SUN\nThey fight for a sun that never sets.\nYou fight for the colour you are standing in.",
+		"hint": "Wear the floor. Stand in paint of your own hue and the sworn look straight through you - one free strike, before the oath wakes. After that, colour is armour.",
+		# One stanza of the hymn per hall, printed by the HUD when the hall loads.
+		"verse": "I - THE SUN'S HALL\nBefore the wheel was broken it was light.\nWhat burns in here is a quarter of it.\nThe hall has kept it, and the hall is grey.",
 		"accent": Color(0.92, 0.30, 0.18),
 		"wall_color": Color(0.42, 0.36, 0.31),
 		# The laid stone of this arena, kept desaturated (the darkest grey still
@@ -217,7 +217,7 @@ const ROOMS: Array = [
 				"pos": Vector2(200.0, 58.0),
 				"path": [Vector2(200.0, 58.0), Vector2(1080.0, 58.0), Vector2(1080.0, 662.0), Vector2(200.0, 662.0)],
 				"speed": 78.0,
-				"cone": 300.0,
+				"sight": 300.0,
 				"wave": 1,
 			},
 			{
@@ -227,7 +227,7 @@ const ROOMS: Array = [
 				"pos": Vector2(450.0, 190.0),
 				"path": [Vector2(450.0, 190.0), Vector2(830.0, 190.0), Vector2(830.0, 530.0), Vector2(450.0, 530.0)],
 				"speed": 86.0,
-				"cone": 300.0,
+				"sight": 300.0,
 				"wave": 1,
 			},
 			{
@@ -239,7 +239,7 @@ const ROOMS: Array = [
 				"pos": Vector2(640.0, 662.0),
 				"path": [Vector2(640.0, 662.0), Vector2(640.0, 58.0)],
 				"speed": 82.0,
-				"cone": 300.0,
+				"sight": 300.0,
 				"wave": 2,
 			},
 			{
@@ -249,7 +249,7 @@ const ROOMS: Array = [
 				"pos": Vector2(700.0, 190.0),
 				"path": [Vector2(700.0, 190.0), Vector2(700.0, 530.0)],
 				"speed": 90.0,
-				"cone": 290.0,
+				"sight": 290.0,
 				"wave": 2,
 			},
 			{
@@ -262,7 +262,7 @@ const ROOMS: Array = [
 				"hp": 140.0,
 				"damage": 25.0,
 				"radius": 16.0,
-				"cone": 320.0,
+				"sight": 320.0,
 				"wave": 3,
 			},
 			{
@@ -276,7 +276,7 @@ const ROOMS: Array = [
 				"hp": 45.0,
 				"damage": 10.0,
 				"radius": 12.0,
-				"cone": 280.0,
+				"sight": 280.0,
 				"wave": 3,
 			},
 		],
@@ -292,13 +292,13 @@ const ROOMS: Array = [
 	# =======================================================================
 	{
 		"id": 1,
-		"name": "ARENA 02",
-		"title": "THE BANNERED HALL",
-		"house": "THE TWIN HOUSES",
+		"name": "HALL II",
+		"title": "THE TWINS' HALL",
+		"house": "THE TWIN WARDENS",
 		"lesson": "Additive hue blending",
-		"hint": "Two houses fight here at once. Kill RED and BLUE where their paint meets in the crossing: red and blue average on the wheel to VIOLET - and the paint will too.",
-		# One verse per house, printed by the HUD when the arena loads.
-		"verse": "THE TWIN HOUSES\nTwo houses share this hall and share no colour.\nWhere their paint meets, a third colour is born.",
+		"hint": "Two oaths meet in the crossing: red and blue run together into violet. Kill them where the paint blends, and the sand will mix for you.",
+		# One stanza of the hymn per hall, printed by the HUD when the hall loads.
+		"verse": "II - THE TWINS' HALL\nTwo wardens, one red oath and one blue.\nPut them together and you will see\nthe colour they were before they were two.",
 		"accent": Color(0.30, 0.55, 0.95),
 		"wall_color": Color(0.40, 0.34, 0.30),
 		"stones": {
@@ -375,7 +375,7 @@ const ROOMS: Array = [
 				"pos": Vector2(110.0, 360.0),
 				"path": [Vector2(110.0, 360.0), Vector2(1170.0, 360.0)],
 				"speed": 80.0,
-				"cone": 320.0,
+				"sight": 320.0,
 				"wave": 1,
 			},
 			{
@@ -385,7 +385,7 @@ const ROOMS: Array = [
 				"pos": Vector2(640.0, 100.0),
 				"path": [Vector2(640.0, 100.0), Vector2(640.0, 620.0)],
 				"speed": 80.0,
-				"cone": 320.0,
+				"sight": 320.0,
 				"wave": 1,
 			},
 			{
@@ -395,7 +395,7 @@ const ROOMS: Array = [
 				"pos": Vector2(58.0, 58.0),
 				"path": [Vector2(58.0, 58.0), Vector2(1222.0, 58.0), Vector2(1222.0, 662.0), Vector2(58.0, 662.0)],
 				"speed": 96.0,
-				"cone": 280.0,
+				"sight": 280.0,
 				"wave": 2,
 			},
 			{
@@ -408,7 +408,7 @@ const ROOMS: Array = [
 				"hp": 45.0,
 				"damage": 10.0,
 				"radius": 12.0,
-				"cone": 280.0,
+				"sight": 280.0,
 				"wave": 3,
 			},
 			{
@@ -423,7 +423,7 @@ const ROOMS: Array = [
 				"hp": 140.0,
 				"damage": 25.0,
 				"radius": 16.0,
-				"cone": 320.0,
+				"sight": 320.0,
 				"wave": 3,
 			},
 		],
@@ -439,13 +439,13 @@ const ROOMS: Array = [
 	# =======================================================================
 	{
 		"id": 2,
-		"name": "ARENA 03",
-		"title": "THE DEEP RING",
-		"house": "HOUSE OF THE GREEN THORN",
+		"name": "HALL III",
+		"title": "THE THORN'S HALL",
+		"house": "THE THORN WARDEN",
 		"lesson": "Complementary contrast",
-		"hint": "Opposite hues on the wheel cancel out. Kill GREEN then PURPLE - or YELLOW then BLUE - inside three seconds and the score doubles.",
-		# One verse per house, printed by the HUD when the arena loads.
-		"verse": "HOUSE OF THE GREEN THORN\nHere the wheel is the whole floor.\nFind the hue opposite yours, and end it.",
+		"hint": "Opposite hues cancel out. Kill green then purple - or yellow then blue - inside three seconds and the wheel pays you double.",
+		# One stanza of the hymn per hall, printed by the HUD when the hall loads.
+		"verse": "III - THE THORN'S HALL\nA root in the dark keeps the oldest colour.\nIt does not hate you. It has only been here\nlonger than you have, and it will not move.",
 		"accent": Color(0.30, 0.90, 0.45),
 		"wall_color": Color(0.31, 0.35, 0.44),
 		"stones": {
@@ -517,7 +517,7 @@ const ROOMS: Array = [
 				"pos": Vector2(150.0, 150.0),
 				"path": [Vector2(150.0, 150.0), Vector2(1130.0, 150.0), Vector2(1130.0, 570.0), Vector2(150.0, 570.0)],
 				"speed": 88.0,
-				"cone": 300.0,
+				"sight": 300.0,
 				"wave": 1,
 			},
 			{
@@ -527,7 +527,7 @@ const ROOMS: Array = [
 				"pos": Vector2(600.0, 300.0),
 				"path": [Vector2(600.0, 300.0), Vector2(740.0, 300.0), Vector2(740.0, 420.0), Vector2(600.0, 420.0)],
 				"speed": 86.0,
-				"cone": 300.0,
+				"sight": 300.0,
 				"wave": 1,
 			},
 			{
@@ -536,7 +536,7 @@ const ROOMS: Array = [
 				"pos": Vector2(1000.0, 600.0),
 				"path": [Vector2(1000.0, 600.0), Vector2(1000.0, 120.0)],
 				"speed": 84.0,
-				"cone": 300.0,
+				"sight": 300.0,
 				"wave": 1,
 			},
 			{
@@ -547,7 +547,7 @@ const ROOMS: Array = [
 				"pos": Vector2(150.0, 360.0),
 				"path": [Vector2(150.0, 360.0), Vector2(1130.0, 360.0)],
 				"speed": 96.0,
-				"cone": 290.0,
+				"sight": 290.0,
 				"wave": 2,
 			},
 			{
@@ -555,7 +555,7 @@ const ROOMS: Array = [
 				"pos": Vector2(300.0, 120.0),
 				"path": [Vector2(300.0, 120.0), Vector2(300.0, 600.0)],
 				"speed": 84.0,
-				"cone": 300.0,
+				"sight": 300.0,
 				"wave": 2,
 			},
 		],
@@ -571,13 +571,13 @@ const ROOMS: Array = [
 	# =======================================================================
 	{
 		"id": 3,
-		"name": "ARENA 04",
+		"name": "HALL IV",
 		"title": "THE WHEEL",
 		"house": "THE CHAMPION OF THE WHEEL",
 		"lesson": "Complementary cancellation",
-		"hint": "The Champion spins his own hue around the wheel. Cut him only while YOUR hue sits on his complement - inside the gold band. Below a third of his vigour he calls his Aspirants.",
-		# One verse per house, printed by the HUD when the arena loads.
-		"verse": "THE CHAMPION OF THE WHEEL\nHe has worn every colour in one day.\nTake the one he is not wearing, and hold it.",
+		"hint": "He turns his own hue around the wheel. Cut the Champion only while YOUR hue sits on his opposite, inside the gold band - below a third of his vigour he calls his Aspirants.",
+		# One stanza of the hymn per hall, printed by the HUD when the hall loads.
+		"verse": "IV - THE WHEEL\nHe wears every colour and owns not one.\nHe will offer you the same.\nTake it, and no one says your name again.",
 		"accent": Color(1.0, 0.82, 0.25),
 		"wall_color": Color(0.30, 0.25, 0.24),
 		"stones": {
@@ -654,7 +654,7 @@ const ROOMS: Array = [
 				"pos": Vector2(620.0, 110.0),
 				"path": [Vector2(620.0, 110.0), Vector2(780.0, 110.0)],
 				"speed": 92.0,
-				"cone": 280.0,
+				"sight": 280.0,
 				# The stands empty onto the sand: an Aspirant is one of the
 				# crowd's own, axe first, wearing the champion's office.
 				"unit": "aspirant",
@@ -664,7 +664,7 @@ const ROOMS: Array = [
 				"pos": Vector2(620.0, 600.0),
 				"path": [Vector2(620.0, 600.0), Vector2(460.0, 600.0)],
 				"speed": 96.0,
-				"cone": 280.0,
+				"sight": 280.0,
 				"unit": "aspirant",
 			},
 		],
@@ -676,14 +676,14 @@ const ROOMS: Array = [
 				"pos": Vector2(200.0, 120.0),
 				"path": [Vector2(200.0, 120.0), Vector2(1080.0, 120.0), Vector2(1080.0, 600.0), Vector2(200.0, 600.0)],
 				"speed": 92.0,
-				"cone": 280.0,
+				"sight": 280.0,
 			},
 			{
 				"color": Color(0.0, 0.0, 1.0),
 				"pos": Vector2(250.0, 310.0),
 				"path": [Vector2(250.0, 310.0), Vector2(1030.0, 310.0)],
 				"speed": 96.0,
-				"cone": 280.0,
+				"sight": 280.0,
 			},
 			{
 				# THE CHAMPION OF THE WHEEL.
@@ -697,8 +697,8 @@ const ROOMS: Array = [
 				],
 				"speed": 62.0,
 				"chase": 118.0,
-				"cone": 380.0,
-				"cone_angle": 92.0,
+				"sight": 380.0,
+				"sight_arc": 92.0,
 				"radius": 34.0,
 				"boss": true,
 				"hp": 400.0,

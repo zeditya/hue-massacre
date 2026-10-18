@@ -668,3 +668,98 @@ Two things worth knowing about exporting locally, both learned here:
 `tools/probe_camera.gd` was written to settle a confusion (it prints camera
 position, zoom and visible world size). It is useful and safe to keep, but it is
 a dev tool: delete it if the repo is being tidied for submission.
+
+---
+
+## 10. Session: the story, and the RPG pivot
+
+> **This section supersedes §9.13's "still open" list.** The user's new brief is
+> bigger than the assignment: keep the arcade arena game, but make it a
+> top-down RPG whose colour theory is both the combat **and** the story, with a
+> real boss per hall, smart enemies, weapons and magic, music and footsteps, and
+> a proper opening screen. Read `docs/STORY.md` before writing any string.
+
+### 10.1 The story (decided; full bible in `docs/STORY.md`)
+
+**One line: the last colours in the world are locked in four halls. A knight
+with no colour comes to take them, hall by hall, and the ones who guard them
+will not let go.**
+
+- **The Unsworn** has no hue and no name; their colour was spent. They never
+  speak until the end, and their only line is their name.
+- **The sworn** are the enemies, and they are *right*: the four halls guard the
+  last four quarters of the Wheel, and a hall that loses its colour goes grey,
+  then its people do. That is why they fight to the death.
+- **Once they see you they never leave** — no cones, no searching, no giving up
+  (this is the user's AI rule, and the fiction *is* the rule: the oath is
+  total). One exception, kept as a first-strike tool only: standing in paint of
+  your own hue keeps a sworn knight from noticing you *before* the fight starts.
+- **The Champion was the last Unsworn.** He took the same road and became the
+  office: every colour, no self. He invites rather than threatens (*"Take it.
+  Take all of it."*), and when he falls he **kneels** and offers the office.
+- **The turn is the ending:** the crowd names the Unsworn from the hue they are
+  wearing when the Champion kneels — *the name is the colour you kept*. Rank S
+  is "NAMED" and always was. Different runs, different names.
+
+**Four halls = four bosses = the four Tiny Swords classes** (a happy accident
+worth keeping):
+
+| Hall | Warden | Art | Abilities | Quarter → reward |
+|---|---|---|---|---|
+| I Open Sand | the Sun's Warden | Warrior | shield stance, slam shockwave, bull charge | EMBER → **heavy strike** |
+| II Bannered Hall | the Twin Wardens (red + blue) | Knight pair | kill one, the other **blends** red+blue → violet, both movesets | VIOLET → **bow** |
+| III Deep Ring | the Thorn Warden | Monk | hue **ward** (only its complement cuts it), self-heals, thorns erupt, summons | THORN → **ward** (spell) |
+| IV The Wheel | the Champion | Lancer | rotation, charge, Aspirants, + quarter storm | GOLD → the office |
+
+The lesson of each hall is taught by *fighting its warden*, never by a text box.
+
+### 10.2 Newly available art (inventoried this session)
+
+The first pass only skimmed the packs. What is actually in them:
+
+- **Tiny Swords** — `Archer_{Idle,Run,Shoot}` + `Arrow.png` (a real ranged
+  enemy), `Monk/{Idle,Run,Heal}` + `Heal_Effect.png` (a healer boss + a ward
+  spell), the **full 8-direction Lancer** attack/defence sheets, `Warrior_Guard`,
+  and per-class Pawn `Interact` sets. 5 colour factions for every unit.
+- **Buildings** — 8 types × 5 factions (`Castle`, `Tower`, `Barracks`,
+  `Archery`, `Monastery`, `House1-3`): the halls/strongholds *as places*.
+- **Terrain** — tilesets in 5 colourways, decorations incl. **clouds** — an
+  outdoor backdrop is now buildable for the opening screen.
+- **UI** — banners, big/small bars, 3 button families, 4 cursors, **14 avatar
+  sheets**, icons, papers. Every piece of the new opening screen can be pack art.
+- **Super Pixel Effects** — 5923 PNGs across every effect family; we use four.
+- **Medieval Village MegaKit** — **it is a 3D kit** (OBJ/FBX/glTF + PBR
+  textures). It cannot be used in a 2D pixel game at all; this closes the
+  "why is the CC0 pack unused" question for good.
+- **No pack ships audio** (checked: zero .wav/.ogg/.mp3). Music and footsteps
+  must stay **procedural** — which is what `scripts/audio_bank.gd` already is.
+- Still unusable, still licence-blocked: `Thug`, `Survivor W Bike`,
+  `Demon_sword`, `2D HD Character Knight` (no licence file), `Modern Interiors`
+  (non-commercial only).
+
+### 10.3 The plan (phases; each one ends green)
+
+- **A — story & opening.** Story bible (§10.1); rewrite the four verses,
+  verses→hymn; herald, kill, death and naming lines; the sworn's barks (the
+  motive); the naming = hue-you-wear mechanic; and a **real opening screen**
+  built from Tiny Swords buildings/terrain/clouds/UI, with the rules taught as
+  live hue swatches. This is the visible, graded work.
+- **B — the sworn get smart.** Delete the vision cones and every "lose the
+  player" state; permanent aggro; LOS through walls; the shout that wakes
+  nearby sworn; roles (archers keep range and only shoot with LOS, monks hide
+  behind the line and heal, lancers hold the line); spacing and flanking.
+- **C — four bosses.** Per-hall wardens with the abilities above, incl. the
+  twin **blend** and the thorn **ward**; boss intro beats, health bars for
+  wardens, reward beats.
+- **D — weapons & magic.** Quarter pickups → heavy strike, bow, ward; HUD row of
+  the quarters taken; the Champion's office.
+- **E — audio.** Footsteps per surface/unit, weapon-specific impacts, deaths,
+  the ward hum, shard pickups, and an adaptive music bed per hall (drone +
+  drums, intensity from crowd excitement).
+- **F — packaging.** Docs, captures, export, video.**
+
+### 10.4 Next move
+
+Start at **Phase A**: the story strings + the opening screen, then Phase B's
+aggro rewrite (they are the two the user asked for most directly). Re-run
+`tests/test_runner.tscn` (303/0 baseline) and the capture tools after each.

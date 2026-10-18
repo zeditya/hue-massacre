@@ -238,6 +238,111 @@ bake "$TS/UI Elements/UI Elements/Banners/Banner.png" "$OUT/ui/banner.png" 50%
 bake "$TS/UI Elements/UI Elements/Bars/SmallBar_Base.png" "$OUT/ui/bar_base.png" 100%
 bake "$TS/UI Elements/UI Elements/Bars/SmallBar_Fill.png" "$OUT/ui/bar_fill.png" 100%
 
+# ---------------------------------------------------------------------------
+# 9. THE STORY STAGE - everything the opening scene and the hall gates need.
+#    This is the "use everything" section: the pack's clouds, buildings,
+#    portraits, papers, icons, buttons, cursors and big bar all ship now.
+# ---------------------------------------------------------------------------
+echo "story stage (Tiny Swords clouds + buildings):"
+# Clouds: eight shapes, half scale. The opening drifts them across a dawn sky,
+# and the halls hang the same art overhead.
+for i in 1 2 3 4 5 6 7 8; do
+	bake "$TS/Terrain/Decorations/Clouds/Clouds_0$i.png" "$OUT/ui/clouds/cloud_0$i.png" 50%
+done
+# Buildings: EVERY faction, eight types each, at half scale (96x128). The
+# opening stacks the black ones into a night skyline and the red ones into the
+# gate of the Sun's Hall; the halls themselves reuse them as scenery.
+for pair in black:Black red:Red yellow:Yellow blue:Blue purple:Purple; do
+	folder="${pair%%:*}" pack="${pair##*:}"
+	for name in Archery Barracks Castle House1 House2 House3 Monastery Tower; do
+		bake "$TS/Buildings/$pack Buildings/$name.png" "$OUT/ui/buildings/$folder/$name.png" 50%
+	done
+done
+
+echo "story stage (portraits + scroll + furniture):"
+# Portraits: the pack's 25 human avatars at full size (256px, 5 factions x 5
+# faces). The dialogue boxes use them - the dying Unsworn, the herald, the
+# Champion - so the story has faces instead of initials.
+mkdir -p "$OUT/ui/avatars"
+for i in $(seq -w 1 25); do
+	bake "$TS/UI Elements/UI Elements/Human Avatars/Avatars_$i.png" "$OUT/ui/avatars/avatar_$i.png" 100%
+done
+# The scroll: the story panel is written on the pack's own paper.
+bake "$TS/UI Elements/UI Elements/Papers/RegularPaper.png" "$OUT/ui/paper.png" 50%
+bake "$TS/UI Elements/UI Elements/Papers/SpecialPaper.png" "$OUT/ui/paper_special.png" 50%
+# The pack's twelve icons (sword, shield, gear, coin, meat, log, hammer, tree,
+# flag, X, info, note) at native 64px - menus and the controls legend.
+for i in 01 02 03 04 05 06 07 08 09 10 11 12; do
+	bake "$TS/UI Elements/UI Elements/Icons/Icon_$i.png" "$OUT/ui/icons/icon_$i.png" 100%
+done
+# Four cursors, at native size: a real game cursor instead of the OS arrow.
+for i in 01 02 03 04; do
+	bake "$TS/UI Elements/UI Elements/Cursors/Cursor_$i.png" "$OUT/ui/cursors/cursor_$i.png" 100%
+done
+# Buttons and the big bar: the pages (pause / win / dead) are built from these
+# from now on, and the Champion's health bar wears the BigBar frame.
+for who in big_blue:BigBlueButton small_blue_square:SmallBlueSquareButton small_blue_round:SmallBlueRoundButton; do
+	name="${who%%:*}" src="${who##*:}"
+	bake "$TS/UI Elements/UI Elements/Buttons/${src}_Regular.png" "$OUT/ui/buttons/${name}.png" 50%
+	bake "$TS/UI Elements/UI Elements/Buttons/${src}_Pressed.png" "$OUT/ui/buttons/${name}_pressed.png" 50%
+done
+for who in big_red:BigRedButton small_red_square:SmallRedSquareButton; do
+	name="${who%%:*}" src="${who##*:}"
+	bake "$TS/UI Elements/UI Elements/Buttons/${src}_Regular.png" "$OUT/ui/buttons/${name}.png" 50%
+	bake "$TS/UI Elements/UI Elements/Buttons/${src}_Pressed.png" "$OUT/ui/buttons/${name}_pressed.png" 50%
+done
+bake "$TS/UI Elements/UI Elements/Bars/BigBar_Base.png" "$OUT/ui/big_bar_base.png" 100%
+bake "$TS/UI Elements/UI Elements/Bars/BigBar_Fill.png" "$OUT/ui/big_bar_fill.png" 100%
+bake "$TS/UI Elements/UI Elements/Banners/Banner_Slots.png" "$OUT/ui/banner_slots.png" 50%
+
+echo "story stage (ward magic):"
+# The wheel's spells, from Super Pixel Effects (credited: unTied Games). Every
+# one is greyed so the runtime tint throws the right hue on it, exactly like
+# the unit sheets.
+spell() {
+	local src="$1" dst="$2" size="$3"
+	magick "$src"/frame*.png +append -filter point -resize "$size" -colorspace Gray -depth 8 "$dst"
+	echo "  $dst"
+}
+# The gift the dying Unsworn gives: hue absorption itself.
+spell "$SPE/PNG/Fantasy Spells/spell_absorb_001/spell_absorb_001_large_violet" \
+	"$OUT/fx/absorb.png" 50%
+# The Thorn Warden's heal, the Warrior's shield ward, a colour leaving a body,
+# and the sparkle the wheel leaves on everything it touches.
+spell "$SPE/PNG/Fantasy Spells/spell_heal_001/spell_heal_001_large_red" \
+	"$OUT/fx/heal.png" 50%
+spell "$SPE/PNG/Fantasy Spells/spell_defense_up_001/spell_defense_up_001_large_blue" \
+	"$OUT/fx/ward.png" 50%
+spell "$SPE/PNG/Fantasy Spells/spell_death_001/spell_death_001_large_red" \
+	"$OUT/fx/drain.png" 50%
+spell "$SPE/PNG/Fantasy Spells/status_sparkling_001/status_sparkling_001_large_yellow" \
+	"$OUT/fx/sparkle.png" 50%
+# The marks: the S rank the crowd stamps on a NAMED Unsworn, the alert the
+# sworn shout, the warning before a perilous blow, and the Champion's crown.
+spell "$SPE/PNG/Symbols/symbol_rank_S_001/symbol_rank_S_001_large_yellow" "$OUT/fx/mark_rank_s.png" 100%
+spell "$SPE/PNG/Symbols/symbol_alert_001/symbol_alert_001_large_red"           "$OUT/fx/mark_alert.png" 100%
+spell "$SPE/PNG/Symbols/symbol_warning_001/symbol_warning_001_large_yellow"    "$OUT/fx/mark_warning.png" 100%
+spell "$SPE/PNG/Symbols/symbol_crown_001/symbol_crown_001_large_yellow"        "$OUT/fx/mark_crown.png" 100%
+
+# ---------------------------------------------------------------------------
+# 10. THE REST OF THE TERRAIN - the variants the earlier pass left on the
+#     table. Every one of them is now picked by position hash in the halls, so
+#     no two stretches of the same ground wear the same rock twice.
+# ---------------------------------------------------------------------------
+echo "terrain, the rest of it:"
+# Bushes 2-4 and trees 2-4 are animated strips exactly like bush1/tree1, so they
+# go through the same band-then-tile helper.
+for i in 2 3 4; do
+	anim_prop "$TS/Terrain/Decorations/Bushes/Bushe$i.png" "$OUT/props/bush$i.png" 8 "1024x46+0+33" 50%
+done
+for i in 2 3 4; do
+	anim_prop "$TS/Terrain/Resources/Wood/Trees/Tree$i.png" "$OUT/props/tree$i.png" 8 "1536x192+0+48" 50%
+done
+for i in 1 2 3 4; do
+	static_prop "$TS/Terrain/Decorations/Rocks in the Water/Water Rocks_0$i.png" "$OUT/props/water_rock$i.png" 64x64 50%
+done
+static_prop "$TS/Terrain/Resources/Gold/Gold Resource/Gold_Resource.png" "$OUT/props/gold_vein.png" 64x64 50%
+
 echo
 echo "done. Re-import in Godot:"
 echo "  flatpak run org.godotengine.Godot --headless --editor --path . --quit"

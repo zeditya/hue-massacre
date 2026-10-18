@@ -1,23 +1,23 @@
 class_name Guard
 extends CharacterBody2D
 ##
-## GUARD - a knight of the Grand Melee, carrying one house hue.
+## GUARD - one of the SWORN: a soldier of a hall, carrying that hall's hue.
 ##
-## THE DETECTION RULE (this is the colour theory exam question):
-## a guard can only fill its detection meter when ALL THREE are true:
+## THE OATH RULE (this is the story AND the AI):
+## a sworn soldier notices the player the ordinary way - in front of it, in
+## clear line of sight, not camouflaged - and then it NEVER gives up. The
+## oath is total: no vision cones, no searching, no walking home. Once a
+## knight has locked on, it knows where the Unsworn is until one of them is
+## on the sand, and the only choice left is whose colour spills.
 ##
-##   1. the player is inside the vision cone (an angle test), AND
-##   2. there is clear line of sight - no wall between them, AND
-##   3. the player's hue CONTRASTS with the colour of the floor under them.
+## The one mercy is the first strike: `ColorTheory.visibility()` returns 0
+## when the paint the player stands in matches their own hue, so a knight
+## that has never seen them can look straight through them. That is
+## simultaneous contrast used as an opener, and it only works once - after
+## the alarm is up, every sworn in the hall is awake.
 ##
-## Condition 3 is the interesting one. `ColorTheory.visibility()` returns 0
-## when the paint you are standing in matches your own hue, and that is
-## simultaneous contrast: same hue side by side = the edge between them
-## disappears. Standing on bare grey floor always returns 1.0, because a grey
-## floor has no hue to match, so you are always visible in an unpainted room.
-##
-## States: PATROL -> INVESTIGATE (walk to where it last saw you) -> PATROL,
-## with CHASE taking over the moment detection hits 1.0.
+## States: PATROL -> CHASE (permanent), plus INVESTIGATE when a shout from a
+## comrade sends it to the alarm point before it has eyes of its own.
 ##
 ## Every tunable is an @export below.
 
@@ -39,45 +39,86 @@ enum Attack { NONE, WINDUP, RECOVER }
 ## Boss charge state machine: NONE -> WINDUP -> DASH -> RECOVER -> NONE.
 enum Charge { NONE, WINDUP, DASH, RECOVER }
 
-## Things guards say. "%s" is replaced with the guard's own colour name, so a
-## blue guard shouts about the blue one, and the banter teaches the wheel.
+## What armour a unit wears -> what the hall calls it.
+const UNIT_NAMES := {
+	"knight": "SWORN KNIGHT",
+	"harrier": "SWORN THRALL",
+	"warden": "SWORN WARDEN",
+	"aspirant": "ASPIRANT",
+	"champion": "CHAMPION OF THE WHEEL",
+	"archer": "SWORN ARCHER",
+	"monk": "THORN-SWORN",
+	"lancer": "SWORN LANCE",
+}
+
+## Things the sworn say. "%s" is replaced with the guard's own colour name, so
+## a blue knight shouts about the blue one, and the banter teaches the wheel.
+##
+## The voice is the story's small print: they are not villains, they are
+## guards, and they know exactly what happens to the hall if its colour
+## leaves. Short lines only - a bark has to be readable mid-fight.
 const BARKS := {
 	"alert": [
-		"...a colour?",
-		"Who's there?",
-		"What was that?",
-		"I saw something move.",
+		"...a colour that is not ours.",
+		"The sand moved.",
+		"Who walks there?",
 	],
 	"spotted": [
-		"There - the %s one!",
-		"Stop, %s!",
-		"I see %s!",
-		"Got you, %s thief!",
+		"A hueless knight - here?!",
+		"Stop! The quarter is not yours!",
+		"Thief! For the hall!",
+		"The Unsworn - I see it!",
+	],
+	# The alarm. A knight that has just locked on shouts, and every sworn in
+	# earshot wakes up. This is the shout that replaces the vision cone.
+	"shout": [
+		"THE OATH - WAKE! AN UNSWORN WALKS!",
+		"To me! Hueless in the hall!",
+		"Ring the hall - it is here!",
 	],
 	"lost": [
-		"Where did it go?",
-		"Must have slipped past.",
-		"...gone.",
+		"Where - where?",
+		"It was here.",
+		"Find it. FIND IT.",
 	],
 	"investigate": [
-		"I know you're here.",
-		"Come out, come out...",
-		"Just a rat... maybe.",
-		"Keep looking.",
+		"I heard a shout.",
+		"Something is wrong.",
+		"Show yourself.",
 	],
 	"stagger": [
-		"My hue - it cracks!",
-		"No! Not my colour!",
-		"The wheel hates me...",
+		"My oath - it cracks!",
+		"Not the colour - not the last of it!",
+		"How does it cut me?!",
+	],
+	# The player just turned a blow on the beat. For a sworn knight this is
+	# worse than being cut: it means the hueless thing is LEARNING them.
+	"parried": [
+		"It TURNED my blow!",
+		"Who taught it that?",
+		"Impossible - again! Come again!",
+		"That is OUR school, hueless!",
+	],
+	# An ally has just spilled their colour nearby. The hall notices.
+	"comrade": [
+		"%s is down - its colour is out!",
+		"You will not have ours!",
+		"That was the last of %s.",
+	],
+	# The player is nearly finished, and the sworn can taste it.
+	"last": [
+		"It is nearly ours!",
+		"Keep it cornered!",
+		"One more and the hall keeps its colour.",
 	],
 	# Boss only: the wait before the charging dash, and the summons.
 	"charge": [
 		"The wheel will not be denied!",
-		"Stand and take your colour!",
-		"I am the Champion - I do not miss!",
+		"Take up your colour, aspirant.",
+		"I was you. You will be me.",
 	],
 	"summon": [
-		"Aspirants! To the Champion!",
+		"Aspirants! To me!",
 		"Let the melee be joined!",
 		"Crowd, claim your due!",
 	],
@@ -158,18 +199,22 @@ const BARKS := {
 @export var charge_min_range: float = 90.0
 @export var charge_range: float = 300.0
 
-@export_group("Vision")
-## How far the cone reaches, in pixels.
-@export var cone_length: float = 310.0
-## Full width of the cone in degrees. Half of this is the half-angle.
-@export var cone_angle_deg: float = 64.0
+@export_group("Sight")
+## How far a knight notices movement, in pixels. There is no drawn cone any
+## more: this is the range of the sight test, widened to a generous arc so a
+## knight feels alert rather than blind in its own blind spots.
+@export var sight_range: float = 310.0
+## Full width of the sight arc in degrees. Half of this is the half-angle.
+## 130 - a knight notices almost anything in front of and beside it, and the
+## only thing that beats it is paint that exactly matches the Unsworn's hue.
+@export var sight_arc_deg: float = 130.0
 ## Seconds of full contrast needed to go from unaware to chasing.
 @export var detect_time: float = 0.45
-## How fast the meter drains when the guard cannot see you.
+## How fast the meter drains when the guard cannot see you. Only matters
+## before the first lock-on: after that the oath never lets go.
 @export var detect_decay: float = 1.15
-## Number of rays used to clip the drawn cone against walls. Purely visual.
-@export var cone_rays: int = 22
-## Must match Player.hide_tolerance_deg, or the drawing would lie about the rules.
+## Must match Player.hide_tolerance_deg, or the rules would lie about what the
+## paint veil does.
 @export var hide_tolerance_deg: float = 26.0
 
 ## Written by the room; needed for walls and for reading the player.
@@ -455,8 +500,8 @@ func _perceive(delta: float) -> void:
 
 	var player: Player = _player()
 	if player != null and not player.frozen and not dead:
-		var in_cone: bool = _inside_cone(player.global_position)
-		if in_cone:
+		var in_sight: bool = _in_sight(player.global_position)
+		if in_sight:
 			# Wall check: the same line test the cone is drawn with.
 			var clear: bool = room == null or room.has_line_of_sight(global_position, player.global_position)
 			if clear:
@@ -486,28 +531,21 @@ func _perceive(delta: float) -> void:
 		if detection >= 1.0:
 			if state != State.CHASE:
 				spotted.emit(global_position)
-				_say("spotted")
+				# The shout. Every sworn in earshot hears it and wakes up -
+				# this line is the whole alarm system, spoken out loud.
+				_say("shout" if randf() < 0.6 else "spotted")
 			state = State.CHASE
 			_lost_timer = 0.0
-		elif state == State.CHASE:
-			# Re-acquiring line of sight restarts the give-up countdown, so a
-			# guard that keeps glimpsing you through gaps does not suddenly
-			# forget you the moment the gap closes again.
-			_lost_timer = 0.0
+	elif state == State.CHASE:
+		# THE OATH IS TOTAL. There is no give-up branch any more: a knight
+		# that has seen the Unsworn follows until one of them is on the sand.
+		# Losing sight does not matter - `_do_chase` walks at the player's
+		# real position, and the hall is small enough that the only way out
+		# is through. The meter only ever matters for the FIRST lock-on, and
+		# that is the one moment the paint veil buys.
+		_lost_timer = 0.0
 	else:
 		detection = clampf(detection - delta * detect_decay, 0.0, 1.0)
-		if state == State.CHASE:
-			_lost_timer += delta
-			if _lost_timer >= lose_time:
-				# Give up the chase but go and poke around where we last saw them.
-				state = State.INVESTIGATE
-				_lost_timer = 0.0
-				_wait_left = 0.0
-				_investigate_left = investigate_time
-				detection = 0.0
-				attack_state = Attack.NONE
-				charge_state = Charge.NONE
-				_say("lost")
 
 
 func _player() -> Player:
@@ -516,14 +554,14 @@ func _player() -> Player:
 	return room.player
 
 
-func _inside_cone(point: Vector2) -> bool:
+func _in_sight(point: Vector2) -> bool:
 	var to_point: Vector2 = point - global_position
 	var dist: float = to_point.length()
-	if dist > cone_length:
+	if dist > sight_range:
 		return false
 	if dist < 1.0:
 		return true
-	var half: float = deg_to_rad(cone_angle_deg * 0.5)
+	var half: float = deg_to_rad(sight_arc_deg * 0.5)
 	return absf(_angle_delta(to_point.angle(), _facing)) <= half
 
 
@@ -747,19 +785,46 @@ func hear(at: Vector2) -> void:
 	_say("investigate")
 
 
-## Say a random line for `event`. A "%s" in the line is filled with this
-## guard's own colour name.
-func _say(event: String) -> void:
+## An ally has just spilled their colour nearby. The hall notices, and says so.
+func grieve(dead_colour: Color) -> void:
+	if dead:
+		return
+	_say("comrade", ColorTheory.color_name(dead_colour))
+
+
+## The player is nearly finished and the sworn can taste it. Only ever fired
+## once per room by the game, so it reads as a moment and not a nag.
+func taste_blood() -> void:
+	if dead or state != State.CHASE:
+		return
+	_say("last")
+
+
+## What the hall calls this one. Used by the HUD, the barks and the obituaries.
+func unit_name() -> String:
+	return str(UNIT_NAMES.get(unit, "SWORN KNIGHT"))
+
+
+## Say a random line for `event`. A "%s" in the line is filled with `fill`
+## when given (an ally's colour, say) and with this guard's own colour name
+## otherwise.
+func _say(event: String, fill: String = "") -> void:
 	var lines: Array = BARKS.get(event, [])
 	if lines.is_empty():
 		return
 	var line: String = str(lines[randi() % lines.size()])
 	if line.find("%s") >= 0:
-		line = line % ColorTheory.color_name(colour)
+		line = line % (fill if not fill.is_empty() else ColorTheory.color_name(colour))
 	bark_text = line
 	bark_left = 2.0
 	bark_total = 2.0
 	bark_colour = colour
+
+
+## Bark from the hall's own mouth, called by the room - the line has to come
+## out of THEM, because a parry is their oath cracking, not the player's deed.
+func bark(event: String) -> void:
+	_say(event)
 
 
 # ---------------------------------------------------------------------------
@@ -941,36 +1006,19 @@ func _draw() -> void:
 
 	var body: Color = colour
 
-	# --- the vision cone --------------------------------------------------
-	# Drawn from a fan of rays, each one clipped at the first wall it hits, so
-	# what you SEE is exactly what the line-of-sight check does.
-	var half: float = deg_to_rad(cone_angle_deg * 0.5)
-	var steps: int = maxi(cone_rays, 4)
-	var points: PackedVector2Array = PackedVector2Array()
-	points.append(Vector2.ZERO)
-	for i in steps + 1:
-		var a: float = _facing - half + (2.0 * half) * (float(i) / float(steps))
-		var dir: Vector2 = Vector2.RIGHT.rotated(a)
-		var reach: float = cone_length
-		if room != null:
-			reach = cone_length * room.raycast_distance(global_position, global_position + dir * cone_length)
-		points.append(dir * reach)
-
-	# The cone brightens as the guard notices you - a free tutorial in itself.
-	# It is drawn as four nested wedges, brightest at the knight and thinning
-	# towards its reach: on top of a painted floor a flat wash reads like a
-	# stain, a falloff reads like light.
-	var alert: float = clampf(detection, 0.0, 1.0)
-	for k in 4:
-		var t: float = 1.0 - float(k) * 0.24
-		var band: PackedVector2Array = PackedVector2Array()
-		for p in points:
-			band.append(p * t)
-		var band_alpha: float = (0.045 + 0.05 * alert) * (0.5 + float(k) * 0.5)
-		draw_colored_polygon(band, Color(body.r, body.g, body.b, band_alpha))
-	var outline: PackedVector2Array = points.duplicate()
-	outline.append(Vector2.ZERO)
-	draw_polyline(outline, Color(body.r, body.g, body.b, 0.38 + 0.42 * alert), 1.5)
+	# --- the notice ring --------------------------------------------------
+	# THE CONE IS GONE. A knight's sight is no longer diagrammed on the floor:
+	# the oath does not need a wedge of light, it needs a warning. While a
+	# knight is working out whether it has seen you, a thin ring tightens
+	# around its feet in its own hue. The moment it locks on, the ring shuts
+	# and the alarm shout goes up - which is the only "vision" the player
+	# needs to read, and it reads at a glance.
+	if detection > 0.001:
+		var locked: bool = detection >= 1.0 or state == State.CHASE
+		var rr: float = body_radius * (2.2 + 2.4 * detection)
+		var ring_a: float = 0.20 if locked else (0.26 + 0.55 * detection)
+		draw_arc(Vector2.ZERO, rr, 0.0, TAU, 26, Color(body.r, body.g, body.b, ring_a),
+			1.2 + 1.6 * detection if not locked else 1.2)
 
 	# --- boss charge telegraph --------------------------------------------
 	# A long, hot lane painted on the sand: at full charge the wedge is already
@@ -1021,14 +1069,6 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, body_radius + 6.0, 0.0, TAU, 26,
 			Color(1.0, 1.0, 1.0, 0.30 + 0.35 * pulse), 2.5, true)
 
-	# --- detection meter --------------------------------------------------
-	if detection > 0.01:
-		var w: float = 38.0
-		var y: float = -body_radius - 16.0
-		draw_rect(Rect2(-w * 0.5, y, w, 5.0), Color(0.0, 0.0, 0.0, 0.65))
-		var meter: Color = Color(1.0, 0.85, 0.2).lerp(Color(1.0, 0.15, 0.15), detection)
-		draw_rect(Rect2(-w * 0.5, y, w * detection, 5.0), meter)
-
 	# --- health bar -------------------------------------------------------
 	# Shown once damaged (or while hunting) so a fresh room stays clean but a
 	# fight reads at a glance.
@@ -1072,15 +1112,17 @@ func _draw() -> void:
 			var lit: bool = (i + 1) <= boss_phase
 			draw_circle(pip, 3.2, Color(1.0, 0.86, 0.35, 0.95) if lit else Color(0.0, 0.0, 0.0, 0.55))
 
-	# --- floating label (typography that teaches the wheel) --------------
+	# --- unit name --------------------------------------------------------
+	# One short name, only while the room is awake: the hall's word for what
+	# this is (SWORN KNIGHT, SWORN WARDEN...). No hues, no degrees - the
+	# colour is the knight's armour and does not need to be read out.
 	var font: Font = ThemeDB.fallback_font
-	if font != null:
-		var label: String = "%s %d" % [ColorTheory.color_name(body), ColorTheory.hue_degrees(body)]
-		var label_colour: Color = Color(1.0, 1.0, 1.0, 0.78)
-		draw_string(font, Vector2(-60.0, body_radius + 18.0), label,
-			HORIZONTAL_ALIGNMENT_CENTER, 120.0, 12, Color(0.0, 0.0, 0.0, 0.6))
-		draw_string(font, Vector2(-60.0, body_radius + 17.0), label,
-			HORIZONTAL_ALIGNMENT_CENTER, 120.0, 12, label_colour)
+	if font != null and (hp < max_hp - 0.001 or state == State.CHASE):
+		var label: String = unit_name()
+		draw_string(font, Vector2(-70.0, body_radius + 18.0), label,
+			HORIZONTAL_ALIGNMENT_CENTER, 140.0, 10, Color(0.0, 0.0, 0.0, 0.6))
+		draw_string(font, Vector2(-70.0, body_radius + 17.0), label,
+			HORIZONTAL_ALIGNMENT_CENTER, 140.0, 10, Color(1.0, 1.0, 1.0, 0.62))
 
 
 ## A filled pie slice from the guard's centre towards `_facing`, spreading

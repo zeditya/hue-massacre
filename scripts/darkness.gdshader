@@ -1,32 +1,36 @@
 shader_type canvas_item;
 
-// DARKNESS - the drained city, lit by the spark's light cone and by the lanterns
-// the guards carry.
+// DARKNESS - the halls at dusk, lit by the Unsworn's torch and by the lanterns
+// the sworn carry.
 //
 // This is a full-screen overlay drawn on its own CanvasLayer ABOVE the world but
 // BELOW the HUD, so the interface stays fully legible while the world goes dim.
 // It is additive night, not a hard blackout: three lights lift it.
 //
-//   1. The player's light cone - a torch beam that follows WASD.
+//   1. The player's torch - a POOL of light around the Unsworn, not a beam.
+//      (It was a directional cone in the stealth build; the sworn now see you
+//      the moment they notice you and never give up, so a sight cone was only
+//      ever punishing the player. 180 degrees = a full circle.)
 //   2. A soft AMBIENT pool around the player, so the ground near you is always
-//      readable even when you are not pointing at it. This is what makes the
-//      rooms navigable instead of a keyhole.
-//   3. A lantern pool around every guard, tinted with the stolen colour that
-//      guard carries. Guards glow in the dark, so the threat is legible before
-//      it is on top of you - and the whole screen reads as "colour is light".
+//      readable.
+//   3. A lantern pool around every sworn soldier, tinted with the colour that
+//      soldier carries. The sworn glow in the dark, so the threat is legible
+//      before it is on top of you - and the whole screen reads as "colour is
+//      light".
 //
-// The cone does not cast wall shadows (that needs LightOccluders), but it falls
+// The light does not cast wall shadows (that needs LightOccluders), but it falls
 // off with both distance and angle, which is enough.
 
 // Size of the canvas in pixels (the base viewport, e.g. 1280x720).
 uniform vec2 screen_size = vec2(1280.0, 720.0);
 // Where the player is, in the same pixel space as screen_size.
 uniform vec2 player_pos = vec2(640.0, 360.0);
-// Direction the cone points, in radians.
+// Direction the torch is held, in radians. Only matters while the arc is
+// narrower than 180.
 uniform float facing = 0.0;
-// Half-width of the cone, in degrees.
-uniform float cone_deg : hint_range(0.0, 180.0) = 50.0;
-// How far the cone reaches, in pixels.
+// Full width of the torch arc, in degrees. 180 = the full circle (a pool).
+uniform float light_arc_deg : hint_range(0.0, 180.0) = 180.0;
+// How far the torch reaches, in pixels.
 uniform float light_range : hint_range(0.0, 2048.0) = 720.0;
 // A small always-lit circle around the player so they never lose themselves.
 uniform float near_radius : hint_range(0.0, 512.0) = 95.0;
@@ -58,7 +62,7 @@ void fragment() {
 		lit = 1.0 - dist / near_radius;
 	}
 
-	float half_cone = radians(cone_deg);
+	float half_cone = radians(light_arc_deg);
 	// Shortest angular distance between the pixel direction and the cone.
 	float diff = abs(mod(atan(d.y, d.x) - facing + PI, TAU) - PI);
 	if (diff < half_cone && dist < light_range) {

@@ -39,6 +39,9 @@ signal boss_summons_spawned(count: int)
 signal boss_charge_started
 ## A strike landed on a guard (before any kill). kind = ColorTheory.Hit.
 signal strike_landed(kind: int, at: Vector2)
+## A blow was turned on a freshly raised guard. `staggered` is false when there
+## was nobody close enough to blame - the parry still happened.
+signal player_parried(at: Vector2, staggered: bool)
 ## A hit on the player left real damage (feedback and crowd reactions).
 signal player_hurt(at: Vector2)
 
@@ -69,6 +72,12 @@ signal player_hurt(at: Vector2)
 @export var hear_radius: float = 260.0
 ## Guards within this range react when an ally shouts that it has spotted you.
 @export var shout_radius: float = 360.0
+
+## How long a PARRY leaves the attacker open. Longer than any hit's flinch,
+## because the parry cost the player the risk of standing still on the beat.
+@export var parry_stagger: float = 1.15
+## How close to the turned blow the attacker has to be to be held responsible.
+@export var parry_blame_radius: float = 90.0
 
 ## A wave room holds its breath for this long after the last knight of a wave
 ## falls, then the next pack marches in.
@@ -115,6 +124,8 @@ var _excitement: float = 0.0
 var _player_gone: bool = false
 var _cleared: bool = false
 var _last_boss_vulnerable: bool = false
+## Once per room, the sworn notice the Unsworn is nearly finished and say so.
+var _blood_tasted: bool = false
 
 
 func _ready() -> void:
@@ -295,6 +306,9 @@ func _build_player() -> void:
 	# A swung blade is loud: nearby guards hear it and come to look. The same
 	# signal also runs the room's gentle auto-aim (see _on_player_struck).
 	player.struck.connect(_on_player_struck)
+	# A parried blow leaves the attacker wide open: the room is the only place
+	# that knows who swung it, so the reward is handed out here.
+	player.parried.connect(_on_player_parried)
 	# Reference to blood field for footprints
 	player.blood = blood
 	add_child(player)
@@ -350,8 +364,8 @@ func _make_guard(spec: Dictionary) -> Guard:
 	guard.body_radius = float(spec.get("radius", LevelData.GUARD_RADIUS))
 	guard.patrol_speed = float(spec.get("speed", 75.0))
 	guard.chase_speed = float(spec.get("chase", 165.0))
-	guard.cone_length = float(spec.get("cone", 310.0))
-	guard.cone_angle_deg = float(spec.get("cone_angle", 64.0))
+	guard.sight_range = float(spec.get("sight", 310.0))
+	guard.sight_arc_deg = float(spec.get("sight_arc", 64.0))
 	guard.hue_speed = float(spec.get("hue_speed", 0.0))
 	guard.hide_tolerance_deg = hide_tolerance_deg
 	# Which armour this one wears. A spec may name it outright ("unit"), which
@@ -417,9 +431,21 @@ func _physics_process(delta: float) -> void:
 		return
 	_update_camouflage()
 	_update_boss_windows()
+	_update_blood_taste()
 	_resolve_strikes()
 	_resolve_motes()
 	_update_waves(delta)
+
+
+## The hall can taste a dying knight: the first time the Unsworn drops below a
+## third of their vigour, every sworn hunting them says so. Once per hall.
+func _update_blood_taste() -> void:
+	if _blood_tasted or player.hp > player.max_hp * 0.34:
+		return
+	_blood_tasted = true
+	for guard in guards:
+		if is_instance_valid(guard) and not guard.dead:
+			guard.taste_blood()
 
 
 ## Work out how visible the Unsworn is right now, and store it on the player so
@@ -535,8 +561,14 @@ func _on_guard_killed(guard: Guard) -> void:
 	# burst of it, right where the knight fell.
 	queue_fx("splash", guard.position, guard.colour, 0.9 if not guard.is_boss else 1.6)
 	report_kill_effect(guard.position, guard.colour)
-	# 3. Then the guard leaves the field.
+	# 3. Then the guard leaves the field. Every sworn in earshot sees an ally's
+	#    colour go out, and says so - the hall is a place with people in it, not
+	#    a spawner, and the barks are how the player hears that.
 	guards.erase(guard)
+	for other in guards:
+		if is_instance_valid(other) and not other.dead \
+				and other.global_position.distance_to(guard.global_position) <= shout_radius:
+			other.grieve(guard.colour)
 	guard_killed.emit(guard)
 	if _cleared or not guards.is_empty():
 		return
@@ -693,6 +725,41 @@ func _nearest_guard_in_arc(direction: float, half: float, max_dist: float) -> Gu
 		var to_guard: Vector2 = guard.position - player.position
 		var d: float = to_guard.length()
 		if d > best_dist or absf(_angle_delta(to_guard.angle(), direction)) > half:
+			continue
+		best = guard
+		best_dist = d
+	return best
+
+
+## The Unsworn caught a blow on the blade in the parry window. The blow itself
+## is already turned (the player did that); this is where the room hands out
+## the reward, because only the room knows WHO swung:
+##   * whoever threw it is left open far longer than any hit could leave them,
+##   * and they say so, in their own voice.
+## A parry with nobody close enough to blame still reads as a parry: the clang
+## and the ward are the player's, the stagger is a bonus.
+func _on_player_parried(from_position: Vector2) -> void:
+	var target: Guard = _nearest_guard_to(from_position, parry_blame_radius)
+	var staggered: bool = false
+	if target != null:
+		# A boss is not floored by one good read, but he IS opened up: this is
+		# the player's free swing, and it has to be worth the risk taken.
+		var open_time: float = parry_stagger * (0.7 if target.is_boss else 1.0)
+		target.stagger_left = maxf(target.stagger_left, open_time)
+		target.bark("parried")
+		staggered = true
+	player_parried.emit(from_position, staggered)
+
+
+## Closest living guard to a point, within `max_dist`.
+func _nearest_guard_to(pos: Vector2, max_dist: float) -> Guard:
+	var best: Guard = null
+	var best_dist: float = max_dist
+	for guard in guards:
+		if not is_instance_valid(guard) or guard.dead:
+			continue
+		var d: float = guard.position.distance_to(pos)
+		if d > best_dist:
 			continue
 		best = guard
 		best_dist = d

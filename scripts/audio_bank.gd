@@ -47,6 +47,13 @@ const SFX := {
 	"wave":       {"f0": 170.0, "f1": 430.0, "dur": 0.50, "decay": 0.55,"wave": Wave.SQUARE, "db": -5.0},
 	"charge":     {"f0": 130.0, "f1": 620.0, "dur": 0.62, "decay": 0.45,"wave": Wave.NOISE,  "db": -4.0},
 	"named":      {"f0": 300.0, "f1": 900.0, "dur": 1.60, "decay": 0.24,"wave": Wave.SINE,   "db": -2.0},
+	# The opening's own vocabulary: a blade coming out of the sand, a hall gate
+	# grinding open, the hue-absorption gift, a dying knight's heart, and boots.
+	"sword":      {"f0": 2400.0,"f1": 520.0, "dur": 0.30, "decay": 1.15,"wave": Wave.SQUARE, "db": -6.0},
+	"gate":       {"f0": 120.0, "f1": 40.0,  "dur": 1.15, "decay": 0.55,"wave": Wave.NOISE,  "db": -1.0},
+	"gift":       {"f0": 240.0, "f1": 1500.0,"dur": 0.95, "decay": 0.30,"wave": Wave.SINE,   "db": -3.0},
+	"pulse":      {"f0": 74.0,  "f1": 44.0,  "dur": 0.34, "decay": 1.20,"wave": Wave.SINE,   "db": -2.0},
+	"step":       {"f0": 880.0, "f1": 320.0, "dur": 0.05, "decay": 3.20,"wave": Wave.NOISE,  "db": -13.0},
 }
 
 var _streams: Dictionary = {}

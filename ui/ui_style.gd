@@ -72,6 +72,12 @@ static func pad_score(value: int) -> String:
 	return str(value).pad_zeros(7)
 
 
+## The same colour at a different opacity. Used by anything that fades text in
+## or out (the opening's title card, mostly).
+static func glow(colour: Color, alpha: float) -> Color:
+	return Color(colour.r, colour.g, colour.b, colour.a * clampf(alpha, 0.0, 1.0))
+
+
 ## Draw one line of text with a dark outline behind it.
 ## `width` enables alignment: pass a positive width to centre or right-align.
 static func text(canvas: CanvasItem, string: String, pos: Vector2, size: int, colour: Color,

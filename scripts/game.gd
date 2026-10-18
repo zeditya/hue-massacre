@@ -9,8 +9,8 @@ class_name Game
 ##   * the score and the COMPLEMENT COMBO
 ##   * the juice: screen shake, screen flash and hit stop
 ##
-## There is no menu and no story sequence: the game boots straight into the
-## first arena. The only pages are pause, victory and defeat.
+## There is no menu: the game opens on the OPENING scene, and after that it is
+## straight into the first hall. The only pages are pause, victory and defeat.
 ##
 ## It is also the only script that knows about colour theory ACROSS rooms,
 ## because the combo is defined by two kills from different guards.
@@ -18,7 +18,7 @@ class_name Game
 ## Nothing here is built in the editor. Every node is created in _ready(), which
 ## means there is exactly one file to read to understand the whole game shell.
 
-enum State { PLAY, PAUSED, DEAD, WIN }
+enum State { OPENING, PLAY, PAUSED, DEAD, WIN }
 
 @export_group("Colour rules")
 ## Hue distance (degrees) under which floor paint hides the player.
@@ -45,6 +45,9 @@ enum State { PLAY, PAUSED, DEAD, WIN }
 ## Bonus per aura shattered (see room.strike_landed). The shatter is the
 ## colour-theory payoff, so it pays on its own as well as through the combo.
 @export var shatter_bonus: int = 150
+## Bonus for turning a blow on the parry window, with or without a victim to
+## blame. Reading the beat is the hardest thing the game asks; it pays.
+@export var parry_bonus: int = 120
 
 @export_group("Combo")
 ## Two complementary kills must land inside this many seconds to chain.
@@ -52,13 +55,19 @@ enum State { PLAY, PAUSED, DEAD, WIN }
 
 @export_group("Feedback")
 ## How fast screen shake decays. Higher = snappier.
-@export var shake_decay: float = 5.5
-@export var roll_shake: float = 3.0
-@export var kill_shake: float = 9.0
-@export var combo_shake: float = 16.0
-@export var death_shake: float = 20.0
-## Hard cap so a big combo cannot throw the world off screen.
-@export var max_shake: float = 26.0
+@export var shake_decay: float = 7.5
+## THE SHAKE POLICY: the camera moves for DEATHS and nothing else. Rolls,
+## ordinary hits, shatters, combos and boss telegraphs are all read through
+## flashes, hit-stop and sound instead. A camera that jumps on every swing
+## stops meaning anything, and it made the game hard to watch for too long.
+@export var roll_shake: float = 0.0
+@export var kill_shake: float = 3.2
+## One more shake for a warden or the Champion going down.
+@export var combo_shake: float = 5.0
+## ...and the Unsworn's own death gets the biggest one there is.
+@export var death_shake: float = 5.5
+## Hard cap so nothing can throw the world off screen.
+@export var max_shake: float = 9.0
 ## Seconds of near-freeze on a kill. Real-world time, not game time.
 @export var hit_stop_seconds: float = 0.05
 ## How long the death prompt stays up before the room reloads by itself.
@@ -86,17 +95,17 @@ enum State { PLAY, PAUSED, DEAD, WIN }
 ## masonry and the guests on the rim all have to stay readable under it.
 ## Set this false for the original daylight look.
 @export var darkness_enabled: bool = true
-## Half-width of the player's light cone, in degrees. A torch throws a fairly
-## narrow beam, so this is deliberately tighter than a full floodlight. The cone
-## follows WASD.
-@export var light_cone_deg: float = 50.0
-## How far the light cone reaches, in pixels. Long enough to see down a hallway.
+## Full width of the player's light, in degrees. 180 = a complete circle:
+## the light is a torch POOL around the Unsworn, not a beam. The old stealth
+## cone is gone - you always see what is around you, which is what makes a
+## hall full of sworn who never give up a fair fight instead of a blind one.
+@export var light_arc_deg: float = 180.0
+## How far the light reaches, in pixels. Long enough to see down a hallway.
 @export var light_range: float = 850.0
 ## A small always-lit circle around the Unsworn so they never lose themselves.
 @export var light_near_radius: float = 120.0
 ## A dim pool of visibility around the Unsworn in every direction, so the ground
-## right next to you is always readable even when you are not pointing at it.
-## Kept short and weak so the forward cone still reads as a torch beam.
+## right next to you is always readable.
 @export var light_ambient_range: float = 190.0
 @export_range(0.0, 1.0) var light_ambient_strength: float = 0.50
 ## How far each knight's lantern reaches. Knights glow with their own hue.
@@ -110,7 +119,7 @@ enum State { PLAY, PAUSED, DEAD, WIN }
 ## shader. Extra guards simply go unlit.
 @export var guard_light_count: int = 8
 
-var state: State = State.PLAY
+var state: State = State.OPENING
 var room: Room = null
 var room_index: int = 0
 
@@ -124,6 +133,9 @@ var run_time: float = 0.0
 var world_root: Node2D = null
 var hud: Hud = null
 var screens: Screens = null
+## The opening scene, while it is on screen (null once the first hall loads).
+var opening: Opening = null
+var _opening_layer: CanvasLayer = null
 var audio: AudioBank = null
 var flash: ColorRect = null
 ## Full-screen darkness with the player's light cone cut out of it.
@@ -166,8 +178,37 @@ func _ready() -> void:
 	audio = AudioBank.new()
 	audio.name = "Audio"
 	add_child(audio)
-	# Straight into the melee. No title page, no story cards: the arena is the
-	# whole opening. The controls and the rule live in the HUD hints.
+	# THE OPENING. One scene, one dying knight, one sword in the sand: the
+	# story's rules, the player's name, and why anybody is doing this at all,
+	# delivered before the first hall says a word. It hands over to start_run()
+	# when it finishes, and it can be skipped with ESC.
+	show_opening()
+
+
+## Put the story's first scene on screen. The HUD stays hidden underneath it,
+## so the only thing on screen is the story.
+func show_opening() -> void:
+	if opening != null:
+		return
+	if _opening_layer == null:
+		_opening_layer = CanvasLayer.new()
+		_opening_layer.name = "OpeningLayer"
+		_opening_layer.layer = 5
+		add_child(_opening_layer)
+	opening = Opening.new()
+	opening.name = "Opening"
+	opening.audio = audio
+	opening.finished.connect(_on_opening_finished)
+	_opening_layer.add_child(opening)
+	state = State.OPENING
+	if hud != null:
+		hud.visible = false
+
+
+func _on_opening_finished() -> void:
+	if opening != null:
+		opening.queue_free()
+		opening = null
 	start_run()
 
 
@@ -289,6 +330,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	var clicked: bool = event is InputEventMouseButton \
 		and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
 
+	# The opening owns the screen while it plays: it advances on SPACE and it
+	# skips on ESC, and nothing underneath it is running yet anyway.
+	if state == State.OPENING:
+		return
+
 	# Full-screen pages swallow input first.
 	if screens.is_blocking():
 		# On the start menu, Up/Down (arrow keys, or W/S) move the highlight.
@@ -400,12 +446,16 @@ func load_room(index: int) -> void:
 	room.boss_summons_spawned.connect(_on_boss_summons_spawned)
 	room.boss_charge_started.connect(_on_boss_charge_started)
 	room.strike_landed.connect(_on_strike_landed)
+	room.player_parried.connect(_on_player_parried)
 	room.wave_started.connect(_on_wave_started)
 	room.wave_cleared.connect(_on_wave_cleared)
 	world_root.add_child(room)
 	# The dodge roll belongs to the player alone, so its feedback (a shove of
 	# the camera, the air-puff sound) hangs straight off the player's signal.
 	room.player.rolled.connect(_on_player_rolled)
+	# The boots, on the other hand, belong to whoever is walking: distance
+	# based, so the sound stays locked to the legs.
+	room.player.stepped.connect(_on_player_stepped)
 	_snap_camera()
 
 	if hud != null:
@@ -521,7 +571,6 @@ func _boss_victory_beat() -> void:
 ## herald's line, in the same voice as the wave banners.
 func _on_boss_phase_changed(phase: int) -> void:
 	audio.play("wave", 0.75)
-	_add_shake(kill_shake)
 	# The wheel spins up: the Champion's own hue flares around him as he takes
 	# the next turn of it. A phase change is never a surprise.
 	if room != null:
@@ -544,7 +593,6 @@ func _on_boss_phase_changed(phase: int) -> void:
 ## fight, not a new wave, so the banner says so.
 func _on_boss_summons_spawned(count: int) -> void:
 	audio.play("wave", 1.25)
-	_add_shake(roll_shake)
 	if hud == null:
 		return
 	var noun: String = "Aspirant" if count == 1 else "Aspirants"
@@ -553,18 +601,15 @@ func _on_boss_summons_spawned(count: int) -> void:
 	crowd_excitement = minf(crowd_excitement + 0.2, 1.0)
 
 
-## The dash is committed: a shove of the camera and a low whoosh, so the lane
-## is felt as well as seen.
+## The dash is committed: a low whoosh, so the lane is felt as well as seen.
 func _on_boss_charge_started() -> void:
-	_add_shake(combo_shake * 0.45)
 	audio.play("charge")
 	# Crowd holds breath for the charge
 	crowd_excitement = minf(crowd_excitement + 0.15, 1.0)
 
 
-## The complement payoff: a white flash, a hard shake and a bigger multiplier.
+## The complement payoff: a white flash and a bigger multiplier.
 func _trigger_combo(colour: Color) -> void:
-	_add_shake(combo_shake)
 	# Two complementary colours average to white, so the flash is white.
 	_flash(Color(1.0, 1.0, 1.0), 0.55)
 	audio.play("combo")
@@ -585,20 +630,17 @@ func _on_strike_landed(kind: int, _at: Vector2) -> void:
 			# IS the colour-theory payoff, so it should not depend on the kill
 			# landing (spec section 6).
 			score += shatter_bonus
-			_add_shake(combo_shake * 0.55)
 			_flash(Color(1.0, 1.0, 1.0), 0.16)
 			_set_hit_stop()
 			audio.play("shatter", randf_range(0.92, 1.08))
 			# Crowd reacts to shatters
 			crowd_excitement = minf(crowd_excitement + 0.08, 1.0)
 		ColorTheory.Hit.ABSORBED:
-			_add_shake(kill_shake * 0.2)
 			audio.play("clang", randf_range(0.75, 0.90))
 			# The blade bounced: no freeze at all, or the dodge that follows a
 			# wrong swing would eat the punish window.
 			_set_hit_stop(0.0)
 		_:
-			_add_shake(kill_shake * 0.45)
 			# A third of a stop. The chain is three swings at 0.28s apart; a
 			# full stop on every cut would make the third swing feel late.
 			_set_hit_stop(0.34)
@@ -608,16 +650,39 @@ func _on_strike_landed(kind: int, _at: Vector2) -> void:
 
 
 ## A dodge roll has no victim to play feedback for, so it gets its own small
-## juice: a shove of the camera, the old air-puff sound pitched up a touch, and
-## a kick of sand where the boots dig in.
+## juice: the old air-puff sound pitched up a touch, and a kick of sand where
+## the boots dig in. No camera shake - the shake belongs to deaths.
 func _on_player_rolled(_direction: Vector2) -> void:
-	_add_shake(roll_shake)
 	audio.play("dash", randf_range(1.05, 1.20))
 	if room != null:
 		room.queue_fx("dust", room.player.global_position + Vector2(0.0, 6.0),
 			Color(0.86, 0.80, 0.68), 0.85)
 	# Crowd likes a good dodge
 	crowd_excitement = minf(crowd_excitement + 0.03, 1.0)
+
+
+## A parried blow. This is the loudest, brightest thing in the fight that is
+## not a death: a hard freeze, a white flash, and a very bright clang. Still no
+## camera shake - that rule is the user's, and it is what makes the shake mean
+## something when a knight finally falls.
+func _on_player_parried(at: Vector2, staggered: bool) -> void:
+	score += parry_bonus
+	_set_hit_stop(0.9 if staggered else 0.55)
+	audio.play("clang", randf_range(1.22, 1.42) if staggered else randf_range(1.02, 1.14))
+	if staggered:
+		_flash(Color(1.0, 1.0, 1.0), 0.16)
+	crowd_excitement = minf(crowd_excitement + 0.12, 1.0)
+	if room != null:
+		# The burst takes the Unsworn's own hue: it is their colour that turns
+		# the blow, and the sparks are the blow losing the argument.
+		room.queue_combat_effect("shatter", at, Color(1.0, 1.0, 1.0), 0.9)
+		room.queue_fx("impact", at, room.player.colour, 0.9)
+
+
+## A footfall. Two things keep it from becoming a metronome: the pitch is
+## jittered, and the volume is jittered with it.
+func _on_player_stepped() -> void:
+	audio.play("step", randf_range(0.88, 1.14), randf_range(-3.0, 0.5))
 
 
 func _on_player_died() -> void:
@@ -967,7 +1032,7 @@ func _sync_darkness() -> void:
 	mat.set_shader_parameter("screen_size", LevelData.PLAYFIELD)
 	mat.set_shader_parameter("player_pos", world_to_screen(player.global_position))
 	mat.set_shader_parameter("facing", player.aim_angle())
-	mat.set_shader_parameter("cone_deg", light_cone_deg)
+	mat.set_shader_parameter("light_arc_deg", light_arc_deg)
 	# A small, slow flicker so the beam reads as a flame rather than a lamp.
 	# Only the range flickers: the cone width and the darkness level are
 	# asserted by the test suite, so they must stay exactly as exported.

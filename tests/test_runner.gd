@@ -28,6 +28,11 @@ const PURPLE: Color = Color(0.75, 0.0, 1.0)     # 285 deg
 var passed: int = 0
 var failed: int = 0
 var _game: Node = null
+## Battle signals the tests listen to. Member variables, not locals: a GDScript
+## lambda copies locals but reaches members through `self`.
+var _parry_at: Vector2 = Vector2.INF
+var _parry_staggered: bool = false
+var _step_count: int = 0
 
 
 func _ready() -> void:
@@ -471,21 +476,53 @@ func _test_integration() -> void:
 	add_child(_game)
 	await _frames(3)
 
-	# --- the game opens IN the arena --------------------------------------
-	# The start menu and the story cards were deliberately cut: the build boots
-	# straight into round one of the melee, with no page to click through.
-	check(_game.state == Game.State.PLAY, "the game boots straight into play")
-	check(_game.screens != null and _game.screens.mode == Screens.Mode.NONE,
-		"and no page is blocking the arena")
-	check(_game.room != null, "the first arena is built on boot")
-	check(_game.room_index == 0, "and it is the first arena")
-	check(_game.hud != null and _game.hud.visible, "the fight HUD is up from the first frame")
-	check(_game.hud.verse_left > 0.0 and _game.hud.verse_text != "",
-		"and the arena's verse is announced on load")
-	check(_game.hud.sigil_style != "", "with the house sigil next to the score")
+	# --- the game opens ON THE OPENING, then goes straight into play --------
+	# There is still no start menu: the build boots into the story's first
+	# scene - a dying knight at the gate, a sword in the sand, the gift of hue
+	# absorption - and that scene hands over to the first hall. ESC skips it.
+	check(_game.state == Game.State.OPENING, "the game boots into the opening scene")
+	check(_game.opening != null, "the opening exists on boot")
+	check(_game.hud != null and not _game.hud.visible,
+		"and the fight HUD is hidden while the story plays")
 
-	# There is no menu left to navigate, and no story text anywhere: only the
-	# three interruption pages exist at all.
+	var opening: Opening = _game.opening
+	if opening != null:
+		# The script IS the story: check the beats and the speakers are really
+		# in it, or the whole sequence would be a title card with nothing
+		# behind it.
+		check(opening._script.size() > 20, "the opening has a full script")
+		var speakers: Array = []
+		var beats: Array = []
+		for entry in opening._script:
+			if entry.has("who") and not speakers.has(entry["who"]):
+				speakers.append(entry["who"])
+			if entry.has("beat") and not beats.has(entry["beat"]):
+				beats.append(entry["beat"])
+		check(speakers.has("knight") and speakers.has("you"),
+			"both the dying knight and the Unsworn speak in it")
+		check(beats.has("gift") and beats.has("take") and beats.has("gate"),
+			"and it stages the gift, the sword and the gate")
+		# Driving it by hand: the first press dismisses the title card and the
+		# second dumps the whole first line onto the screen at once.
+		opening._advance()
+		check(opening._phase == Opening.Phase.TYPING, "the story starts typing")
+		opening._advance()
+		check(opening._chars >= float(opening._line.length()),
+			"a press puts the whole line on screen")
+		opening.skip()
+	await _frames(3)
+	check(_game.state == Game.State.PLAY, "the opening hands over to play")
+	check(_game.opening == null, "and takes itself off the screen")
+	check(_game.screens != null and _game.screens.mode == Screens.Mode.NONE,
+		"with no page blocking the arena")
+	check(_game.room != null, "the first arena is built after the opening")
+	check(_game.room_index == 0, "and it is the first arena")
+	check(_game.hud != null and _game.hud.visible, "the fight HUD comes up with it")
+	check(_game.hud.verse_left > 0.0 and _game.hud.verse_text != "",
+		"and the hall's stanza of the hymn is announced on load")
+	check(_game.hud.sigil_style != "", "with the hall sigil next to the score")
+
+	# There is no menu left to navigate: only the interruption pages exist.
 	check(Screens.PAUSE_ITEMS.size() == 3, "the pause page has three rows")
 
 	await _frames(2)
@@ -810,6 +847,107 @@ func _test_integration() -> void:
 	p_absorb.roll_left = 0.0
 	p_absorb.invuln_left = 0.0
 
+	# --- the guard and the parry: the third verb ---------------------------
+	# The opening's last card teaches "RMB GUARD / PARRY", so both halves have
+	# to be real: the HOLD blocks most of a blow, and the first fifth of a
+	# second DEFLECTS it and leaves the attacker open. That is the risk the
+	# fight asks for - standing on the beat instead of running from it.
+	check(InputMap.has_action("guard"), "the guard action exists in the input map")
+	if InputMap.has_action("guard"):
+		check(InputMap.action_get_events("guard").size() >= 2,
+			"and it is on two keys (right mouse and shift)")
+	check(Guard.BARKS.has("parried"), "the sworn have something to say about a parry")
+
+	p_absorb.hitstun_left = 0.0
+	p_absorb.invuln_left = 0.0
+	p_absorb.hp = 100.0
+	p_absorb.position = Vector2(400.0, 560.0)
+	p_absorb._facing = 0.0
+	p_absorb.begin_guard()
+	check(p_absorb.is_guarding(), "raising the guard puts the blade across the body")
+	check(p_absorb.parry_open(), "and the first moment of it is a PARRY window")
+	_parry_at = Vector2.INF
+	p_absorb.parried.connect(func(_from: Vector2) -> void: _parry_at = _from)
+	var guard_landed: bool = p_absorb.take_damage(30.0, p_absorb.position + Vector2(40.0, 0.0))
+	check(not guard_landed, "a blow inside the parry window does not land")
+	check_approx(p_absorb.hp, 100.0, 0.001, "and costs no vigour at all")
+	check(_parry_at != Vector2.INF, "while the parry is announced to the room")
+	check(p_absorb.parry_flash > 0.0, "and the turn is drawn as a white ring")
+
+	# The window shuts after its fifth of a second: the guard still blocks, but
+	# blood gets through, and the blow does NOT stun - the wall holds.
+	p_absorb.parry_left = 0.0
+	p_absorb.invuln_left = 0.0
+	guard_landed = p_absorb.take_damage(20.0, p_absorb.position + Vector2(40.0, 0.0))
+	check(guard_landed, "after the window the blow lands on the guard")
+	check_approx(p_absorb.hp, 100.0 - 20.0 * (1.0 - p_absorb.block_absorb), 0.001,
+		"but only the unblocked share of it gets through")
+	check_approx(p_absorb.hitstun_left, 0.0, 0.001, "and a blocked blow does not stun")
+	check(p_absorb.is_guarding(), "and the guard is still up")
+
+	# The guard is a wall in FRONT of the Unsworn, not a shell around them.
+	p_absorb.invuln_left = 0.0
+	p_absorb.hp = 100.0
+	guard_landed = p_absorb.take_damage(20.0, p_absorb.position + Vector2(-40.0, 0.0))
+	check(guard_landed and p_absorb.hp < 99.9, "a blow from BEHIND the guard lands whole")
+
+	# A blow too heavy for the blade breaks the guard open entirely.
+	p_absorb.invuln_left = 0.0
+	p_absorb.hp = 100.0
+	p_absorb.begin_guard()
+	p_absorb.parry_left = 0.0
+	guard_landed = p_absorb.take_damage(p_absorb.guard_break_damage + 10.0,
+		p_absorb.position + Vector2(40.0, 0.0))
+	check(guard_landed and p_absorb.hp < 50.0, "a heavy blow breaks the guard and lands whole")
+	check(not p_absorb.is_guarding(), "and the guard is left open")
+	p_absorb.hp = 100.0
+	p_absorb.hitstun_left = 0.0
+	p_absorb.invuln_left = 0.0
+
+	# The room's half of the bargain: whoever threw a parried blow is left wide
+	# open AND says so - the stagger is the player's free swing, and the line
+	# comes out of the knight because it is his oath cracking, not our deed.
+	var knight_parry: Guard = _game.room.guards[0]
+	knight_parry.dead = false
+	knight_parry.hp = knight_parry.max_hp
+	knight_parry.stagger_left = 0.0
+	knight_parry.bark_text = ""
+	knight_parry.position = p_absorb.position + Vector2(36.0, 0.0)
+	_parry_at = Vector2.INF
+	_parry_staggered = false
+	_game.room.player_parried.connect(func(at: Vector2, staggered: bool) -> void:
+		_parry_at = at
+		_parry_staggered = staggered)
+	var score_before_parry: int = _game.score
+	p_absorb.begin_guard()
+	p_absorb.take_damage(20.0, knight_parry.position)
+	await _frames(1)
+	check(_parry_staggered, "the room blames the knight who swung and leaves him open")
+	check(knight_parry.stagger_left > 0.5, "parried: he is staggered for a real window",
+		"stagger %.2f" % knight_parry.stagger_left)
+	check(knight_parry.bark_text != "", "and barks about it")
+	check(_game.score == score_before_parry + _game.parry_bonus,
+		"and the parry pays its own bonus", "score %d" % (_game.score - score_before_parry))
+
+	# --- boots -------------------------------------------------------------
+	# Sound for walking is distance based, so it stays locked to the legs at
+	# any speed. Feed a real D keypress and count the footfalls.
+	p_absorb.hitstun_left = 0.0
+	p_absorb.invuln_left = 0.0
+	p_absorb.position = Vector2(360.0, 620.0)
+	_step_count = 0
+	p_absorb.stepped.connect(func() -> void: _step_count += 1)
+	var key_d := InputEventKey.new()
+	key_d.physical_keycode = KEY_D
+	key_d.pressed = true
+	Input.parse_input_event(key_d)
+	await _physics_frames(30)
+	key_d = InputEventKey.new()
+	key_d.physical_keycode = KEY_D
+	key_d.pressed = false
+	Input.parse_input_event(key_d)
+	check(_step_count >= 1, "walking makes footfalls", "steps %d" % _step_count)
+
 	# --- the chain bookkeeping and the gentle auto-aim ---------------------
 	# A pause past the combo window restarts the chain at the first swing.
 	p_absorb.combo_left = 0.0
@@ -1064,7 +1202,7 @@ func _test_integration() -> void:
 	check(dark_mat != null, "the darkness layer runs the light-cone shader")
 	check(_game.darkness.visible, "darkness is drawn during play")
 	if dark_mat != null:
-		check_approx(float(dark_mat.get_shader_parameter("cone_deg")), _game.light_cone_deg, 0.01,
+		check_approx(float(dark_mat.get_shader_parameter("light_arc_deg")), _game.light_arc_deg, 0.01,
 			"the shader receives the player's cone width")
 		check_approx(float(dark_mat.get_shader_parameter("darkness_amount")), _game.darkness_amount, 0.01,
 			"the shader receives the darkness level")

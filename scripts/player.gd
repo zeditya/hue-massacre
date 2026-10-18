@@ -30,6 +30,12 @@ signal rolled(direction: Vector2)
 ## Emitted every time a hit actually lands on the player. game.gd uses it for
 ## feedback; the room does not need it.
 signal hurt(amount: float, from_position: Vector2)
+## Emitted when a blow is turned on a freshly raised guard. The room answers by
+## leaving the attacker wide open - the parry's whole reward.
+signal parried(from_position: Vector2)
+## Emitted on every footfall, so game.gd can give the boots a sound. Distance
+## based, not time based, so walking and sprinting do not step at the same rate.
+signal stepped()
 
 @export_group("Movement")
 ## Walking speed in pixels/second. Guards patrol slower than this but chase
@@ -46,6 +52,9 @@ signal hurt(amount: float, from_position: Vector2)
 @export var stop_snap_speed: float = 14.0
 ## Physics radius. Must match the collision shape built in _ready().
 @export var body_radius: float = 12.0
+## Ground covered between footfalls. Distance based, so the boots keep pace with
+## the legs however fast the walk speed is tuned.
+@export var step_length: float = 54.0
 
 @export_group("Strike")
 ## The three-swing chain, in order: each swing deals its own damage. The last
@@ -93,6 +102,25 @@ const HEAVY_ARC_SCALE: float = 1.35
 @export var afterimage_count: int = 5
 ## Seconds between afterimage samples.
 @export var afterimage_interval: float = 0.022
+
+@export_group("Guard and parry")
+## The first slice of a raised guard DEFLECTS: no blood, and whoever threw the
+## blow is left open. Miss the window and the guard still blocks, but a third
+## of the hit gets through it. Timing the raise is the whole skill.
+@export var parry_window: float = 0.22
+## Fraction of a blocked hit that stops at the blade; the rest still gets
+## through. A held guard is a good wall, not a free pass.
+@export var block_absorb: float = 0.65
+## A guard is a wall in FRONT of the Unsworn, not a shell around them: a blow
+## landing further than this from the facing is not blocked at all.
+@export var guard_half_deg: float = 80.0
+## The stance can walk, but slowly.
+@export var guard_move_scale: float = 0.42
+## A hit at least this heavy breaks the guard open and lands whole - the sound
+## a big knight makes when he comes through a small defence.
+@export var guard_break_damage: float = 46.0
+## How long the parry's white ring stays lit. Purely for reading the moment.
+@export var parry_flash_time: float = 0.35
 
 @export_group("Colour")
 ## Current hue of the Unsworn. White going in; a mix of everything you kill.
@@ -144,6 +172,14 @@ var invuln_left: float = 0.0
 var hitstun_left: float = 0.0
 ## 0..1 fade of the red hurt flash. Purely visual.
 var hurt_flash: float = 0.0
+## True while the blade is held across the body.
+var guarding: bool = false
+## Seconds left in which a freshly raised guard will deflect instead of block.
+var parry_left: float = 0.0
+## 0..1 fade of the parry's white ring. Purely visual.
+var parry_flash: float = 0.0
+## Ground covered since the last footfall, for the boots' sound.
+var _step_len: float = 0.0
 ## Reference to blood field for bloody footprints
 var blood: BloodField = null
 
@@ -200,6 +236,8 @@ func _physics_process(delta: float) -> void:
 	roll_cooldown_left = maxf(roll_cooldown_left - delta, 0.0)
 	invuln_left = maxf(invuln_left - delta, 0.0)
 	hitstun_left = maxf(hitstun_left - delta, 0.0)
+	parry_left = maxf(parry_left - delta, 0.0)
+	parry_flash = maxf(parry_flash - delta / maxf(parry_flash_time, 0.01), 0.0)
 
 	if frozen:
 		velocity = Vector2.ZERO
@@ -224,6 +262,19 @@ func _physics_process(delta: float) -> void:
 	# the defensive option must never be the one that gets eaten.
 	if not busy and roll_cooldown_left <= 0.0 and Input.is_action_just_pressed("dodge"):
 		begin_roll(input)
+	# GUARD: hold to stand behind the blade. The PARRY window opens only on the
+	# way UP, so a permanently held guard is safe but slow, and the one who
+	# times the raise is the one who gets the free hit. A roll drops the guard,
+	# and so does a swing: the blade cannot hold a wall and cut through it.
+	var can_guard: bool = not busy and strike_left <= 0.0
+	if not can_guard:
+		end_guard()
+	elif Input.is_action_just_pressed("guard"):
+		begin_guard()
+	elif Input.is_action_pressed("guard"):
+		guarding = true
+	else:
+		end_guard()
 
 	# --- moving ------------------------------------------------------------
 	if roll_left > 0.0:
@@ -239,7 +290,8 @@ func _physics_process(delta: float) -> void:
 			if _trail.size() > afterimage_count:
 				_trail.pop_front()
 	else:
-		var target: Vector2 = input * move_speed
+		var speed: float = move_speed * (guard_move_scale if guarding else 1.0)
+		var target: Vector2 = input * speed
 		if input.length() > 0.01:
 			velocity = velocity.move_toward(target, acceleration * delta)
 			# Face the way you steer. This is also the direction the light cone
@@ -262,6 +314,15 @@ func _physics_process(delta: float) -> void:
 		_squash = 0.0
 
 	move_and_slide()
+
+	# --- boots -------------------------------------------------------------
+	# A footfall per `step_length` of ground covered. Distance based, so a slow
+	# walk and a fast walk both keep the sound locked to the legs.
+	if roll_left <= 0.0:
+		_step_len += velocity.length() * delta
+		if _step_len >= step_length:
+			_step_len = 0.0
+			stepped.emit()
 
 	# Safety net: if a wall is ever missed, never let the Unsworn leave the room.
 	global_position.x = clampf(global_position.x, LevelData.PLAYER_RADIUS, LevelData.PLAYFIELD.x - LevelData.PLAYER_RADIUS)
@@ -342,6 +403,9 @@ func _apply_tint() -> void:
 ## swing goes the way you are moving, or the way you last faced. Emits
 ## `struck` so the room can add its auto-aim and the noise.
 func begin_strike(input: Vector2 = Vector2.ZERO) -> void:
+	# The swing takes both hands: the guard drops, and it does not come back
+	# with a fresh parry window until the key is released and pressed again.
+	end_guard()
 	if input.length() > 0.01:
 		_facing = input.angle()
 	_strike_dir = Vector2.RIGHT.rotated(_facing)
@@ -365,6 +429,7 @@ func begin_strike(input: Vector2 = Vector2.ZERO) -> void:
 ## hit, and a swing in progress is cancelled - the roll is the universal
 ## "get me out of this".
 func begin_roll(input: Vector2 = Vector2.ZERO) -> void:
+	end_guard()
 	_roll_dir = input.normalized() if input.length() > 0.01 else Vector2.RIGHT.rotated(_facing)
 	_facing = _roll_dir.angle()
 	roll_left = roll_duration
@@ -374,6 +439,32 @@ func begin_roll(input: Vector2 = Vector2.ZERO) -> void:
 	_trail.clear()
 	_trail_timer = 0.0
 	rolled.emit(_roll_dir)
+
+
+## Raise the blade. Only the RAISE opens the parry window: holding the guard
+## afterwards is a block, which is why the courage to lower it and raise it
+## again on the beat is what the fight asks of you.
+func begin_guard() -> void:
+	if frozen:
+		return
+	guarding = true
+	parry_left = parry_window
+
+
+## Lower the blade.
+func end_guard() -> void:
+	guarding = false
+	parry_left = 0.0
+
+
+## True while the blade is held across the body (blocking, or parrying).
+func is_guarding() -> bool:
+	return guarding
+
+
+## True while a hit would be DEFLECTED rather than merely blocked.
+func parry_open() -> bool:
+	return guarding and parry_left > 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -432,24 +523,63 @@ func absorb_colour(guard_colour: Color) -> void:
 	_apply_tint()
 
 
-## Take a hit. Returns true when it actually landed (false while invulnerable
-## or already dying), so the attacker can key its feedback on the result.
+## Take a hit. Returns true when it actually landed (false while invulnerable,
+## while a parry turns it aside, or already dying), so the attacker can key its
+## feedback on the result.
+##
+## A raised guard changes this in three ways: a blow inside the parry window is
+## DEFLECTED (no damage, no shove, and the room leaves the attacker open), a
+## blow inside the guard arc is BLOCKED (most of it stops at the blade, no
+## stun, so the wall holds), and a blow heavy enough breaks the guard open
+## entirely.
 func take_damage(amount: float, from_position: Vector2) -> bool:
 	if frozen or invuln_left > 0.0:
 		return false
-	hp = maxf(hp - amount, 0.0)
-	invuln_left = invuln_time
-	hitstun_left = hitstun_time
-	hurt_flash = 1.0
-	# Shoved away from whoever hit us, so hits physically move the fight.
 	var away: Vector2 = global_position - from_position
 	if away.length() < 0.001:
 		away = Vector2.RIGHT.rotated(_facing + PI)
-	velocity = away.normalized() * hit_knockback
+	var stun: float = hitstun_time
+	var shove: float = hit_knockback
+	if guarding and _guard_covers(from_position):
+		if parry_open():
+			# DEFLECTED. A short invulnerability keeps two attackers swinging
+			# on the same frame from both landing: one parry, one moment.
+			parry_left = 0.0
+			parry_flash = 1.0
+			invuln_left = maxf(invuln_left, 0.14)
+			parried.emit(from_position)
+			return false
+		if amount >= guard_break_damage:
+			# Too heavy for the blade. The guard opens and the blow lands
+			# whole, which is the sound a big knight makes through a small
+			# defence.
+			end_guard()
+			stun = hitstun_time * 1.6
+		else:
+			# BLOCKED. Never any invulnerability: the cost of a late guard is
+			# blood, and the wall has to be held deliberately.
+			amount *= 1.0 - clampf(block_absorb, 0.0, 0.95)
+			shove = hit_knockback * 0.25
+			stun = 0.0
+	hp = maxf(hp - amount, 0.0)
+	invuln_left = invuln_time
+	hitstun_left = stun
+	hurt_flash = 1.0
+	# Shoved away from whoever hit us, so hits physically move the fight.
+	velocity = away.normalized() * shove
 	hurt.emit(amount, from_position)
 	if hp <= 0.0:
 		kill()
 	return true
+
+
+## A guard is a wall in front of the Unsworn, not a shell around them.
+func _guard_covers(from_position: Vector2) -> bool:
+	var to_attacker: Vector2 = from_position - global_position
+	if to_attacker.length() < 0.001:
+		return true
+	var diff: float = absf(wrapf(to_attacker.angle() - _facing, -PI, PI))
+	return diff <= deg_to_rad(guard_half_deg)
 
 
 ## True while the last hit is still ringing (or a roll's i-frames are up).
@@ -539,6 +669,32 @@ func _draw() -> void:
 	if hurt_flash > 0.0:
 		draw_arc(Vector2.ZERO, body_radius * 2.4, 0.0, TAU, 28,
 			Color(1.0, 0.25, 0.20, 0.75 * hurt_flash), 3.0, true)
+
+	# --- the guard ---------------------------------------------------------
+	# The blade held across the body, drawn as a ward in the facing direction.
+	# The arc you see IS the arc that blocks (guard_half_deg), so a blow that
+	# lands outside it visibly should not have been blocked - and a blow from
+	# behind reads as the back-stab it is.
+	if guarding:
+		var half: float = deg_to_rad(guard_half_deg)
+		var steps: int = 16
+		for i in range(steps):
+			var t: float = float(i) / float(steps - 1)
+			var a: float = _facing - half + 2.0 * half * t
+			var near: float = 1.0 - absf(t * 2.0 - 1.0)
+			var r0: float = body_radius + 4.0 + 5.0 * near
+			var ward := Color(0.80, 0.88, 1.0, 0.26 + 0.46 * near)
+			draw_line(Vector2.RIGHT.rotated(a) * r0,
+				Vector2.RIGHT.rotated(a) * (r0 + 7.0 + 7.0 * near), ward, 2.0 + 1.6 * near)
+		if parry_open():
+			# The window itself shines: a bright edge for the fifth of a second
+			# in which a blow would be turned. Seeing it is how you learn it.
+			draw_arc(Vector2.ZERO, body_radius + 15.0, _facing - half * 0.7, _facing + half * 0.7,
+				24, Color(1.0, 1.0, 1.0, 0.55), 2.0, true)
+	if parry_flash > 0.0:
+		draw_arc(Vector2.ZERO, body_radius + 10.0 + 34.0 * (1.0 - parry_flash),
+			_facing - 1.7, _facing + 1.7, 24,
+			Color(1.0, 1.0, 1.0, 0.75 * parry_flash), 3.5, true)
 
 	# --- glow --------------------------------------------------------------
 	# The glow fades out when camouflaged, which is the player's clearest

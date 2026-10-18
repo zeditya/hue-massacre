@@ -222,25 +222,15 @@ func _draw_barks() -> void:
 
 
 func _draw_top_left() -> void:
-	# --- room identity ----------------------------------------------------
+	# --- which hall -------------------------------------------------------
 	UiStyle.text(self, UiStyle.tracked(room_name), Vector2(TOP_LEFT_X, 30.0), 21, UiStyle.GOLD)
 	UiStyle.text(self, UiStyle.tracked(room_title, 1), Vector2(TOP_LEFT_X, 50.0), 13, UiStyle.PAPER)
-	if room_lesson != "":
-		UiStyle.text(self, room_lesson, Vector2(TOP_LEFT_X, 66.0), 12, UiStyle.DIM)
 
 	# --- the hue wheel strip ---------------------------------------------
-	var wheel_rect := Rect2(TOP_LEFT_X, 78.0, BAR_WIDTH, 16.0)
+	# The one piece of "junk" worth keeping: the wheel is the game's rulebook,
+	# drawn live, and the Unsworn's own hue sits on it as a marker.
+	var wheel_rect := Rect2(TOP_LEFT_X, 64.0, BAR_WIDTH, 14.0)
 	_draw_wheel_strip(wheel_rect)
-	UiStyle.text(self, UiStyle.tracked("HUE WHEEL"), Vector2(TOP_LEFT_X + BAR_WIDTH + 12.0, 91.0), 11, UiStyle.DIM)
-
-	# --- colour restored --------------------------------------------------
-	var restore_rect := Rect2(TOP_LEFT_X, 108.0, BAR_WIDTH, 14.0)
-	# The bar's own colour rides the wheel as the room fills back up, so the
-	# progress indicator is itself part of the colour theory.
-	var fill: Color = ColorTheory.wheel(120.0 * restore + 30.0, 0.85, 1.0)
-	UiStyle.bar(self, restore_rect, restore, fill)
-	UiStyle.text(self, "SAND PAINTED  %d%%" % int(round(restore * 100.0)),
-		Vector2(TOP_LEFT_X, 138.0), 12, UiStyle.DIM)
 
 
 func _draw_top_right() -> void:
@@ -338,11 +328,11 @@ func _draw_player_panel() -> void:
 	UiStyle.text(self, UiStyle.tracked("YOUR HUE"), Vector2(82.0, 646.0), 10, UiStyle.DIM)
 	UiStyle.text(self, "%s %d" % [ColorTheory.color_name(player_colour), ColorTheory.hue_degrees(player_colour)],
 		Vector2(82.0, 666.0), 17, UiStyle.PAPER)
+	# The paint veil, as one word. Nothing else: no percentages, no contrast
+	# meters, no stealth readouts - the HUD says whether you are hidden or not
+	# and the rest is the fight.
 	if player_hidden:
-		UiStyle.text(self, "CAMOUFLAGED", Vector2(82.0, 684.0), 11, UiStyle.SAFE)
-	else:
-		UiStyle.text(self, "CONTRAST %d%%" % int(round(player_visibility * 100.0)),
-			Vector2(82.0, 684.0), 11, UiStyle.ALERT.lerp(UiStyle.SAFE, 1.0 - player_visibility))
+		UiStyle.text(self, "UNSEEN", Vector2(82.0, 684.0), 11, UiStyle.SAFE)
 
 
 ## The 0-360 degree hue bar. Drawn as 360 thin columns: simple, exact, and it
@@ -423,7 +413,11 @@ func _draw_centre_messages() -> void:
 
 ## A red haze around the edges whenever a guard is actively hunting you.
 func _draw_threat_vignette() -> void:
-	if spotted:
+	# The hunted vignette: the screen bleeds a knight's hue at the edges only
+	# while your vigour is in the red, so the warning means "you are about to
+	# die", not "somebody noticed you" (which, in these halls, is always).
+	# No SPOTTED shout-out any more: the sworn's own barks carry that.
+	if spotted and player_hp <= player_max_hp * 0.34:
 		var pulse: float = 0.35 + 0.25 * sin(_time * 9.0)
 		var c: Color = Color(UiStyle.ALERT.r, UiStyle.ALERT.g, UiStyle.ALERT.b, 0.10 * pulse)
 		var thickness: float = 22.0
@@ -431,8 +425,6 @@ func _draw_threat_vignette() -> void:
 		draw_rect(Rect2(0.0, 720.0 - thickness, 1280.0, thickness), c, true)
 		draw_rect(Rect2(0.0, 0.0, thickness, 720.0), c, true)
 		draw_rect(Rect2(1280.0 - thickness, 0.0, thickness, 720.0), c, true)
-		UiStyle.text(self, UiStyle.tracked("SPOTTED", 2), Vector2(340.0, 176.0), 22, UiStyle.ALERT,
-			HORIZONTAL_ALIGNMENT_CENTER, 600.0)
 
 	# Boss window prompt: the single most important instruction in the fight.
 	if boss_hue >= 0.0 and boss_vulnerable:
