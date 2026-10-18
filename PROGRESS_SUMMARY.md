@@ -600,24 +600,40 @@ Godot's `ConfigFile`, which only understands `;` comments — a `#` comment insi
 `[preset.0]` makes Godot reject the whole key (it printed
 *"Couldn't find the given section preset.0 and key exclude_filter"*). Use `;`.
 
-### 9.12 Still open (next agent)
+### 9.12 Pushed
 
-1. **Push.** Everything is committed locally; `origin/master` is still at the
-   pre-overhaul revision, so Pages is serving the old build until this is pushed.
-   Preserve the `v1-stealth` → `ddb3a88` tag/squash while doing it.
-2. **Serve and eyeball the web build** (`build/web/`, freshly exported, 44.8 MB
-   pck) over HTTP — this is the first capture-verified build, and the first one
-   where the crowd is people rather than silhouettes.
-3. **`docs/AI_CHAT_HISTORY.pdf`** is still a dead link in the README, and the
+`7616a0b` → `origin/master` (was `76e647d`). Pages now builds this revision, so
+the live game is the one in `build/capture/` for the first time. Committed in
+that push:
+
+- the overhaul + all ten packs' art (`assets/{fx,props,units,ui}/` — 116 files)
+- `scripts/{prop_node,room_front,wall_node,blood_field}.gd` and the changes to
+  `arena_art / game / guard / level_data / mote / paint_layer / player / room /
+  sprite_bank`, `ui/hud.gd`, `tests/test_runner.gd`
+- `tools/{bake_itch_packs.sh, capture_arena.gd, capture_fight.gd,
+  build_backdrops.py, probe_camera.gd}`
+- three licence files, the attribution rewrite, the README credits
+- `.gitignore` (paid backdrops, gpt_assist, the chat log, the personal report)
+  and `export_presets.cfg` exclusions
+
+The `v1-stealth` tag is untouched, and the committed tree was checked: no zips,
+no `gpt_assist/`, no `assets/arenas/`, no `submission.txt`.
+
+### 9.13 Still open (next agent)
+
+1. **Look at the live build** (Pages deploys `master`; the exported pck is 44.8 MB
+   and was scanned clean, but nobody has watched it run in a browser yet). Serve
+   `build/web/` over HTTP if you want the same thing locally.
+2. **`docs/AI_CHAT_HISTORY.pdf`** is still a dead link in the README, and the
    README still carries `[[PASTE YOUTUBE LINK HERE]]`.
-4. **`PROJECT_STRUCTURE.md` and `SUBMISSION_CHECKLIST.md` still describe v1**
+3. **`PROJECT_STRUCTURE.md` and `SUBMISSION_CHECKLIST.md` still describe v1**
    (187 tests, stealth wording, story cards) — rewrite or delete before the
    grader sees them.
-5. The "a by-eye pass is owed" warning in the older §7 is now partly satisfied:
+4. The "a by-eye pass is owed" warning in the older §7 is now partly satisfied:
    the arena and fight captures have been inspected, but nobody has yet played a
    full room start-to-finish at zoom 2 with darkness on.
 
-### 9.13 Housekeeping note for whoever picks this up next
+### 9.14 Housekeeping note for whoever picks this up next
 
 - `tools/probe_camera.gd` was written to settle a confusion (it prints camera
   position, zoom and visible world size, which proved the fight capture is a
