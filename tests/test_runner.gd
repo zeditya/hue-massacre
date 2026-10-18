@@ -948,6 +948,73 @@ func _test_integration() -> void:
 	Input.parse_input_event(key_d)
 	check(_step_count >= 1, "walking makes footfalls", "steps %d" % _step_count)
 
+	# --- the marked overhead: the one blow a guard does not stop ----------
+	# The genre's rule, and this game's anti-turtle rule: every few swings a
+	# sworn commits to an overhead announced by a red sign over its head. It is
+	# unblockable, so the player has to MOVE on the mark - or parry it, which
+	# still works and is still the best answer.
+	var knight_perilous: Guard = _game.room.guards[0]
+	check(Guard.BARKS.has("perilous"), "the sworn announce the marked overhead")
+	knight_perilous.dead = false
+	knight_perilous.hp = knight_perilous.max_hp
+	knight_perilous.stagger_left = 0.0
+	knight_perilous.attack_state = Guard.Attack.NONE
+	knight_perilous._swings_since_perilous = knight_perilous.perilous_every
+	knight_perilous._start_windup()
+	check(knight_perilous._perilous, "every few swings the knight commits to the overhead")
+	check(knight_perilous._windup_len > knight_perilous.attack_windup,
+		"which winds up longer than a sweep, so it can be read",
+		"%.2fs vs %.2fs" % [knight_perilous._windup_len, knight_perilous.attack_windup])
+	check(knight_perilous._reach_now > knight_perilous.attack_reach,
+		"and reaches further")
+	check(knight_perilous._swing_flash == 0.0, "(the blade has not fallen yet)")
+
+	# A HELD guard does not stop it: the mark was the warning.
+	p_absorb.position = Vector2(400.0, 560.0)
+	p_absorb._facing = 0.0
+	knight_perilous.position = p_absorb.position + Vector2(38.0, 0.0)
+	knight_perilous._facing = PI
+	p_absorb.hp = 100.0
+	p_absorb.invuln_left = 0.0
+	p_absorb.hitstun_left = 0.0
+	p_absorb.begin_guard()
+	p_absorb.parry_left = 0.0
+	knight_perilous._swing(p_absorb)
+	check(p_absorb.hp < 100.0 - knight_perilous.damage,
+		"a MARKED blow goes through a held guard",
+		"hp %.1f" % p_absorb.hp)
+	check(not p_absorb.is_guarding(), "and breaks the guard open")
+
+	# The parry still turns it - the window is the answer to every attack.
+	p_absorb.hp = 100.0
+	p_absorb.invuln_left = 0.0
+	p_absorb.begin_guard()
+	check(not p_absorb.take_damage(40.0, p_absorb.position + Vector2(30.0, 0.0), true),
+		"but a parry turns even a marked blow")
+	check_approx(p_absorb.hp, 100.0, 0.001, "for no damage at all")
+
+	# A sweep is still blocked, so the mark keeps meaning something.
+	p_absorb.invuln_left = 0.0
+	p_absorb.hitstun_left = 0.0
+	p_absorb.hp = 100.0
+	p_absorb.begin_guard()
+	p_absorb.parry_left = 0.0
+	check(p_absorb.take_damage(20.0, p_absorb.position + Vector2(30.0, 0.0), false),
+		"an ordinary sweep is still stopped by the guard")
+	check_approx(p_absorb.hp, 100.0 - 20.0 * (1.0 - p_absorb.block_absorb), 0.001,
+		"and costs only the unblocked share")
+	p_absorb.end_guard()
+	# Hand the knight back to the following tests exactly as they expect to
+	# find it: standing in the open, mid-cooldown cleared, ready to swing.
+	knight_perilous.attack_state = Guard.Attack.NONE
+	knight_perilous._attack_left = 0.0
+	knight_perilous._attack_cooldown_left = 0.0
+	knight_perilous._swing_flash = 0.0
+	knight_perilous._reach_now = knight_perilous.attack_reach
+	p_absorb.hp = 100.0
+	p_absorb.hitstun_left = 0.0
+	p_absorb.invuln_left = 0.0
+
 	# --- the chain bookkeeping and the gentle auto-aim ---------------------
 	# A pause past the combo window restarts the chain at the first swing.
 	p_absorb.combo_left = 0.0

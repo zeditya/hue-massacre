@@ -447,6 +447,7 @@ func load_room(index: int) -> void:
 	room.boss_charge_started.connect(_on_boss_charge_started)
 	room.strike_landed.connect(_on_strike_landed)
 	room.player_parried.connect(_on_player_parried)
+	room.perilous_taught.connect(_on_perilous_taught)
 	room.wave_started.connect(_on_wave_started)
 	room.wave_cleared.connect(_on_wave_cleared)
 	world_root.add_child(room)
@@ -683,6 +684,17 @@ func _on_player_parried(at: Vector2, staggered: bool) -> void:
 ## jittered, and the volume is jittered with it.
 func _on_player_stepped() -> void:
 	audio.play("step", randf_range(0.88, 1.14), randf_range(-3.0, 0.5))
+
+
+## The first MARKED overhead of a room. This is the one rule that cannot be
+## learned by holding the guard and watching, because holding the guard is
+## exactly what kills you here - so the hall says it out loud, once, and then
+## lets the red sign over the enemy's head do the talking for the rest of the
+## run. The room gates it to one lesson per room.
+func _on_perilous_taught() -> void:
+	audio.play("vulnerable")
+	if hud != null:
+		hud.show_hint("A MARKED blow cannot be blocked. Roll through it, or parry it on the beat.", 8.0)
 
 
 func _on_player_died() -> void:

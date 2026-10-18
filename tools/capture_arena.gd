@@ -51,7 +51,12 @@ func _process(_delta: float) -> bool:
 		return false
 
 	if _game.state != _game.State.PLAY:
-		_game.start_run()
+		# The build boots into the story's opening: dismiss it the way a player
+		# would - SKIP hands straight over to the run.
+		if _game.opening != null:
+			_game.opening.skip()
+		else:
+			_game.start_run()
 		return false
 
 	_warmup += 1

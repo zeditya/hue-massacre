@@ -32,6 +32,9 @@ signal phase_changed(phase: int)
 signal summons_requested(count: int)
 ## Boss only: the charge telegraph finished and he is committed to the dash.
 signal charge_started()
+## Emitted as a knight commits to the MARKED overhead - the blow a held guard
+## does not stop. The room teaches the read on it, once per room.
+signal perilous_started()
 
 enum State { PATROL, INVESTIGATE, CHASE }
 ## Swing state machine: NONE -> WINDUP -> RECOVER -> NONE.
@@ -111,6 +114,13 @@ const BARKS := {
 		"Keep it cornered!",
 		"One more and the hall keeps its colour.",
 	],
+	# Warning the player - and the hall - that the marked overhead is coming.
+	# They are not gloating: they are promising, which is worse.
+	"perilous": [
+		"Everything - for the hall!",
+		"Guard THAT, hueless.",
+		"Hold, and die holding!",
+	],
 	# Boss only: the wait before the charging dash, and the summons.
 	"charge": [
 		"The wheel will not be denied!",
@@ -174,6 +184,20 @@ const BARKS := {
 @export var attack_cooldown: float = 1.0
 ## Seconds knocked silly by a complement shatter (armour break).
 @export var stagger_time: float = 1.0
+
+@export_group("Perilous attack")
+## Every so many swings a knight bets everything on one overhead blow: a longer
+## windup (so it stays fair), more reach and damage, and a warning mark over the
+## head - because a HELD GUARD DOES NOT STOP IT. This is the genre's rule and
+## the anti-turtle rule both: the player has to move on the mark. Rolling it, or
+## parrying it on the beat, is the answer.
+@export var perilous_every: int = 4
+## The perilous windup, as a multiple of the ordinary one.
+@export var perilous_windup_scale: float = 1.7
+## Its damage, as a multiple of the ordinary swing.
+@export var perilous_damage_scale: float = 2.2
+## Its reach, as a multiple of the ordinary swing.
+@export var perilous_reach_scale: float = 1.15
 
 @export_group("Boss phases")
 ## HP ratio at or below which the Champion enters phase II (adds the charge).
@@ -253,6 +277,19 @@ var charge_state: Charge = Charge.NONE
 var kneeling: bool = false
 ## Counts down inside WINDUP and RECOVER.
 var _attack_left: float = 0.0
+## The full length of the windup that is running right now: perilous overheads
+## wind up for longer, and the telegraph's growth is measured against this, not
+## against the ordinary `attack_windup`, or a marked blow would start at 0.8.
+var _windup_len: float = 0.0
+## How far the swing that is winding up (or just landed) actually reaches. Set
+## when the attack is chosen so the drawn wedge is exactly the wedge that cuts.
+var _reach_now: float = 60.0
+## True while the windup is the UNBLOCKABLE, marked overhead.
+var _perilous: bool = false
+## Swings since the last overhead, so they arrive on a rhythm.
+var _swings_since_perilous: int = 0
+## The pack's warning sign, held over a knight winding up the marked blow.
+var _warn_mark: Texture2D = null
 ## Counts down between swings.
 var _attack_cooldown_left: float = 0.0
 ## 0..1 fade of the swing arc drawn right after the blade falls.
@@ -342,6 +379,8 @@ func _ready() -> void:
 	add_child(_sprite)
 	hp = max_hp
 	_base_hue_speed = hue_speed
+	# The pack's own hazard sign: the mark that says "do not block this one".
+	_warn_mark = load("res://assets/fx/mark_warning.png")
 	_update_animation()
 
 	# Get blood field reference from room
@@ -443,6 +482,23 @@ func _begin_attack() -> void:
 	_attack_anim = pair
 	if _sprite != null and _sprite.sprite_frames.has_animation(pair):
 		_sprite.play(pair)
+
+
+## Choose the next swing and open its windup. Most swings are the ordinary
+## sweep; every `perilous_every` of them is the OVERHEAD - longer windup, longer
+## reach, and unblockable, announced by the warning mark over the head. It is
+## the answer to a player who only ever holds the guard, and it is the only
+## attack in the game that asks for a roll or a parry by name.
+func _start_windup() -> void:
+	_perilous = _swings_since_perilous >= perilous_every
+	if _perilous:
+		_say("perilous")
+		perilous_started.emit()
+	_windup_len = attack_windup * (perilous_windup_scale if _perilous else 1.0)
+	_reach_now = attack_reach * (perilous_reach_scale if _perilous else 1.0)
+	_attack_left = _windup_len
+	attack_state = Attack.WINDUP
+	_begin_attack()
 
 
 func _physics_process(delta: float) -> void:
@@ -696,9 +752,7 @@ func _do_chase(delta: float) -> void:
 				_say("charge")
 				return
 			if dist <= attack_range and _attack_cooldown_left <= 0.0 and not player.frozen:
-				attack_state = Attack.WINDUP
-				_attack_left = attack_windup
-				_begin_attack()
+				_start_windup()
 			elif dist > attack_range * 0.85:
 				velocity = Vector2.RIGHT.rotated(_facing) * chase_speed
 			else:
@@ -729,7 +783,9 @@ func _do_charge(delta: float, player: Player) -> void:
 			var gap: float = player.global_position.distance_to(global_position)
 			if not _charge_hit and gap <= body_radius + player.body_radius + 8.0:
 				_charge_hit = true
-				player.take_damage(charge_damage, global_position)
+				# Unblockable: a charging Champion is a thing to be out of the
+				# way of, not a thing to stand in front of behind a blade.
+				player.take_damage(charge_damage, global_position, true)
 			# Stop at a wall rather than grinding against it, so the punish
 			# window opens where the dash actually ended.
 			if _charge_left <= 0.0 or is_on_wall():
@@ -746,17 +802,26 @@ func _do_charge(delta: float, player: Player) -> void:
 			charge_state = Charge.NONE
 
 
-## The blade falls: anything still inside the arc takes the hit.
+## The blade falls: anything still inside the arc takes the hit. A PERILOUS
+## overhead is announced as unblockable, so the player's guard is not consulted
+## for it at all - only the roll's i-frames and the parry's window can answer it.
 func _swing(player: Player) -> void:
 	attack_state = Attack.RECOVER
 	_attack_left = attack_recover
 	_attack_cooldown_left = attack_cooldown
 	_swing_flash = 1.0
+	var was_perilous: bool = _perilous
+	var damage_now: float = damage * (perilous_damage_scale if was_perilous else 1.0)
+	if was_perilous:
+		_swings_since_perilous = 0
+	else:
+		_swings_since_perilous += 1
+	_perilous = false
 	var to_player: Vector2 = player.global_position - global_position
-	var inside: bool = to_player.length() <= attack_reach + player.body_radius \
+	var inside: bool = to_player.length() <= _reach_now + player.body_radius \
 		and absf(_angle_delta(to_player.angle(), _facing)) <= deg_to_rad(attack_half_deg)
 	if inside:
-		player.take_damage(damage, global_position)
+		player.take_damage(damage_now, global_position, was_perilous)
 
 
 ## After a failed search, resume from whichever waypoint is closest.
@@ -1033,6 +1098,9 @@ func _draw() -> void:
 			draw_line(Vector2.ZERO, t_end, Color(1.0, 0.35, 0.20, 0.10 + 0.25 * ct), body_radius * 1.7)
 			draw_line(side, t_end + side, Color(1.0, 0.85, 0.65, 0.30 + 0.60 * ct), 2.5)
 			draw_line(-side, t_end - side, Color(1.0, 0.85, 0.65, 0.30 + 0.60 * ct), 2.5)
+			# The Champion's dash is a PERILOUS attack too: the mark over his
+			# head tells the player that the guard will not save them here.
+			_draw_perilous_mark(ct)
 		else:
 			draw_line(Vector2.ZERO, t_end, Color(1.0, 0.20, 0.10, 0.22), body_radius * 1.9)
 
@@ -1043,12 +1111,22 @@ func _draw() -> void:
 	# gold is deliberately NOT the guard's own hue: the telegraph has to read
 	# on top of the vision cone the guard is standing in.
 	if attack_state == Attack.WINDUP:
-		var wt: float = clampf(1.0 - _attack_left / maxf(attack_windup, 0.01), 0.0, 1.0)
-		_draw_wedge(deg_to_rad(attack_half_deg), attack_reach * (0.55 + 0.45 * wt),
-			Color(1.0, 0.82, 0.42, 0.10 + 0.24 * wt),
-			Color(1.0, 0.70, 0.30, 0.35 + 0.65 * wt))
+		var wt: float = clampf(1.0 - _attack_left / maxf(_windup_len, 0.01), 0.0, 1.0)
+		if _perilous:
+			# The marked overhead reads in RED, the genre's universal "this one
+			# is not blocked", and carries the pack's own hazard sign overhead.
+			# The wedge is drawn at the swing's REAL (longer) reach, so where it
+			# points is where it will land.
+			_draw_wedge(deg_to_rad(attack_half_deg), _reach_now * (0.55 + 0.45 * wt),
+				Color(1.0, 0.18, 0.14, 0.12 + 0.28 * wt),
+				Color(1.0, 0.32, 0.24, 0.45 + 0.55 * wt))
+			_draw_perilous_mark(wt)
+		else:
+			_draw_wedge(deg_to_rad(attack_half_deg), _reach_now * (0.55 + 0.45 * wt),
+				Color(1.0, 0.82, 0.42, 0.10 + 0.24 * wt),
+				Color(1.0, 0.70, 0.30, 0.35 + 0.65 * wt))
 	if _swing_flash > 0.0:
-		_draw_wedge(deg_to_rad(attack_half_deg), attack_reach,
+		_draw_wedge(deg_to_rad(attack_half_deg), _reach_now,
 			Color(1.0, 0.95, 0.82, 0.38 * _swing_flash),
 			Color(1.0, 1.0, 1.0, 0.55 * _swing_flash))
 
@@ -1140,3 +1218,25 @@ func _draw_wedge(half: float, reach: float, colour: Color, edge: Color = Color(0
 		var outline: PackedVector2Array = pts.duplicate()
 		outline.append(Vector2.ZERO)
 		draw_polyline(outline, edge, 2.5)
+
+
+## The pack's own triangular hazard sign, held over the head of a knight who is
+## winding up the blow that cannot be blocked. Deliberately large, red and
+## bobbing: this is the one moment in a fight where looking at the enemy and
+## not at your own health bar is the correct play.
+func _draw_perilous_mark(t: float) -> void:
+	if _warn_mark == null:
+		return
+	var cell: float = float(_warn_mark.get_height())
+	var frames: int = maxi(int(_warn_mark.get_width() / cell), 1)
+	# The strip is a 60-frame animation that ends by COLLAPSING the sign, which
+	# would read as "the danger has passed" exactly when it has not. So the
+	# sign pops in over the first fifth of the windup and then holds on a frame
+	# that is safely inside the visible stretch.
+	var pop: float = clampf(t / 0.22, 0.0, 1.0)
+	var frame: int = clampi(4 + int(pop * 40.0), 0, frames - 1)
+	var size: float = body_radius * 3.6 * (0.68 + 0.32 * pop)
+	var bob: float = sin(_time * 11.0) * 2.5
+	var pos := Vector2(-size * 0.5, -body_radius * 2.4 - size + bob)
+	draw_texture_rect_region(_warn_mark, Rect2(pos, Vector2(size, size)),
+		Rect2(float(frame) * cell, 0.0, cell, cell), Color(1.0, 0.38, 0.32, 0.95))

@@ -42,6 +42,9 @@ signal strike_landed(kind: int, at: Vector2)
 ## A blow was turned on a freshly raised guard. `staggered` is false when there
 ## was nobody close enough to blame - the parry still happened.
 signal player_parried(at: Vector2, staggered: bool)
+## The first marked (unblockable) overhead of a room was committed to. game.gd
+## teaches the read on it, once.
+signal perilous_taught
 ## A hit on the player left real damage (feedback and crowd reactions).
 signal player_hurt(at: Vector2)
 
@@ -123,6 +126,9 @@ var _lights: Array = []
 var _excitement: float = 0.0
 var _player_gone: bool = false
 var _cleared: bool = false
+## True once the room has taught the marked overhead (once per room, not once
+## per knight: the second mark has to be read, not re-explained).
+var _taught_perilous: bool = false
 var _last_boss_vulnerable: bool = false
 ## Once per room, the sworn notice the Unsworn is nearly finished and say so.
 var _blood_tasted: bool = false
@@ -403,6 +409,7 @@ func _make_guard(spec: Dictionary) -> Guard:
 	guard.room = self
 	guard.killed.connect(_on_guard_killed)
 	guard.spotted.connect(_on_guard_spotted)
+	guard.perilous_started.connect(_on_guard_perilous_started)
 	if guard.is_boss:
 		guard.phase_changed.connect(_on_boss_phase_changed)
 		guard.summons_requested.connect(_on_boss_summons_requested)
@@ -749,6 +756,17 @@ func _on_player_parried(from_position: Vector2) -> void:
 		target.bark("parried")
 		staggered = true
 	player_parried.emit(from_position, staggered)
+
+
+## The marked overhead is the one rule of the fight that cannot be learned by
+## holding the guard and watching, because holding the guard is exactly what
+## kills you. So the hall says it out loud - ONCE per room, the first time any
+## sworn commits to one. After that the mark alone has to carry it.
+func _on_guard_perilous_started() -> void:
+	if _taught_perilous:
+		return
+	_taught_perilous = true
+	perilous_taught.emit()
 
 
 ## Closest living guard to a point, within `max_dist`.

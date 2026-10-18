@@ -35,7 +35,7 @@ Nobody has a colour to spare. Everybody is between colours and pretending.
 | Wearing a hue that is already yours means nothing — your steel just drinks it | **[rule]** same hue → absorbed (×0.2) |
 | Two colours that meet run together into a third | **[rule]** paint blends on the floor; red + blue = violet |
 | Your colour can be **stolen off your blade**: kill a knight and their hue stays on your steel | **[rule]** absorbing a kill takes the dead hue |
-| Standing in your own spilled colour, you are the wall — nobody sees you | **[rule]** paint veil (now only a *first-strike* tool; see 6) |
+| Standing in your own spilled colour, you are the wall — nobody sees you | **[rule]** paint veil (now only a *first-strike* tool; see 7) |
 | Two knights of opposite hues cancel each other out completely | **[rule]** complements cancel — kills inside the window double the score |
 
 **The theft is the story.** Everything the player does to get stronger is the
@@ -53,10 +53,43 @@ ever says, and it is enough. What that means:
 - They want a name more than they want a colour, and those turn out to be the
   same want.
 
-**They never speak. Not once, until the end.** Their only line is their name,
-and the ending is the only place they have one to give (see 9).
+**The Unsworn speaks — barely, and only at the gate.** Silence with no motive is
+not a character, it is a blank avatar, so the opening gives them a voice and then
+takes it away again: the handful of things a person says when they have decided
+to go through with it (*"You are one of the sworn."* · *"And what would I do with
+four quarters of anything?"* · *"I have no name yet. Then I had better earn
+one."*), and then nothing for four halls. The last line in the game is still
+theirs alone, and it is still their name (see 10).
 
-## 4. The Champion, and the turn
+## 4. The gate: the opening scene
+
+The game does not open on a menu. It opens **at the gate of Hall I**, on a dark
+dawn, and it opens talking. Two people who have nothing left to hide from each
+other say everything the player needs: who they are, why they were chosen, what
+the task is, why it matters, and the mechanic the whole game is built on.
+
+| Beat | Who | What it plants |
+|---|---|---|
+| The world | narration | The Wheel broke; its last four quarters are locked in four halls; a century of keeping has drained the keepers grey. They will not let go. They are right not to. |
+| **Who you are** | the dying knight | He was chosen **before** you. He stood at this gate wearing a colour of his own, and the halls took it off him; he has been hueless ever since. He is the previous player. |
+| **Why you** | the dying knight | *"A knight with no colour is the one key that fits every door in this place."* The halls have nothing left to take from you — that is what makes you able to go in. |
+| **The task** | the dying knight | Four halls, four quarters of the Wheel. *"What burns in there is the last colour in the world, and the sworn will die grey before they hand over a drop of it."* |
+| **The mechanic** | the dying knight, dying | *Hue absorption.* His steel drank the colour of everything it killed — *"that is the art of it, and it is yours now"*. Then the hall stops holding your hand, for good. |
+| **Your own words** | the Unsworn | The questions a person actually asks: *"Then why send for me?"* · *"And what would I do with four quarters of anything?"* · *"I have no name yet. Then I had better earn one."* |
+| **The hope** | the dying knight's last gift | *To hold every colour is to own none.* Mixed together the four are **light** — *"that is the hope they buried. Do not keep it. Mix it, and give it back."* (See 10.) |
+| The steel | staged beat | He reaches towards the sword he dropped — his last movement points at the blade the player is about to pick up. SPACE takes it up. |
+| The hall | staged beat | The gate opens on the Sun's Hall, and its Warden speaks through it: *"Turn around, hueless. There is nothing behind this door that belongs to you."* — *"I know. That is why I am taking it."* |
+| The controls | legend card | WASD move · LMB strike ×3 · RMB guard/parry · SPACE roll. Taught once, on the last card, and never again on the HUD. |
+
+Two details worth keeping:
+
+- **Both hueless figures use the grey portraits** (the only two people in the
+  world with no colour). The story is shown, not stated.
+- **Everything is skippable, always** (SPACE advances, ESC skips the scene), and
+  the last card is the only card that waits for a keypress — the moment the
+  player chooses to enter the hall is theirs.
+
+## 5. The Champion, and the turn
 
 The champion of the Wheel wears **every** colour and belongs to none. He is what
 the game's ending is made of:
@@ -76,7 +109,7 @@ started as, made enormous. He does not stop the player. He *invites* them.
   offers the office — and the crowd names the Unsworn either way. That is the
   ending: the wheel gets a new wearer, and the wheel always needs one.
 
-## 5. The four halls and their wardens
+## 6. The four halls and their wardens
 
 Each hall is one arena (the layouts already exist). Each has a **warden** (a boss
 with its own abilities) guarding a **quarter of the Wheel** (the reward).
@@ -117,7 +150,7 @@ with its own abilities) guarding a **quarter of the Wheel** (the reward).
   at once, faster.
 - **The turn:** he kneels. The office has a new wearer.
 
-## 6. The sworn (why the enemies never stop)
+## 7. The sworn (why the enemies never stop)
 
 The wardens' soldiers are **the sworn**: pawns, knights, harriers, archers,
 monks, lancers. They guard the last colour in the world, and every one of them
@@ -137,11 +170,11 @@ it. So:
 - A knight that spots you **shouts** (the alarm), and the oath carries: nearby
   sworn hear it. The shout replaces the cone.
 
-## 7. The arc, beat by beat
+## 8. The arc, beat by beat
 
 | Where | What the player reads |
 |---|---|
-| **Opening screen** (new) | The herald's proclamation: the Wheel broken, the four quarters, the price of a colour, "you have none" — plus the rules, as live hue swatches. Then: *space to enter the melee*. |
+| **The gate** (the opening scene) | The dying knight: who you are, why you were chosen, the four quarters, and the gift of hue absorption — then the steel, the door, and the legend card (see 4). |
 | **Hall verse** | One stanza of the same hymn, one per hall, naming the quarter kept there. |
 | **Hall banner** | The warden is announced by name and title. |
 | **In the fight** | Sworn barks (motive), the crowd's attention (the score), the herald's waves. |
@@ -151,7 +184,7 @@ it. So:
 | **Win page** | The crowd names them. The Unsworn's one line. |
 | **Death** | *"the melee goes on without you"* — a knight with no name was never here. |
 
-## 8. Voice & typography (how it is written)
+## 9. Voice & typography (how it is written)
 
 - **The herald** speaks in banners (existing system): announcements, waves,
   phase changes, quarters taken. Upper case, no adjectives, present tense.
@@ -163,7 +196,7 @@ it. So:
 - No cutscenes, no dialogue trees, no lore dumps. If a line cannot be delivered
   by a system that already exists, it does not go in.
 
-## 9. The ending, and the name
+## 10. The ending, and the name
 
 The naming was always in the game (`WIN_TITLE`, `hud.show_banner("THE UNSWORN IS
 NAMED")`). The story gives it a mechanism:
@@ -178,7 +211,28 @@ NAMED")`). The story gives it a mechanism:
 
   (Alternative, if we want it simpler: just the name itself, e.g. *"Crimson."*)
 
-## 10. Deliberately simple
+### The hope thread: white light
+
+The knight's last gift at the gate is the one thing the halls never say out loud:
+*to hold every colour is to own none; mixed together, the four are light.* It is
+planted in the first five minutes and it is the game's whole thesis, because it
+names the trap and the way out in the same breath:
+
+- **Taking** is the game: absorb the kill, wear the quarter, keep the hue. Every
+  mechanic rewards it, and the player is meant to enjoy it.
+- **Keeping** is the Champion. He holds all four quarters and belongs to none of
+  them — he is the last Unsworn, he is what "keeping" makes of a person, and he
+  offers the office as if it were a gift.
+- **Mixing** is the player's own last move, and the only one the game withholds
+  until they have all four: the four hues run together into **white**. The
+  ending is not a reward screen — it is the player doing the thing the dying
+  knight asked for: *do not keep it, mix it, and give it back.*
+
+So the name the crowd gives is a colour, and the last thing the player does with
+it is give it away. That is the hope: a hall that lost its colour goes grey, and
+a knight who gives their colour back is how a hall gets one again.
+
+## 11. Deliberately simple
 
 The one-minute explanation, for anyone who asks what the game is:
 

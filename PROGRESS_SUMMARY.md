@@ -4,10 +4,11 @@
 > (assignment, history, codebase map, conventions, gotchas, next steps). This file
 > is the detailed session-by-session log.
 >
-> **The most recent work is §9** (arena look-and-feel overhaul + the ten-pack
-> integration). §7 and §8 describe what was open *before* that; §9.11 is the
-> current to-do list. When you change something here, add it to §9 rather than
-> rewriting history — this file is the handoff.
+> **The most recent work is §11** (the opening scene, guard/parry, footsteps, the
+> marked overhead). §10 is the RPG pivot it was built on top of; §9 is the arena
+> overhaul, and §10.4 / §11.7 are the live to-do lists. When you change something
+> here, add a new section rather than rewriting history — this file is the
+> handoff.
 
 **Repo:** `https://github.com/zeditya/hue-massacre` (branch `master`, live via GitHub Pages)  
 **Previous build:** tag `v1-stealth` → `ddb3a88` (stealth/Collector premise preserved)  
@@ -763,3 +764,143 @@ The first pass only skimmed the packs. What is actually in them:
 Start at **Phase A**: the story strings + the opening screen, then Phase B's
 aggro rewrite (they are the two the user asked for most directly). Re-run
 `tests/test_runner.tscn` (303/0 baseline) and the capture tools after each.
+
+---
+
+## 11. Session: the gate opens, and the melee gets a defence
+
+> Supersedes §10.4's "next move". Phases A and B are **done**: §11.1 is the
+> opening (the user's flagship ask), §11.2–11.4 the melee work it dragged in
+> behind it. Tests went **303 → 344 passed, 0 failed**.
+
+### 11.1 The opening scene — `ui/opening.gd` (new, ~1200 lines)
+
+The game **no longer starts on a menu**. It starts on the story: a dark dawn at
+the gate of Hall I, a dying knight in the sand, and a conversation that hands the
+player their identity, their task and their mechanic before a single enemy moves.
+
+- **One node, no children, no art dependency for the stage.** Everything — the
+  sky gradient, the sun, the wall, the gate, the road, the camp, the statues, the
+  two figures, the sword, the FX and the cards — is drawn in `_draw()` in "stage"
+  coordinates (a ~2400×1500 painting the camera moves over). Draw order and
+  framing are therefore fully controllable, and there is nothing to break in the
+  scene tree.
+- **The script is data.** `SCRIPT: Array` holds `{"nar": …}` narration,
+  `{"who": …, "text": …}` dialogue, and `{"beat": …}` stage directions (`gift`,
+  `walk`, `take`, `gate`, `title`, `done`). Beats are timed, or `hold: true` to
+  wait for SPACE. Adding a line is adding a dictionary.
+- **Five camera shots** (`WIDE`, `CLOSE`, `GIFT`, `SWORD`, `GATE`), declared per
+  entry and eased between; the shot in force is the *last* one declared above the
+  entry, so a beat always owns the framing it happens in.
+- **Both speakers are pack portraits from the grey row** (24 = the Unsworn,
+  25 = the one before; 7 = the Sun's Warden). The two hueless people in the world
+  are shown as hueless.
+- **Typewriter dialogue, SPACE to advance/skip the line, ESC to skip the scene**,
+  `finished` signal → `game.start_run()`. The HUD is hidden and input is ignored
+  while `State.OPENING` is active.
+- **The gift is one travelling burst** (knight → player), then a sparkle that
+  lands on the player: `_spawn_fx` takes an optional `to` and `_draw_fx` lerps.
+- **The last card teaches the controls** as a key-box legend — WASD move,
+  LMB strike ×3, RMB guard/parry, SPACE roll — which forced §11.2 to exist.
+
+Verified with `tools/capture_opening.gd`, which is *flow-faithful*: it finds each
+beat by searching the SCRIPT, uses the shot in force at that entry, and freezes
+the beat (`_beat_hold = true`) so nothing auto-advances during the settle frames.
+Ten frames in `build/capture/opening_XX_*.png`, all inspected.
+
+### 11.2 Guard and parry — the legend is not allowed to lie
+
+- **Hold RMB (or SHIFT)** → the blade comes across the body: a block. Damage is
+  cut by `block_absorb` (65%), the player is **not** stunned and barely shoved,
+  and the block is a **wall in front of the player**, not a shell around them
+  (`guard_half_deg`): a blow from behind lands whole. Blocking never grants
+  i-frames — the cost of a late guard is blood.
+- **The first 0.22 s of the raise PARRYS.** Only the *raise* opens the window, so
+  a permanently held guard is safe but slow; timing it is the skill. A parried
+  blow does nothing at all, and `room.gd` hands out the reward, because only the
+  room knows who swung: the attacker is staggered for **1.15 s** (0.7× for the
+  boss), barks a new `"parried"` line (*"It TURNED my blow!"*), and game.gd adds
+  a hard hit-stop, a white flash, a bright clang and `parry_bonus` (120).
+- **A blow ≥ `guard_break_damage` (46)** breaks the guard open and lands whole,
+  with a longer stun: a big knight coming through a small defence.
+- A swing or a roll drops the guard, so the player cannot turtle and cut at the
+  same time. The ward arc, the bright window edge and the parry ring are all
+  drawn in `player.gd` — the arc that is *drawn* is the arc that *blocks*.
+- **Footsteps**: distance-based (`step_length`), so the sound stays locked to the
+  legs however the walk speed is tuned; pitch and volume jittered in game.gd.
+
+### 11.3 The marked overhead — Souls/Sekiro's perilous attack
+
+Every `perilous_every` (4) swings, a sworn knight commits to an **overhead**: a
+longer windup (×1.7), longer reach (×1.15), more damage (×2.2), and — the point —
+**it cannot be blocked at all** (`take_damage(..., unblockable)`). The player is
+told in the genre's own language: a **red** wedge on the ground at the swing's
+real reach, and the pack's own triangular hazard sign (`mark_warning.png`, 60
+frames) held over the knight's head, tinted red and bobbing. The Champion's
+charging dash is marked the same way, so "get out of the lane" and "do not block
+this" are one visual rule. **Parrying it still works** — that is the reward for
+reading the beat instead of running from it — and the room teaches the whole rule
+*once* per room with a hint line the first time any sworn commits to one.
+
+### 11.4 Bugs found by measuring, not by looking
+
+- **`Transform2D.scaled()` pre-multiplies: it scales the ORIGIN too.** Using it to
+  place the camera and the actors dragged the entire stage towards the top-left by
+  the zoom factor — invisible at zoom 0.88, glaring in a close-up. Every planted
+  actor and the camera are now built from explicit basis vectors
+  (`_actor_xform(base, rot, sx, sy)`); debug markers in the capture prove the
+  knight and the sword land within a pixel of the arithmetic.
+- **The gate beat did not own its shot**, so the gate opened in the previous
+  beat's framing. Beats now declare their shot; see 11.1.
+- **`_draw_perilous_mark` played the sign strip to its last frame**, which is the
+  animation's *collapse* — the warning vanished exactly when it mattered. It now
+  pops in over the first fifth of the windup and holds inside the visible stretch.
+- **Capture tools booted straight into the fight**: they now dismiss the opening
+  the way a player does (`opening.skip()`), and the melee capture holds **real
+  input** (`Input.action_press("guard")`) because a programmatically raised guard
+  is dropped by the player's own `_physics_process` before the frame is drawn.
+
+### 11.5 New dev tooling
+
+| Tool | What it is for |
+|---|---|
+| `tools/capture_opening.gd` | Ten staged frames of the opening, flow-faithful (search-based beats, shot in force, frozen beats). |
+| `tools/capture_melee.gd` | One frame each of the three new reads: the ward, the parry ring, the marked overhead. |
+| `tools/bake_itch_packs.sh` | Extended (sections 9–10) with the props, FX, UI and marks used above; every file carries its provenance comment. |
+
+Removed: `tools/dbg_opening.gd` (superseded by `capture_opening.gd`) and the
+one-off `tools/add_guard_action.gd` (the `guard` action now lives in
+`project.godot`: right mouse button + SHIFT).
+
+### 11.6 Verification
+
+```bash
+flatpak run org.godotengine.Godot --headless --path . res://tests/test_runner.tscn
+#  ->  RESULT: 344 passed, 0 failed   (was 303 before this session)
+
+flatpak run org.godotengine.Godot --path . --script res://tools/capture_opening.gd
+flatpak run org.godotengine.Godot --path . --script res://tools/capture_melee.gd
+```
+
+New checks this session include: the opening exists and its speakers/beats are
+really in the SCRIPT; the `guard` action exists on two keys; a front blow inside
+the window does not land and announces itself; a late guard still blocks and does
+*not* stun; a blow from behind lands whole; a heavy blow breaks the guard; the
+room blames the knight who swung and staggers him; the parry pays its bonus; the
+marked overhead winds up longer, reaches further, goes through a held guard and
+is still beaten by a parry; walking makes footfalls.
+
+### 11.7 Next move
+
+1. **Boss powers** (the user's "Sekiro/Elden Ring-inspired" ask, only partly
+   done: the charge and the marked overhead are in; the Sun's Warden's shield
+   stance + slam, the Twins' blend, and the Thorn Warden's ward/heal/thorns are
+   still to be hunted down in `guard.gd`).
+2. **Smarter unit-role movement**: archers keep their range, monks stand behind
+   the line, thralls swarm instead of queueing.
+3. `docs/STORY.md` is current as of this session (§4 is the opening, §10 has the
+   white-light hope thread). The writing that remains is the **ending beat**:
+   the four hues mixing to white, and the Unsworn's one spoken line — the
+   verses, hints and hall strings are all done and in `level_data.gd`.
+4. Web export re-check (`--export-release "Web"`) and a fresh round of captures.
+

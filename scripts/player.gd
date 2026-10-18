@@ -531,8 +531,10 @@ func absorb_colour(guard_colour: Color) -> void:
 ## DEFLECTED (no damage, no shove, and the room leaves the attacker open), a
 ## blow inside the guard arc is BLOCKED (most of it stops at the blade, no
 ## stun, so the wall holds), and a blow heavy enough breaks the guard open
-## entirely.
-func take_damage(amount: float, from_position: Vector2) -> bool:
+## entirely. `unblockable` marks a PERILOUS attack - the marked overhead, the
+## Champion's dash - which no amount of holding the guard will stop: only the
+## parry window or the roll's i-frames answer it.
+func take_damage(amount: float, from_position: Vector2, unblockable: bool = false) -> bool:
 	if frozen or invuln_left > 0.0:
 		return false
 	var away: Vector2 = global_position - from_position
@@ -549,7 +551,12 @@ func take_damage(amount: float, from_position: Vector2) -> bool:
 			invuln_left = maxf(invuln_left, 0.14)
 			parried.emit(from_position)
 			return false
-		if amount >= guard_break_damage:
+		if unblockable:
+			# PERILOUS. It goes straight through the guard and breaks it open.
+			# The player was told: the mark was over the enemy's head.
+			end_guard()
+			stun = hitstun_time * 1.6
+		elif amount >= guard_break_damage:
 			# Too heavy for the blade. The guard opens and the blow lands
 			# whole, which is the sound a big knight makes through a small
 			# defence.
