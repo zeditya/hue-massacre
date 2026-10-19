@@ -69,6 +69,21 @@ const UNITS: Dictionary = {
 		"cell": 160, "fps": 10.0,
 		"anims": ["idle", "run", "attack1", "guard"],
 	},
+	# §12.2's garrison. The archer keeps the line's own scale and fires the
+	# pack's Shoot sheet; the THORN-SWORN monk's action is the pack's Heal pose;
+	# the sworn lance is the same Lancer art cut to soldier size.
+	"archer": {
+		"cell": 96, "fps": 10.0,
+		"anims": ["idle", "run", "attack1"],
+	},
+	"monk": {
+		"cell": 96, "fps": 10.0,
+		"anims": ["idle", "run", "attack1"],
+	},
+	"lancer": {
+		"cell": 120, "fps": 10.0,
+		"anims": ["idle", "run", "attack1", "guard"],
+	},
 }
 
 ## Frames per second for the ATTACK sheets, per unit: timed so the sheet's last

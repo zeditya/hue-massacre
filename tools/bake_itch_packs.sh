@@ -107,6 +107,32 @@ grey "$L/Lancer_Down_Attack.png"   "$OUT/units/champion/attack1.png" 50%
 grey "$L/Lancer_Down_Defence.png"  "$OUT/units/champion/guard.png"   50%
 
 # ---------------------------------------------------------------------------
+# 3b. THE SWORN ROLES - the pack's Archer, Monk and a smaller Lancer, for the
+#     garrison §12.2 asks for. Same 192px cells as the Warrior (50% -> 96), so an
+#     archer stands with the line; the Lancer's cells are 320px, so a soldier's
+#     spear is cut at 37.5% (120px, the warden's scale) rather than the
+#     Champion's 160.
+#
+#     The archer's shot is the pack's Archer_Shoot, the monk's action frame is
+#     the pack's Heal pose, and the lancer borrows the pack's DEFENCE set for
+#     the wall of spears.
+# ---------------------------------------------------------------------------
+echo "sworn roles (Tiny Swords Archer / Monk / Lancer):"
+AR="$TS/Units/Blue Units/Archer"
+grey "$AR/Archer_Idle.png"  "$OUT/units/archer/idle.png"    50%
+grey "$AR/Archer_Run.png"   "$OUT/units/archer/run.png"     50%
+grey "$AR/Archer_Shoot.png" "$OUT/units/archer/attack1.png" 50%
+MO="$TS/Units/Blue Units/Monk"
+grey "$MO/Idle.png" "$OUT/units/monk/idle.png"    50%
+grey "$MO/Run.png"  "$OUT/units/monk/run.png"     50%
+grey "$MO/Heal.png" "$OUT/units/monk/attack1.png" 50%
+SL="$TS/Units/Blue Units/Lancer"
+grey "$SL/Lancer_Idle.png"         "$OUT/units/lancer/idle.png"    37.5%
+grey "$SL/Lancer_Run.png"          "$OUT/units/lancer/run.png"     37.5%
+grey "$SL/Lancer_Down_Attack.png"  "$OUT/units/lancer/attack1.png" 37.5%
+grey "$SL/Lancer_Down_Defence.png" "$OUT/units/lancer/guard.png"   37.5%
+
+# ---------------------------------------------------------------------------
 # 4. THE STANDING STONES - Zerie's Soldier and Orc as STATUES.
 #    Their cells are 100x100 and the figures are tiny (17x21), so a 2x bake
 #    lands them at knight scale. Greyed and darkened at runtime: they are
