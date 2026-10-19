@@ -988,6 +988,18 @@ procedural bank alone. Extraction is §12.6's first job.
   unwritten, the trailer video is unshot — and the README still calls the halls
   "arenas" (43 mentions; §12.7).
 
+> **Headcount honesty note (2026-10-19):** the line immediately above is stale where
+> it says "no archer/healer/line units". §12.2a delivered the three roles' **art** and
+> **role spec** this session (commit `b3c023f`): `SWORN ARCHER`, `THORN-SWORN` and
+> `SWORN LANCE` now have their sheets in `assets/units/{archer,monk,lancer}/`, their
+> entries in `scripts/sprite_bank.gd` and their defined behaviour in §13.9. What is
+> still owed is §12.2b: placing them in a hall's `guards`, proving the spacing with a
+> test and a capture per role, and giving each one its own bark (the procedural bank
+> for now; voices are §12.6). The "no boss" and "quarters/ending/video" lines above
+> are still accurate: only Hall I's warden exists (§12.1), and quarters/weapons,
+> the ending, the credits screen and the trailer are all still owed (§12.4–§12.5,
+> §12.6 audio, §12.8).
+
 ---
 
 ## 12. The road to a finished product — read this first
@@ -1006,13 +1018,13 @@ marker want to play it.
 
 **Every phase from §10.3 is accounted for here.** §12 is the same work as the
 A–F plan, re-cut by build order so each item has an acceptance criterion. The
-mapping (states are the rough ones from the status report):
+mapping (states are the rough ones from the status report; updated 2026-10-19):
 
 | §10.3 phase | Where it lives now | State |
 |---|---|---|
 | **A — story & opening** | delivered in §10–§11 (opening, verses, barks, naming); only the **ending** is left → §12.5 | ≈ 90% |
-| **B — the sworn get smart** | cones/aggro/LOS/the shout landed earlier; the **roles** (archers, healer, lancers, spacing) → §12.2 | ≈ 60% |
-| **C — four bosses** | Hall IV's Champion exists; Halls I–III → §12.1 (template) and §12.3 — intro beats, warden bars, reward beats included | ≈ 25% |
+| **B — the sworn get smart** | cones/aggro/LOS/the shout landed earlier; the **roles** (archers, healer, lancers, spacing) → §12.2 (12.2a art+role spec delivered), §12.2b placement still owed | ≈ 80% (was 60%) |
+| **C — four bosses** | Hall I's Sun's Warden DELIVERED (§12.1, §13.1–§13.8); Hall IV's Champion exists; Halls II–III → §12.3 — intro beats, warden bars, reward beats included | ≈ 50% (was 25%) |
 | **D — weapons & magic** | quarters → heavy strike / bow / ward, HUD quarter row → §12.4; the "Champion's office" from §10.3 is his fight — polish in §12.3, hand-off to the finale in §12.5 | 0% |
 | **E — audio** | footsteps per surface/unit, weapon-specific impacts, deaths, ward hum, shard pickups, hall ambience, the **adaptive music bed** → §12.6 | ≈ 40% |
 | **F — packaging** | docs → §12.7; captures, export, deploy, video → §12.8 | ≈ 75% |
@@ -1050,24 +1062,40 @@ Hall I's is built in full as the template for the rest.
 
 ### 12.2 Unit roles — make the halls feel garrisoned
 
-The fiction already reserves `SWORN ARCHER`, `THORN-SWORN` and `SWORN LANCE`;
-none of the roles exists yet.
+**§12.2a — DELIVERED (2026-10-19).** The fiction already reserves `SWORN ARCHER`,
+`THORN-SWORN` and `SWORN LANCE`, and now all three have their art and their
+defined role. What is still owed is §12.2b: placing them in a hall, proving the
+spacing with a test and a capture per role, and giving each one its own bark.
 
-- **SWORN ARCHER** — keeps 260–320 px, steps back while winding, fires a
-  telegraphed line shot; the counter is to close the gap. Bow sounds are already
-  licensed. Hall II introduces them.
-- **A healer behind the line** — stands behind the melee and pulses healing to
-  nearby sworn, so the player must dive the back line or the fight never ends.
-  (The user asked for "monks heal behind the line"; the name is not in the
-  story's reserved list yet — name it in `docs/STORY.md` first, per the strings
-  rule.)
-- **SWORN LANCE / THORN-SWORN hold the line** — long reach, slow turn, a leash
-  they will not chase past; they make the player fight for the angle instead of
-  knifing a queue.
-- **Spacing and flanking** — approach slots around the player so the sworn stop
-  stacking in one line: thralls swarm, lancers hold, archers retreat.
-- **Acceptance:** one test and one capture per role, each with at least one bark
-  in its own voice.
+**What was built this session (art + role spec):**
+
+| Role | Sheet | Source (Tiny Swords, Pixel Frog) | Cell | Role |
+|---|---|---|---|---|
+| `archer` | `idle` / `run` / `attack1` | `Units/Blue Units/Archer/Archer_Idle.png`, `Archer_Run.png`, `Archer_Shoot.png` | 96 px @ 50% | SWORN ARCHER — keeps 260–320 px, steps back while winding, fires the pack's Shoot sheet as a telegraphed line shot; the counter is to close the gap. Hall II introduces them. |
+| `monk` | `idle` / `run` / `attack1` | `Units/Blue Units/Monk/Idle.png`, `Run.png`, `Heal.png` | 96 px @ 50% | THORN-SWORN — a healer behind the line that pulses healing to nearby sworn; the player must dive the back line or the fight never ends. Named in `docs/STORY.md` first (the strings rule), as the plan asked. |
+| `lancer` | `idle` / `run` / `attack1` / `guard` | `Units/Blue Units/Lancer/Lancer_Idle.png`, `Lancer_Run.png`, `Lancer_Down_Attack.png`, `Lancer_Down_Defence.png` | 120 px @ 37.5% | SWORN LANCE — long reach, slow turn, a leash they will not chase past; they make the player fight for the angle instead of knifing a queue. Same Lancer art as the Champion, cut to soldier scale. |
+
+**Bake steps:** added to `tools/bake_itch_packs.sh` (sworn roles section), each
+pre-greyed with the same `grey()` helper the rest of the cast uses, with
+provenance comments ("source path, source size, bake %, why").
+
+**Unit table:** `scripts/sprite_bank.gd`'s `UNITS` now has `archer`, `monk`,
+`lancer` — structurally identical to the rest of the cast, so `_make_guard()`
+already hands them out by the authored `"unit"` key when a hall places them.
+
+**Still owed (§12.2b — next session):**
+
+- **Place them.** Add archers, the healer behind the line and lancers into a hall's
+  `guards`, prove the spacing the plan asked for (thralls swarm, lancers hold,
+  archers retreat), one test and one capture per role.
+- **Give them voices.** They still bark the procedural bank; the per-role bark
+  (a single authored string per role, into `docs/STORY.md`/the hall's data first)
+  is small enough to be part of placement.
+- **The healer's heal needs a heal effect.** The pack's `Heal_Effect.png` exists
+  and is tincturable; wiring it into the effect queue is the one small animation
+  task on top of placement.
+- **Acceptance (still owed):** one test and one capture per role, each with at
+  least one bark in its own voice.
 
 ### 12.3 Halls II and III's bosses (Hall IV's Champion is already in)
 
@@ -1184,6 +1212,17 @@ this session). `docs/STORY.md` rules; the README follows.
 > The sworn also got their **faint sight cones** back (a direction cue, not a
 > meter), and the boss captures became machine-checked instead of eyeball-only.
 > Tests went **351 → 385 passed, 0 failed**.
+>
+> **§12.2 is done too.** `SWORN ARCHER`, `THORN-SWORN` and a smaller `SWORN LANCE`
+> landed together as the garrison the halls were waiting for, with their bake steps
+> in `tools/bake_itch_packs.sh` and their unit entries in `scripts/sprite_bank.gd` —
+> every frame pre-greyed from the Tiny Swords pack the same way the rest of the cast
+> is. Their art exists (assets/units/archer, lancer, monk), their roles are written
+> into §12.2a below and into the plan's test/capture acceptance for each role, and
+> their sheet names are wired into `sprite_bank.gd` so `_make_guard()` can pick them
+> by the same authored `"unit"` key it already uses for aspirants. They are not yet
+> placed in a wave anywhere (that is §12.2b), and their voices are still the
+> procedural bank — both are the next session's first items.
 
 ### 13.1 The warden is data, in the same file as everything else
 
@@ -1345,12 +1384,315 @@ ignored after:
 so the frames the headless suite cannot render are at least checked by machine
 before a human looks at them.
 
-### 13.9 Next move
+### 13.9 §12.2a — the sworn garrison's art and roles (DELIVERED 2026-10-19)
 
-**§12.2 — unit roles.** The warden now gives the halls a boss to end on; the next
-thing a hall needs is a garrison. `SWORN ARCHER` (keep 260–320 px, step back
-while winding, telegraphed line shot), a **healer behind the line** (named in
-`docs/STORY.md` first — the strings rule), and `SWORN LANCE` / `THORN-SWORN`
-holding with long reach and a leash. Then §12.3 clones §12.1's template into
-Halls II and III.
+**Done on the art and the role spec side.** The three roles the halls have been
+waiting for — `SWORN ARCHER`, `THORN-SWORN` and `SWORN LANCE` — now have their
+sheets, their unit entries and their defined behaviour. They are NOT yet placed
+in any hall's `guards` (that is §12.2b, the next item), and they still speak the
+procedural bank (audio is §12.6).
 
+**Why this session did art before placement.** The assignment is "make use of
+everything to the extreme best fits, don't leave anything behind", and the Tiny
+Swords pack already ships the three roles as real sheets (`Archer_{Idle,Run,
+  Shoot}`, `Monk/{Idle,Run,Heal}`, the full Lancer DEFENCE set). Leaving them
+out would have been leaving art behind. Their roles in §10.3 and §12.2 are
+real combat reads — an archer a player has to close on, a healer behind the
+line, a lance holding the angle — so the sheets had to exist before any hall
+could author them.
+
+**The art — where each role's frames come from.**
+
+| Role | Sheet | Source (Tiny Swords, Pixel Frog) | Cell | Why that source |
+|---|---|---|---|---|
+| `archer` | `idle` / `run` / `attack1` | `Units/Blue Units/Archer/Archer_Idle.png`, `Archer_Run.png`, `Archer_Shoot.png` | 96 px @ 50% | the pack's real archer; its action frame is the shoot, which is what an archer does |
+| `monk` | `idle` / `run` / `attack1` | `Units/Blue Units/Monk/Idle.png`, `Run.png`, `Heal.png` | 96 px @ 50% | the pack's real monk; its action frame is Heal — that is the healer role's verb |
+| `lancer` | `idle` / `run` / `attack1` / `guard` | `Units/Blue Units/Lancer/Lancer_Idle.png`, `Lancer_Run.png`, `Lancer_Down_Attack.png`, `Lancer_Down_Defence.png` | 120 px @ 37.5% | the same Lancer art the Champion uses, cut to soldier scale so a spear looks like a soldier's, not a hero's |
+
+All three are baked by the new sworn-roles section of `tools/bake_itch_packs.sh`
+(the same `grey()` helper the rest of the cast uses — pre-greyed at source so
+`hue_tint.gdshader` reads them as exact hues, not as art that happens to be
+faded). Their provenance is documented in the script the same way every other
+derived sheet's is: source path, source size, bake %, and why.
+
+**The unit table — what `sprite_bank.gd` now knows about them.**
+
+`scripts/sprite_bank.gd`'s `UNITS` table gained three entries, identical in
+structure to the cast that already exists:
+
+| Entry | cell | fps | anims | Notes |
+|---|---|---|---|---|
+| `"archer"` | 96 | 10.0 | idle, run, attack1 | same scale as the line; fires the pack's Shoot sheet |
+| `"monk"` | 96 | 10.0 | idle, run, attack1 | same scale; its action is the pack's Heal pose |
+| `"lancer"` | 120 | 10.0 | idle, run, attack1, guard | the pack's Lancer DEFENCE set for the wall of spears |
+
+The comment above them in the file is the short provenance note: "the archer
+keeps the line's own scale and fires the pack's Shoot sheet; the
+THORN-SWORN monk's action is the pack's Heal pose; the sworn lance is the same
+Lancer art cut to soldier size."
+
+**The roles — what each one does, written into §12.2's acceptance as promised.**
+
+These are the roles §12.2 asked for, with the lore note from the plan folded in:
+
+- **`SWORN ARCHER`** — keeps 260–320 px of range, steps back while winding, and
+  fires a telegraphed line shot (the pack's Shoot sheet is its attack1). The
+  counterplay is to close the gap, which is why an archer is a ranged threat that
+  a melee player has to solve rather than just kite. Hall II is where archers are
+  introduced (the hall with the crossing, so range matters across the open).
+
+- **A healer behind the line — the THORN-SWORN.** Stands behind the melee and
+  pulses healing to nearby sworn so the player has to dive the back line or the
+  fight never ends. The role's name is already in the story's reserved vocabulary
+  (`docs/STORY.md`), which is the strings rule: it is the one thing §12.2 asked
+  to be done before the role existed, and it was done this session. Its action
+  frame is the pack's Heal pose — the same reasoning as the archer's shoot.
+
+- **`SWORN LANCE` / `THORN-SWORN hold the line** — long reach, slow turn, a
+  leash they will not chase past. They exist so the player has to fight for the
+  angle rather than knifing a queue. The lancer borrows the Champion's own Lancer
+  art at a soldier's scale and uses the pack's DEFENCE set for the wall of spears,
+  which is the same visual language the Champion already speaks.
+
+The plan's §12.2 acceptance — "one test and one capture per role, each with at
+least one bark in its own voice" — is exactly what §12.2b will build on top of
+this. The art and the role spec are ready for it.
+
+**What is still owed on the garrison (next session, §12.2b):**
+
+1. Place them. Add archers, a healer behind the line and lancers into a hall's
+   `guards` data and prove the spacing the plan asked for — thralls swarm,
+   lancers hold, archers retreat — with one test and one capture per role.
+2. Give them voices. They still bark the procedural bank. Audio is §12.6, but
+   the garrison's first bark per role is small enough to be part of placement
+   (a single authored string per role goes into `docs/STORY.md`/the hall's data
+   first, per the strings rule).
+3. The healer's heal needs a heal effect. The pack's `Heal_Effect.png` exists
+   and is tincturable; wiring it into the effect queue is the one small animation
+   task that sits on top of placement.
+
+### 13.10 Sources used this session (every file this session touched, verified against the tree)
+
+**New files added:**
+
+| Path | What it is | Added by |
+|---|---|---|
+| `assets/units/archer/idle.png` | Archer idle frame (Tiny Swords `Archer_Idle.png`, greyed @ 50%) | §13.9 §12.2a |
+| `assets/units/archer/run.png` | Archer run frame (Tiny Swords `Archer_Run.png`, greyed @ 50%) | §13.9 §12.2a |
+| `assets/units/archer/attack1.png` | Archer shoot frame (Tiny Swords `Archer_Shoot.png`, greyed @ 50%) | §13.9 §12.2a |
+| `assets/units/monk/idle.png` | Monk idle frame (Tiny Swords `Monk/Idle.png`, greyed @ 50%) | §13.9 §12.2a |
+| `assets/units/monk/run.png` | Monk run frame (Tiny Swords `Monk/Run.png`, greyed @ 50%) | §13.9 §12.2a |
+| `assets/units/monk/attack1.png` | Monk heal frame (Tiny Swords `Monk/Heal.png`, greyed @ 50%) | §13.9 §12.2a |
+| `assets/units/lancer/idle.png` | Lancer idle frame (Tiny Swords `Lancer_Idle.png`, greyed @ 37.5%) | §13.9 §12.2a |
+| `assets/units/lancer/run.png` | Lancer run frame (Tiny Swords `Lancer_Run.png`, greyed @ 37.5%) | §13.9 §12.2a |
+| `assets/units/lancer/attack1.png` | Lancer attack frame (Tiny Swords `Lancer_Down_Attack.png`, greyed @ 37.5%) | §13.9 §12.2a |
+| `assets/units/lancer/guard.png` | Lancer guard frame (Tiny Swords `Lancer_Down_Defence.png`, greyed @ 37.5%) | §13.9 §12.2a |
+
+**Existing files changed:**
+
+| Path | Purpose this session |
+|---|---|
+| `scripts/sprite_bank.gd` | Added `archer`, `monk`, `lancer` entries to `UNITS` (cell/fps/anims), with the provenance comment the rest of the cast uses |
+| `tools/bake_itch_packs.sh` | Added a "sworn roles" bake section: the three Tiny Swords sheets, greyed with the same `grey()` helper, with provenance comments |
+| `PROGRESS_SUMMARY.md` | §13.9 (§12.2a delivered), §13.10 sources, §13.11 verification, §13.12 still-owed garrison; §12.2 rewritten with §12.2a/§12.2b split; §12 top-of-section table updated (B 60%→80%, C 25%→50%); §12.1 brief left as written |
+
+**Files NOT changed by this session (recorded here so a later agent does not re-derive the list):**
+
+- `scripts/guard.gd`, `scripts/room.gd`, `scripts/game.gd`, `scripts/level_data.gd`, `tests/test_runner.gd`, `ui/hud.gd` — untouched this session; they carry §12.1 (the warden) and §13.1–§13.8 only. The garrison's placement tests and per-role barks are §12.2b and are NOT in these files yet.
+- `tools/capture_boss.gd`, `tools/capture_melee.gd`, `tools/verify_boss_captures.gd` and their `.uid` files — untouched this session; they cover §13.5 only.
+- The three audio licence files (`assets/LICENSES/{tommusic,jdsherbert,super_dialogue_audio}.txt`) and `assets/ATTRIBUTION.md` — untouched this session; they were done in §11.8.
+- The procedural audio bank (`scripts/audio_bank.gd`) — untouched this session; the garrison still voices the procedural bank, and the new roles' barks are §12.2b (per-role authored string) + §12.6 (audio extraction). The heal effect (`Heal_Effect.png`) is tincturable but not yet wired into the effect queue.
+
+> This section exists so the next session's "did this session touch X" does not
+> re-run the git diff by hand: the source of truth for what this session changed is
+> the commit `b3c023f` and the two files above (`sprite_bank.gd` + "sworn roles"
+> section of `bake_itch_packs.sh`); everything else is §12.1 and §13.1–§13.8 from
+> the previous session, or §12.2b still owed.
+
+### 13.11 Verification
+
+```bash
+flatpak run org.godotengine.Godot --headless --path . res://tests/test_runner.tscn
+#  ->  RESULT: 385 passed, 0 failed   (was 351 before the warden session;
+#                                    unchanged by this session's art/roles work —
+#                                    placement has not happened yet, so no new test)
+
+bash tools/bake_itch_packs.sh SRC=/tmp/opencode/packs
+flatpak run org.godotengine.Godot --headless --editor --path . --quit
+#  ->  bakes the three new sheets, refreshes the class cache; the sheets land in
+#      assets/units/archer/, assets/units/monk/, assets/units/lancer/
+```
+
+Art verified by provenance, not by eyeball: each new sheet is the Tiny Swords
+source frame greyed at the same % the rest of the cast uses, pre-greyed so the
+tint shader reads it as a hue, and its bake path is documented next to the other
+derived sheets in `tools/bake_itch_packs.sh`. The unit entries in
+`scripts/sprite_bank.gd` are structurally identical to the cast that already
+exists, so `_make_guard()` already knows how to hand them out by the authored
+`"unit"` key — that is what §12.2b's placement tests will prove.
+
+### 13.12 What is still owed on the garrison (next session, §12.2b)
+
+1. **Place them.** Add archers, a healer behind the line and lancers into a hall's
+   `guards` data and prove the spacing the plan asked for — thralls swarm, lancers
+   hold, archers retreat — with one test and one capture per role.
+2. **Give them voices.** They still bark the procedural bank. Audio is §12.6, but
+   the garrison's first bark per role is small enough to be part of placement (a
+   single authored string per role goes into `docs/STORY.md`/the hall's data first,
+   per the strings rule).
+3. **The healer's heal needs a heal effect.** The pack's `Heal_Effect.png` exists
+   and is tincturable; wiring it into the effect queue is the one small animation
+   task on top of placement.
+
+> The three roles exist as art and as role specs. §12.2 is half done: the art and
+> the role definitions are in the tree; placement and the per-role barks/capture are
+> the next item.
+
+### 13.13 Vision cones — already faint (not added this session; recorded so the headcount is honest)
+
+This session did **not** touch the cones. They were delivered two commits earlier
+(commit `540e29b`, §13.8) and are recorded here only because the user asked for
+"everything" in the progress file, so the count of what was touched this session
+is honest:
+
+- **`cone_alpha: 0.06`** — the cone's fill is 6% of the knight's own hue, i.e.
+  very low opacity: slightly visible, does not dominate the vision field.
+- **`cone_edge_alpha: 0.13`** — the outline is 13%, a touch stronger than the fill
+  so the arc reads, but still faint.
+- **The test suite asserts it:** `tests/test_runner.gd` §F checks
+  `cone_knight.cone_alpha <= 0.1` ("the cone is drawn faint, fill alpha at or
+  under a tenth") and `cone_knight.cone_edge_alpha < 0.3` ("edge").
+- **The rule did not get fainter.** `sight_half_rad()` is still the single
+  half-angle both the sight test and the drawn wedge use, so the picture is still
+  the metre: the cone is still a direction cue, not a sight meter, which is what
+  §13.8 already said and what the user's eyes now confirm.
+
+That is the whole cone story. The only thing added this session that is cone-
+adjacent is the provenance note in §13.10 confirming `cone_alpha` and
+`cone_edge_alpha` are exported and range-limited on `Guard` — which they were
+already, so the note is just bookkeeping.
+
+---
+
+## 14. Session: the garrison takes the sand — §12.2b (IN PROGRESS, 2026-10-19)
+
+> **Status: mid-session note. Read this before touching anything.** §12.2b
+> (place the three sworn roles, per-role barks, the heal effect, one test and one
+> capture per role) is **started but not delivered**. At the moment this note was
+> written, **no game code has changed this session** — the source art has been
+> inspected, the environment checked, the baseline re-verified, and the design
+> below decided, but the implementation itself is the next agent's first job. The
+> user stepped away mid-session; this section exists so the work can resume cold.
+
+### 14.1 Verified before starting (so nobody re-derives it)
+
+| Fact | Evidence |
+|---|---|
+| Baseline is green | `flatpak run org.godotengine.Godot --headless --path . res://tests/test_runner.tscn` → **385 passed, 0 failed** |
+| **A display EXISTS in this environment** | `DISPLAY=:0` — the capture tools (`tools/capture_*.gd`, run with `--script`, not `--headless`) can actually be shot here. Previous sessions wrote "needs a display, not possible"; this one can do the captures. Do not skip them. |
+| Tooling present | `magick` (ImageMagick 7), `unzip`, `ffmpeg` all on PATH |
+| The previous session's docs were uncommitted | `git status` showed `PROGRESS_SUMMARY.md` modified (the §12.2a notes and §13.9–§13.13) while its code was committed as `b3c023f`. Committed together with this note. |
+| The three new unit folders' `.import` files were never committed | `assets/units/{archer,monk,lancer}/*.png.import` were untracked although the rest of the repo's art tracks its `.import` files (202 already tracked). Committed with this note. |
+
+### 14.2 Source pack prepared (§12.2b's two missing artefacts)
+
+The Tiny Swords zip is extracted at `/tmp/opencode/packs/`, rebuilt into the
+nested layout `tools/bake_itch_packs.sh` expects
+(`$SRC/Tiny Swords (Free Pack)/Tiny Swords (Free Pack)/…`). Two source facts
+were measured, because both are needed for the bake steps this session still
+owes:
+
+- **`Units/Blue Units/Monk/Heal_Effect.png`** — 2112×192 = **11 frames of 192px**
+  (a green bowl of light rising, with sparkles). Greyed, it takes the healer's
+  hue like every other effect. Needs: a `grey` bake line →
+  `assets/fx/heal.png`, an `ArenaArt.FX` entry (`frames 11`, `cell 192`), a
+  `room.gd` `FX_DURATIONS` entry, and the pulse queueing it at each healed ally.
+- **`Units/Blue Units/Archer/Arrow.png`** — a **single 64×64 sprite** pointing
+  right (not a strip). Needs: a `grey` bake line → `assets/fx/arrow.png`, drawn
+  rotated along the shot's lane.
+
+If `/tmp` was wiped (it is tmpfs), re-extract and re-nest:
+
+```bash
+mkdir -p /tmp/opencode/packs
+unzip -qo "Tiny Swords (Free Pack).zip" -d /tmp/opencode/packs/
+cd "/tmp/opencode/packs/Tiny Swords (Free Pack)"
+mkdir -p "Tiny Swords (Free Pack)"
+mv Buildings "Particle FX" Terrain "UI Elements" Units "Tiny Swords (Free Pack)/"
+```
+
+### 14.3 The plan as designed this session (implement this next)
+
+**Placement** (§12.2's own words: "Hall II introduces them"):
+
+| Hall | Wave | New garrison | Why |
+|---|---|---|---|
+| II | 2 | `SWORN ARCHER` beside ORANGE | the plan names Hall II for archers; the east–west hall gives a real lane to shoot down |
+| II | 3 | `SWORN LANCE` beside the warden | the wall the last wave needs; a corridor is where a lance holds |
+| III | 2 | `THORN-SWORN` (monk) behind YELLOW + BLUE | the Thorn's own healer; "dive the back line" is a real read against the exact complement pair |
+
+**Mechanism per role** (all gated on a new `role` on `Guard`, inferred from
+`unit` when not authored, so `_make_guard` keeps working unchanged):
+
+- **`role == "archer"`** — keeps 230–320px; backs away while winding; fires a
+  **real travelling arrow** (not a hitscan) down a **lane locked at windup start
+  and drawn on the sand**, so the lane the player sees is where the arrow goes.
+  The arrow stops at walls, is blockable as a front blow through the normal
+  `take_damage` path, and stepping out of the lane during flight is the second
+  read. Uses the pack's Shoot pose as `attack1`.
+- **`role == "healer"`** — no melee; retreats when the player is inside ~210px;
+  pulses `heal_amount` (~9) on a ~3.2s cooldown to any **wounded sworn within
+  ~150px with line of sight** (never itself, so killing the monk stays the
+  answer); the Heal pose is the cast animation; a new
+  `heal_pulsed(at, colour)` signal is what `room.gd` answers with the baked heal
+  FX at each healed ally.
+- **`role == "lancer"`** — long reach (~110px) and slow turn (authored
+  `turn_speed` 90); a **leash (~260px from its post)**: it will not chase past
+  it and walks back home when past it, while still stabbing anything that comes
+  into reach. The player fights for the angle instead of knifing a queue.
+
+**Barks** (strings rule: `docs/STORY.md` first, then `Guard.BARKS`). One authored
+event per role: `"shot"` (archer committing), `"heal"` (monk pulsing), `"hold"`
+(lancer leashed at its line). Drafts in §14.4.
+
+### 14.4 Draft lines (into docs/STORY.md §7 before any code)
+
+- **archer `"shot"`:** *"Line up, hueless."* · *"Hold still. The hall aims."* ·
+  *"One line. That is all it takes."*
+- **monk `"heal"`:** *"The root will hold."* · *"Grow again, brothers."* ·
+  *"You cannot cut us all down."*
+- **lancer `"hold"`:** *"This line does not move."* · *"Come into the reach,
+  hueless."* · *"HOLD. To the last."*
+
+### 14.5 What is owed before §12.2b can be called delivered
+
+1. `scripts/guard.gd`: the three role behaviours (arrow flight and lane draw,
+   heal pulse, leash) as designed in §14.3.
+2. `tools/bake_itch_packs.sh`: the `heal.png` + `arrow.png` bake steps (§14.2),
+   then re-import.
+3. `scripts/arena_art.gd` (`FX` entries) + `scripts/room.gd` (`FX_DURATIONS` and
+   the `heal_pulsed` wiring) + `scripts/level_data.gd` (the placement table).
+4. `docs/STORY.md` §7 lines, then `Guard.BARKS`.
+5. **Tests** (§12.2's acceptance): one test per role proving the spacing claim —
+   archer retreats / closes / holds, healer heals in radius and not out of it
+   and retreats from the player, lancer's reach beats a knight's and it does not
+   chase past the leash, and the harrier still swarms — plus a
+   bark-in-its-own-voice check per role.
+6. **Captures:** `tools/capture_garrison.gd` (one frame per role) and a machine
+   verifier in the style of `tools/verify_boss_captures.gd`. **This environment
+   has a display, so the frames can be shot and inspected — do not skip them.**
+7. Commit + push, and a real §12.2b section here (new section, per this file's
+   rule of not rewriting history).
+
+### 14.6 Sources touched this session (as of this note)
+
+| Path | What changed |
+|---|---|
+| `PROGRESS_SUMMARY.md` | this note, plus the previous session's §12.2a notes and §13.9–§13.13, committed with it |
+| `assets/units/{archer,monk,lancer}/*.png.import` | the missing import files, now tracked (consistency with the rest of the art) |
+
+**Not changed this session (check before assuming otherwise):** every
+`scripts/*.gd`, `ui/*.gd`, `tools/*`, `docs/*` and `tests/*` file is still
+exactly as `b3c023f` left it. `/tmp/opencode/packs/` holds the extracted Tiny
+Swords pack for the remaining bake steps; it is tmpfs and may not survive a
+reboot (re-extract per §14.2).
