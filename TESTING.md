@@ -2,7 +2,7 @@
 
 Two kinds of verification are recorded here:
 
-- **Automated** — **303 checks** in `tests/test_runner.gd`, run in a headless
+- **Automated** — **385 checks** in `tests/test_runner.gd`, run in a headless
   Godot engine. Reproducible in one command.
 - **Manual** — a checklist for the things a script cannot judge, mostly *feel* and
   *visuals*, each with the expected result so you can tick it off.
@@ -35,15 +35,54 @@ Godot 4.7.2-stable (official)
 
 --- A. COLOUR THEORY MATHS                                 37 checks
 --- B. LEVEL GEOMETRY                                      88 checks
---- C. INTEGRATION (real scene, scripted playthrough)     137 checks
+--- C. INTEGRATION (real scene, scripted playthrough)     185 checks
 --- D. LIGHT, WAVES AND LEVEL ELEMENTS                     41 checks
+--- E. HALL I'S SUN'S WARDEN                               27 checks
+--- F. THE FAINT SIGHT CONE                                 7 checks
 =========================================================
-RESULT: 303 passed, 0 failed
+RESULT: 385 passed, 0 failed
 =========================================================
 ```
 
 **Verified on:** Godot 4.7.2-stable (Linux build), headless renderer.
-**Result:** `303 passed, 0 failed`, process exit code `0`.
+**Result:** `385 passed, 0 failed`, process exit code `0`.
+
+### E. Hall I's Sun's Warden (27 checks)
+
+Section E is the boss's acceptance test, and every line of it names a piece of
+counterplay rather than a number: the stance turns a plain front blow, the heavy
+third swing and a parry break it, a blow from behind lands clean, half vigour
+drops the wall and quickens the ground strike, hugging him provokes the slam,
+and the kill kneels him, drains the hall and passes the EMBER quarter to the run.
+The boss bar is checked to carry his name and vigour and 
+`boss_wheel` false, so the Champion's kill-window band is not drawn over him.
+
+### F. The faint sight cone (7 checks)
+
+The cone is a picture and a rule at once, so it is tested as both: the
+half-angle it is drawn with is exactly the half-angle `_in_sight()` uses (they
+share `sight_half_rad()`); a point just inside the drawn arc is in sight, a
+point just outside it is not, and a point past the drawn reach is not; and the
+cone is asserted to be **faint** — fill alpha at or under a tenth — precisely so
+the visual aid can never become the fight.
+
+### The captured look
+
+`tests/` deliberately cannot execute `_draw()`. For the boss specifically that
+gap is closed by two commands run together:
+
+```bash
+flatpak run org.godotengine.Godot --path . --script res://tools/capture_boss.gd
+flatpak run org.godotengine.Godot --headless --path . --script res://tools/verify_boss_captures.gd
+#  ->  RESULT: 21 passed, 0 failed
+```
+
+`verify_boss_captures.gd` asserts the facts the eye would have been asked for:
+every frame is a real 1280×720 picture (not a flat or stale colour), the shield
+arc and the slam's disc are really on the sand in the warden's hue, the arrival
+frame carries the boss bar, the defeat frame is not washed out by the death
+flash, and the cone really is on the sand — dimmer where he is not looking. A human should still glance at the frames; the machine now catches
+the failure modes that used to hide in a silent PNG.
 
 ### A. Colour theory maths (37 checks)
 

@@ -253,17 +253,53 @@ const ROOMS: Array = [
 				"wave": 2,
 			},
 			{
-				# A WARDEN (140 hp, slow, heavy): the last wave's wall.
-				"color": Color(0.75, 0.0, 1.0),
-				"pos": Vector2(120.0, 630.0),
-				"path": [Vector2(120.0, 630.0), Vector2(120.0, 90.0)],
-				"speed": 56.0,
-				"chase": 120.0,
-				"hp": 140.0,
-				"damage": 25.0,
-				"radius": 16.0,
-				"sight": 320.0,
+				# THE SUN'S WARDEN. The hall's keeper, and the first true boss.
+				#
+				# His oath is a WALL: while the stance is up, a plain blow from
+				# the front is turned aside. The heavy third swing breaks it, a
+				# parry leaves him open, and walking round the shield is always
+				# the cleanest answer - because the shield faces where HE faces.
+				# At half vigour the wall comes down for good (phase II): he
+				# starts charging and his ground strike comes faster.
+				#
+				# He is deliberately NOT the Champion: `boss_style` is "shield",
+				# so the wheel's rotating-hue kill window does not apply to him.
+				"color": Color(0.95, 0.28, 0.15),   # EMBER, ~11 deg
+				"pos": Vector2(640.0, 360.0),
+				"path": [
+					Vector2(640.0, 360.0), Vector2(640.0, 200.0),
+					Vector2(820.0, 200.0), Vector2(820.0, 520.0),
+					Vector2(640.0, 520.0), Vector2(460.0, 520.0),
+					Vector2(460.0, 200.0),
+				],
+				"speed": 50.0,
+				"chase": 96.0,
+				"sight": 420.0,
+				# The hall's keeper notices the whole ring; 150 degrees leaves
+				# no safe pocket directly beside him.
+				"sight_arc": 150.0,
+				# Slow turn: the shield is a direction, and it costs him to
+				# swing that direction around.
+				"turn_speed": 120.0,
+				"hp": 300.0,
+				"damage": 22.0,
+				"radius": 24.0,
+				# His quarter of the floor. Bigger than a knight's, so the
+				# ring is the whole answer and not a nudge.
+				"slam_radius": 170.0,
+				"slam_damage": 28.0,
 				"wave": 3,
+				"boss": true,
+				"boss_style": "shield",
+				"boss_name": "THE SUN'S WARDEN",
+				"boss_title": "KEEPER OF THE EMBER QUARTER",
+				"quarter": "EMBER",
+				"boss_phases": 2,
+				"unit": "warden",
+				# Half vigour: the shield falls, the slams quicken, the charge
+				# unlocks. He never reaches phase III - the wheel is not his.
+				"phase_two_ratio": 0.5,
+				"phase_three_ratio": 0.0,
 			},
 			{
 				# A HARRIER (45 hp, fast, fragile) running the full width of the
@@ -701,6 +737,13 @@ const ROOMS: Array = [
 				"sight_arc": 92.0,
 				"radius": 34.0,
 				"boss": true,
+				# The Champion's boss identity. The wheel is his defence, so his
+				# kill window (the rotating hue) stays exclusive to this hall.
+				"boss_style": "wheel",
+				"boss_name": "THE CHAMPION OF THE WHEEL",
+				"boss_title": "WEARER OF EVERY COLOUR",
+				"quarter": "GOLD",
+				"boss_phases": 3,
 				"hp": 400.0,
 				# Degrees per second He drags the wheel around. 28 deg/s = a full
 				# lap in ~12.9s, and the 50-degree kill window (2 x the 25-degree

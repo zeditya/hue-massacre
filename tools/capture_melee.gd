@@ -127,7 +127,10 @@ func _process(_delta: float) -> bool:
 		# Hall I's warden leads a later wave, so use the boss room if the hall
 		# has not put a warden on the sand yet.
 		150:
-			if _game.room.boss == null:
+			# Hall I now authors a warden in its last wave, so `room.boss` can
+			# exist while still dormant. Only an ACTIVE boss makes a usable
+			# frame; otherwise fall back to the Wheel's Champion.
+			if _game.room.boss == null or _game.room.boss.dormant:
 				_game.load_room(3)
 		156:
 			_place_boss()

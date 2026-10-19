@@ -160,7 +160,12 @@ it. So:
 - They are not evil and they are not stupid. They are **right**, and they know
   the Unsworn is stealing.
 - **Once they see you, they never stop.** The oath is total — no searching, no
-  giving up, no walking home. The vision cones are gone with the stealth.
+  giving up, no walking home. A sworn knight still carries a *direction*, and
+  lays it on the sand as a **faint cone** in its own hue, but that is a courtesy
+  to the player's eye rather than a detection meter: being inside the wedge only
+  means the knight *can* notice you, and the paint under your feet still decides
+  whether it does. The cone is dim on purpose — it reads at a glance and never
+  becomes the fight.
 - Their barks are the story's small print — short, and aimed at the player:
   *"Not this one. Not the last one."* · *"It's all we have left!"* ·
   *"He told you it was yours?"* · *"You'll be him one day."*

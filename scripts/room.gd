@@ -33,6 +33,9 @@ signal wave_cleared(wave: int)
 signal boss_vulnerable_changed(is_vulnerable: bool)
 ## The Champion crossed into a new phase (2 adds the charge, 3 the summons).
 signal boss_phase_changed(phase: int)
+## A boss stepped onto the floor for the first time: the herald names him, and
+## the HUD's boss bar comes up. Emitted once per room.
+signal boss_intro(guard: Guard)
 ## The Champion called his Aspirants and they are now on the floor.
 signal boss_summons_spawned(count: int)
 ## The Champion committed to a charging dash (feedback hook for game.gd).
@@ -134,6 +137,14 @@ var _taught_perilous: bool = false
 var _last_boss_vulnerable: bool = false
 ## Once per room, the sworn notice the Unsworn is nearly finished and say so.
 var _blood_tasted: bool = false
+## Set the moment the room's warden falls. The floor greys over as the hall's
+## colour goes out with him - the story's cost, made visible.
+var _hall_drained: bool = false
+## True once the warden has been named on stepping out; the intro is a beat,
+## not a loop.
+var _boss_intro_done: bool = false
+## 0..1 ramp of that grey. Drawn over the sand in _draw.
+var _drain: float = 0.0
 
 
 func _ready() -> void:
@@ -190,11 +201,16 @@ func _ready() -> void:
 	queue_redraw()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	# The arena is never a still image: the torches flicker, the crowd sways and
 	# the arena mark breathes, so the room redraws every frame.
 	queue_redraw()
 	_excitement = _read_crowd_excitement()
+	# The hall's colour drains out over the warden's body. It starts as he falls
+	# and settles into a permanent grey: the quarter is gone, and the floor
+	# knows it.
+	if _hall_drained:
+		_drain = minf(_drain + delta * 0.55, 1.0)
 
 
 ## The crowd's excitement, published by game.gd once per frame (0 when nothing
@@ -343,10 +359,13 @@ func _build_guards() -> void:
 	for wave_num in range(1, waves_total + 1):
 		for spec in by_wave.get(wave_num, []):
 			var guard: Guard = _make_guard(spec)
+			# The room's boss is remembered wherever he is authored: Hall I's
+			# warden leads the last wave, and the HUD still has to know he is
+			# the duel's boss before he steps out.
+			if guard.is_boss:
+				boss = guard
 			if wave_num == 1:
 				guards.append(guard)
-				if guard.is_boss:
-					boss = guard
 			else:
 				# Waiting in the wings: built and ready, but off the field
 				# until _call_next_wave() wakes it.
@@ -360,6 +379,9 @@ func _build_guards() -> void:
 	# messages) right after add_child(), and an immediate call would be lost.
 	if waves_total > 1:
 		_announce_wave.call_deferred(1, guards.size())
+	# A one-wave boss room (the Wheel) introduces its warden straight away.
+	if boss != null and not boss.dormant:
+		_announce_boss_intro.call_deferred()
 
 
 ## Build one knight from its room spec. Everything _ready() needs must be set
@@ -374,8 +396,12 @@ func _make_guard(spec: Dictionary) -> Guard:
 	guard.chase_speed = float(spec.get("chase", 165.0))
 	guard.sight_range = float(spec.get("sight", 310.0))
 	guard.sight_arc_deg = float(spec.get("sight_arc", 64.0))
+	guard.turn_speed_deg = float(spec.get("turn_speed", guard.turn_speed_deg))
 	guard.hue_speed = float(spec.get("hue_speed", 0.0))
 	guard.hide_tolerance_deg = hide_tolerance_deg
+	# A boss's quarter-strike is authored with him, not tuned for every warden.
+	guard.slam_radius = float(spec.get("slam_radius", guard.slam_radius))
+	guard.slam_damage = float(spec.get("slam_damage", guard.slam_damage))
 	# Which armour this one wears. A spec may name it outright ("unit"), which
 	# is how the Champion's summons march in as the stands' axe hands; failing
 	# that it is read off the build - the heavy carries the shield, the fast
@@ -401,6 +427,16 @@ func _make_guard(spec: Dictionary) -> Guard:
 		guard.phase_two_ratio = float(spec.get("phase_two_ratio", guard.phase_two_ratio))
 		guard.phase_three_ratio = float(spec.get("phase_three_ratio", guard.phase_three_ratio))
 		guard.summons_count = int(spec.get("summons_count", guard.summons_count))
+		# The boss's identity and his kind of defence. "wheel" is the
+		# Champion's rotating-hue kill window; "shield" is a wall the player
+		# must break or walk around. They are deliberately different fights.
+		guard.boss_display_name = str(spec.get("boss_name", ""))
+		guard.boss_subtitle = str(spec.get("boss_title", ""))
+		guard.quarter = str(spec.get("quarter", ""))
+		guard.boss_phases = int(spec.get("boss_phases", guard.boss_phases))
+		var style: String = str(spec.get("boss_style", "wheel" if guard.hue_speed != 0.0 else ""))
+		guard.wheel_style = style == "wheel"
+		guard.has_shield_stance = style == "shield"
 
 	var route := PackedVector2Array()
 	for point in spec["path"]:
@@ -470,8 +506,15 @@ func _update_camouflage() -> void:
 
 
 ## The Champion is only killable while the player's hue is on his complement.
+##
+## This rule belongs to the WHEEL and only to the wheel. A shield warden is a
+## wall to be broken, not a rotating lock, so his vulnerability is always
+## false and no kill window is ever announced for him.
 func _update_boss_windows() -> void:
-	if boss == null or boss.dead:
+	if boss == null or boss.dead or boss.dormant or not boss.wheel_style:
+		if _last_boss_vulnerable:
+			_last_boss_vulnerable = false
+			boss_vulnerable_changed.emit(false)
 		return
 	boss.vulnerable = ColorTheory.is_complement(player.colour, boss.colour, boss_kill_tolerance_deg)
 	if boss.vulnerable != _last_boss_vulnerable:
@@ -497,7 +540,7 @@ func _resolve_strikes() -> void:
 		# The blade cuts a wedge, not a circle: a knight at your back survives.
 		if absf(_angle_delta(to_guard.angle(), player.strike_angle())) > half:
 			continue
-		if guard.is_boss and not guard.vulnerable:
+		if guard.is_boss and guard.wheel_style and not guard.vulnerable:
 			# The turning wheel turns the blade aside, unless the hues cancel.
 			guard.clang()
 			continue
@@ -531,6 +574,10 @@ func _kill_guard(guard: Guard) -> void:
 ## test calling _kill_guard). The room does the accounting here, so no path
 ## can kill a guard without spilling its colour or feeding the player's hue.
 func _on_guard_killed(guard: Guard) -> void:
+	# The hall's warden is dead: the colour he was keeping goes out with him.
+	# The floor greys over in _draw; it is the story's cost made visible.
+	if guard.is_boss:
+		_hall_drained = true
 	# 1. The knight's hue hits the sand, in his own colour.
 	#    A boss throws a much larger splat, which also fills the restore bar fast.
 	paint.spawn(guard.position, guard.colour, 2.2 if guard.is_boss else 1.0)
@@ -630,6 +677,9 @@ func _call_next_wave() -> void:
 		_reserve.erase(current_wave)
 	if count > 0:
 		wave_started.emit(current_wave, waves_total, count)
+		# The hall's warden may have just stepped out on this wave. The herald
+		# names him after the wave banner so his name is the one left standing.
+		_announce_boss_intro()
 	elif guards.is_empty():
 		_cleared = true
 		room_cleared.emit()
@@ -660,6 +710,19 @@ func release_all_waves() -> void:
 	if released > 0:
 		current_wave = waves_total
 		wave_started.emit(current_wave, waves_total, released)
+		_announce_boss_intro()
+
+
+## Name the room's warden once, the first time he is actually on the floor. A
+## shield boss leads the last wave, so without this the duel would begin with no
+## more ceremony than another pack of knights.
+func _announce_boss_intro() -> void:
+	if boss == null or not is_instance_valid(boss) or boss.dead or boss.dormant:
+		return
+	if _boss_intro_done:
+		return
+	_boss_intro_done = true
+	boss_intro.emit(boss)
 
 
 ## True while any knight still wears the just-arrived ring (see _draw).
@@ -766,6 +829,11 @@ func _on_player_parried(from_position: Vector2) -> void:
 		# the player's free swing, and it has to be worth the risk taken.
 		var open_time: float = parry_stagger * (0.7 if target.is_boss else 1.0)
 		target.stagger_left = maxf(target.stagger_left, open_time)
+		# A parry is one of the three named answers to the Sun's Warden's
+		# shield: the wall comes open for the free swing, and stays open for a
+		# moment after he recovers, so the read is worth making.
+		if target.has_shield_stance:
+			target.break_shield(open_time + 0.4)
 		target.bark("parried")
 		staggered = true
 	player_parried.emit(from_position, staggered)
@@ -905,6 +973,13 @@ func alive_guard_count() -> int:
 	return guards.size()
 
 
+## True while the room's warden is on the floor and still fighting. A boss
+## waiting in the wings of a later wave is not active, so the HUD does not
+## announce a duel the player cannot see yet.
+func boss_active() -> bool:
+	return boss != null and is_instance_valid(boss) and not boss.dead and not boss.dormant
+
+
 ## Living knights left in the arena overall: the ones on the floor plus the
 ## ones still waiting to march in.
 func remaining_guard_count() -> int:
@@ -953,6 +1028,13 @@ func _draw() -> void:
 	else:
 		for r in _walls:
 			_draw_wall(r)
+
+	# The hall's colour draining out. A grey veil over the sand only: the walls
+	# and the people stay, and the paint underneath is still the paint - the
+	# hall is greyer, not erased.
+	if _drain > 0.0:
+		draw_rect(Rect2(Vector2.ZERO, LevelData.PLAYFIELD),
+			Color(0.62, 0.63, 0.66, 0.34 * _drain), true)
 
 	# The spawn ring: a visible countdown telling you the guards are still
 	# waking up, so the first second of a level is never a surprise death.

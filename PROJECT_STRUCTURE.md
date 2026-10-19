@@ -42,7 +42,7 @@ res://
 │  ├─ hud.gd                 vigour, hue swatch, wheel strip, waves, boss phase
 │  └─ screens.gd             pause / victory / defeat — the only three pages
 ├─ tests/
-│  ├─ test_runner.gd         303 checks, run headless
+│  ├─ test_runner.gd         385 checks, run headless
 │  └─ test_runner.tscn       a tiny scene to run them
 ├─ tools/
 │  ├─ make_input_map.gd      regenerates project.godot's input map
@@ -89,7 +89,7 @@ res://
 3. **Comment the *why*, in plain language.** The code is meant to be explained line
    by line in the video.
 4. **Verify every data edit**, then re-run the suite:
-   `godot --headless --path . res://tests/test_runner.tscn` → `303 passed, 0 failed`.
+   `godot --headless --path . res://tests/test_runner.tscn` → `385 passed, 0 failed`.
 5. **Headless green is not visually right.** The suite never executes `_draw()`.
    Render a frame (`tools/capture.gd`) after any visual change.
 6. **New `class_name`?** Run the editor once (`godot --headless --editor --path . --quit`)

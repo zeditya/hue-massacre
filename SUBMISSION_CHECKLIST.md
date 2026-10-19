@@ -10,7 +10,7 @@ The game code is finished and tested. Everything below is packaging.
 
 - [ ] Open the project in Godot 4.7 and press **F5**. It should play start to finish.
 - [ ] Run the automated suite and confirm it is still green:
-      `.. --headless --path . res://tests/test_runner.tscn` → `303 passed, 0 failed`
+      `.. --headless --path . res://tests/test_runner.tscn` → `385 passed, 0 failed`
       (full command in [HOW_TO_RUN.md §4](HOW_TO_RUN.md))
 - [ ] Play one complete run: **arena 1 → arena 4 → the Champion → victory page**
       (there is no menu and no story: the build opens in the arena). Time it.
@@ -106,7 +106,7 @@ narrate gameplay. Gameplay-only narration will run out at about 6 minutes.
 | 7 | **Arenas as data** | 2 min | `level_data.gd`. Arenas are dictionaries, not scene files: show the wall list, the wave tags, the knight archetypes (Aspirant / Warden / Harrier as stats) and how to move a patrol. |
 | 8 | **The Champion of the Wheel** | 3 min | The rotating hue, the ~13s lap, the 1.8s window, the three phases (sweeps → charge lane → Aspirants + faster wheel), the kneeling victory beat, and the invariant that keeps it from soft-locking. |
 | 9 | **How the look is drawn** | 2.5 min | `arena_art.gd`: the baked sand floor, masonry courses, the stands, banners and braziers, and the four arena sigils — all generated, no imported art beyond the character sheets. |
-| 10 | **Testing** | 2.5 min | Run the suite live and let it scroll (303 checks). Explain that the headless engine **cannot see `_draw()`**, so the visuals were checked by eye. Explain the vacuous-pass bug and the test that was passing because a knight was stuck inside a pillar. |
+| 10 | **Testing** | 2.5 min | Run the suite live and let it scroll (385 checks). Explain that the headless engine **cannot see `_draw()`**, so the visuals were checked by eye. Explain the vacuous-pass bug and the test that was passing because a knight was stuck inside a pillar. |
 | 11 | **Web export** | 2 min | The preset, why the build is single-threaded (COOP/COEP headers), and why audio needs a click. |
 | 12 | **Wrap-up** | 1.5 min | What you would add next, what you learned, honest limitations. |
 

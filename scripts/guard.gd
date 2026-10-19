@@ -6,9 +6,16 @@ extends CharacterBody2D
 ## THE OATH RULE (this is the story AND the AI):
 ## a sworn soldier notices the player the ordinary way - in front of it, in
 ## clear line of sight, not camouflaged - and then it NEVER gives up. The
-## oath is total: no vision cones, no searching, no walking home. Once a
-## knight has locked on, it knows where the Unsworn is until one of them is
-## on the sand, and the only choice left is whose colour spills.
+## oath is total: no searching, no walking home. Once a knight has locked on,
+## it knows where the Unsworn is until one of them is on the sand, and the
+## only choice left is whose colour spills.
+##
+## THE FAINT CONE: a knight does not carry a detection METER, but it does have
+## a direction, and the player deserves to read it. `_draw()` lays a very
+## faint wedge of the knight's own hue along exactly the arc `_in_sight()`
+## tests (same `sight_arc_deg`, same `sight_range`), so the picture and the
+## rule are one thing without the cone ever becoming the fight. It is a
+## readability cue, not a stealth system: the alpha stays under a tenth.
 ##
 ## The one mercy is the first strike: `ColorTheory.visibility()` returns 0
 ## when the paint the player stands in matches their own hue, so a knight
@@ -126,6 +133,13 @@ const BARKS := {
 		"Guard THAT, hueless.",
 		"Hold, and die holding!",
 	],
+	# A shield boss turning a blow on the wall. He is not gloating: the wall is
+	# the whole point of him, and it has held longer than the player has lived.
+	"shield": [
+		"The wall holds.",
+		"The sun does not move.",
+		"Beat on it. Beat on it all day.",
+	],
 	# A warden reaching for the floor of its own hall. Short, because a warden
 	# does not explain itself to a thief.
 	"slam": [
@@ -237,6 +251,9 @@ const BARKS := {
 @export var phase_three_hue_scale: float = 1.8
 ## Aspirants called in when phase III begins.
 @export var summons_count: int = 2
+## How much faster a shield boss's ground strike comes once his wall is down
+## (phase II). 0.6 = roughly every four seconds instead of every seven.
+@export var phase_two_slam_scale: float = 0.6
 
 @export_group("Boss charge")
 ## The telegraphed dash: a long, locked lane then a committed sprint.
@@ -252,15 +269,55 @@ const BARKS := {
 @export var charge_min_range: float = 90.0
 @export var charge_range: float = 300.0
 
+@export_group("Boss identity")
+## The name the HUD puts over the boss bar and the herald shouts when the
+## warden steps out. Empty for ordinary knights.
+@export var boss_display_name: String = ""
+## The line under the name in the arrival banner.
+@export var boss_subtitle: String = ""
+## The quarter of the Wheel this warden keeps. The room hands the name to the
+## game on death (§12.4); empty for everyone but a boss.
+@export var quarter: String = ""
+## How many phases the duel has, for the HUD's phase pips.
+@export var boss_phases: int = 3
+## True for the Champion: his defence is the TURNING WHEEL, so the complement
+## kill window applies and the ring of hues is drawn around him. A boss with
+## a shield stance leaves this false - he is not vulnerable to a wheel window.
+@export var wheel_style: bool = false
+
+@export_group("Shield stance")
+## A boss whose defence is a raised shield rather than the turning wheel: a
+## plain blow from the front is turned aside. The counterplay is named in the
+## fiction - break the wall with the heavy third swing, parry him on the beat,
+## or get behind the direction he is facing.
+@export var has_shield_stance: bool = false
+## Half-width of the shield's facing arc, in degrees. The arc that is DRAWN is
+## the arc that blocks, so a blow outside it is a blow from behind.
+@export var shield_half_deg: float = 70.0
+## How long the shield stays open after it is broken by a heavy blow or a
+## parry. Long enough to punish, short enough that the wall comes back.
+@export var shield_break_time: float = 2.5
+## How much slower he moves with the shield up: a wall is not a sprinter.
+@export var shield_move_scale: float = 0.55
+
 @export_group("Sight")
-## How far a knight notices movement, in pixels. There is no drawn cone any
-## more: this is the range of the sight test, widened to a generous arc so a
-## knight feels alert rather than blind in its own blind spots.
+## How far a knight notices movement, in pixels. This is both the range of the
+## sight test AND the reach of the drawn cone, so the wedge can never claim
+## more or less than the knight can actually see.
 @export var sight_range: float = 310.0
 ## Full width of the sight arc in degrees. Half of this is the half-angle.
-## 130 - a knight notices almost anything in front of and beside it, and the
-## only thing that beats it is paint that exactly matches the Unsworn's hue.
-@export var sight_arc_deg: float = 130.0
+##
+## The room authors this per hall (64 wide by default, 92 for the Champion,
+## 150 for Hall I's warden), so this export value is what a Guard built
+## outside the room uses. The drawn cone and the sight test both read it.
+@export var sight_arc_deg: float = 64.0
+## Opacity of the faint sight cone's fill. Deliberately tiny: the cone is a
+## readability cue for "which way is this one looking", never a stealth meter
+## and never the brightest thing on the sand.
+@export_range(0.0, 0.3) var cone_alpha: float = 0.06
+## Opacity of the cone's outline, a touch stronger than the fill so the arc
+## still has an edge to read at a glance.
+@export_range(0.0, 0.4) var cone_edge_alpha: float = 0.13
 ## Seconds of full contrast needed to go from unaware to chasing.
 @export var detect_time: float = 0.45
 ## How fast the meter drains when the guard cannot see you. Only matters
@@ -340,6 +397,17 @@ var _charge_dir: Vector2 = Vector2.RIGHT
 var _charge_hit: bool = false
 ## The authored rotation speed, so phase III can scale it without compounding.
 var _base_hue_speed: float = 0.0
+## The authored slam cooldown, so phase II can quicken it without compounding.
+var _base_slam_cooldown: float = 0.0
+## The authored slam radius/damage, restored if a spec never overrides them.
+var _base_slam_radius: float = 168.0
+var _base_slam_damage: float = 30.0
+
+## True while the shield is actually in front of him. Written only by
+## _update_shield(), so the picture and the rule can never disagree.
+var shield_up: bool = false
+## Seconds during which a broken shield cannot be raised again.
+var _shield_broken_left: float = 0.0
 
 var _facing: float = 0.0
 var _point_index: int = 0
@@ -414,6 +482,12 @@ func _ready() -> void:
 	add_child(_sprite)
 	hp = max_hp
 	_base_hue_speed = hue_speed
+	_base_slam_cooldown = slam_cooldown
+	_base_slam_radius = slam_radius
+	_base_slam_damage = slam_damage
+	# A shield boss starts the duel behind the wall; every other knight has no
+	# shield at all (and shield_up stays false for the whole fight).
+	shield_up = has_shield_stance
 	# The pack's own hazard sign: the mark that says "do not block this one".
 	_warn_mark = load("res://assets/fx/mark_warning.png")
 	_update_animation()
@@ -500,9 +574,10 @@ func _update_animation() -> void:
 	# strike clangs off his shield.
 	if _guard_pose_left > 0.0 and _sprite.sprite_frames.has_animation("guard"):
 		want = "guard"
-	# A warden standing still plants behind its shield: the same armour as the
-	# knights, read as the heavy it is from across the arena.
-	elif want == "idle" and unit == "warden" and _sprite.sprite_frames.has_animation("guard"):
+	# A warden plants behind its shield, and the hall's shield boss does it
+	# even while advancing: the stance is the read, so the pose has to hold it.
+	elif (want == "idle" and unit == "warden" or shield_up) \
+			and _sprite.sprite_frames.has_animation("guard"):
 		want = "guard"
 	if _sprite.animation != want:
 		_sprite.play(want)
@@ -544,6 +619,8 @@ func _physics_process(delta: float) -> void:
 	# --- the Champion drags the wheel around ------------------------------
 	if not is_zero_approx(hue_speed):
 		colour = Color.from_hsv(fposmod(colour.h + (hue_speed / 360.0) * delta, 1.0), colour.s, colour.v, 1.0)
+
+	_update_shield(delta)
 
 	# --- shatter stagger --------------------------------------------------
 	# A complement strike breaks the armour: the knight reels and can do
@@ -646,6 +723,13 @@ func _player() -> Player:
 	return room.player
 
 
+## Half-angle of the sight test, in radians. `_in_sight()` and the drawn cone
+## both call this, so the wedge the player sees is exactly the wedge that can
+## see them.
+func sight_half_rad() -> float:
+	return deg_to_rad(sight_arc_deg * 0.5)
+
+
 func _in_sight(point: Vector2) -> bool:
 	var to_point: Vector2 = point - global_position
 	var dist: float = to_point.length()
@@ -653,8 +737,7 @@ func _in_sight(point: Vector2) -> bool:
 		return false
 	if dist < 1.0:
 		return true
-	var half: float = deg_to_rad(sight_arc_deg * 0.5)
-	return absf(_angle_delta(to_point.angle(), _facing)) <= half
+	return absf(_angle_delta(to_point.angle(), _facing)) <= sight_half_rad()
 
 
 ## Signed shortest difference between two angles, wrapped to -PI..PI.
@@ -669,6 +752,39 @@ func _turn_towards(target_angle: float, delta: float, speed_deg: float) -> void:
 		_facing = target_angle
 	else:
 		_facing = fposmod(_facing + signf(diff) * step, TAU)
+
+
+## How fast this body moves right now. A shield boss advances behind the wall,
+## so closing the distance must cost him something.
+func _move_scale() -> float:
+	return shield_move_scale if shield_up else 1.0
+
+
+## Keep the shield honest. It is up only while the stance is intact, he is not
+## reeling from a parry or a broken guard, and he has not reached phase II - at
+## which point the wall comes down for the rest of the duel.
+##
+## This is the ONLY writer of `shield_up`, which is why the drawn arc and the
+## blocking rule can never drift apart.
+func _update_shield(delta: float) -> void:
+	if not has_shield_stance:
+		shield_up = false
+		return
+	if boss_phase >= 2:
+		has_shield_stance = false
+		shield_up = false
+		return
+	_shield_broken_left = maxf(_shield_broken_left - delta, 0.0)
+	shield_up = stagger_left <= 0.0 and _shield_broken_left <= 0.0
+
+
+## Knock the wall open for `seconds`. Called by the room when a parry lands and
+## by take_hit() when a heavy blow or a complement shatter connects with it.
+func break_shield(seconds: float) -> void:
+	if not has_shield_stance:
+		return
+	_shield_broken_left = maxf(_shield_broken_left, seconds)
+	shield_up = false
 
 
 # ---------------------------------------------------------------------------
@@ -701,7 +817,7 @@ func _do_patrol(delta: float) -> void:
 		return
 
 	_turn_towards(to_target.angle(), delta, turn_speed_deg)
-	velocity = Vector2.RIGHT.rotated(_facing) * patrol_speed
+	velocity = Vector2.RIGHT.rotated(_facing) * patrol_speed * _move_scale()
 
 
 ## Walk along the waypoint list, reversing at each end (a ping-pong route).
@@ -807,7 +923,7 @@ func _do_chase(delta: float) -> void:
 			if dist <= attack_range and _attack_cooldown_left <= 0.0 and not player.frozen:
 				_start_windup()
 			elif dist > attack_range * 0.85:
-				velocity = Vector2.RIGHT.rotated(_facing) * chase_speed
+				velocity = Vector2.RIGHT.rotated(_facing) * chase_speed * _move_scale()
 			else:
 				velocity = Vector2.ZERO
 
@@ -996,6 +1112,25 @@ func take_hit(amount: float, shatter: bool, heavy: bool, from_position: Vector2,
 		return false
 	_last_strike_serial = strike_serial
 
+	# THE SHIELD STANCE. A blow from the side the shield faces is turned aside:
+	# no damage, a bright clang, and the knight's own word for it. The wall
+	# opens only to the things the fiction names - the heavy third swing, a
+	# complement shatter, or a parry (handled by the room, which knows who
+	# swung) - or to a blow from behind it.
+	if shield_up:
+		var to_attacker: Vector2 = from_position - global_position
+		var in_front: bool = to_attacker.length() < 0.001 \
+			or absf(_angle_delta(to_attacker.angle(), _facing)) <= deg_to_rad(shield_half_deg)
+		if in_front:
+			if shatter or heavy:
+				# The heavy swing is the guard-break: the wall comes open for a
+				# real window, and the blow lands whole behind it.
+				break_shield(shield_break_time)
+			else:
+				clang()
+				_say("shield")
+				return false
+
 	hp = maxf(hp - amount, 0.0)
 	hit_flash = 1.0
 	# A shatter breaks the charge too: catching the Champion mid-dash with his
@@ -1053,6 +1188,15 @@ func _update_boss_phase() -> void:
 	if boss_phase == 3:
 		hue_speed = _base_hue_speed * phase_three_hue_scale
 		summons_requested.emit(summons_count)
+		_say("summon")
+	# A shield boss's phase II is the wall coming down: he stops defending, the
+	# ground strike quickens, and the charge unlocks (guard.gd's chase branch
+	# only runs it from boss_phase >= 2). The wheel boss has no shield to drop.
+	if boss_phase == 2 and has_shield_stance:
+		has_shield_stance = false
+		shield_up = false
+		_shield_broken_left = 0.0
+		slam_cooldown = maxf(_base_slam_cooldown * phase_two_slam_scale, 1.0)
 		_say("summon")
 	phase_changed.emit(boss_phase)
 
@@ -1149,8 +1293,11 @@ func _draw() -> void:
 				Color(colour.r, colour.g, colour.b, 0.25 + 0.25 * breathe), 3.0, true)
 			var font: Font = ThemeDB.fallback_font
 			if font != null:
-				draw_string(font, Vector2(-70.0, body_radius + 26.0), "THE CHAMPION KNEELS",
-					HORIZONTAL_ALIGNMENT_CENTER, 140.0, 12, Color(1.0, 1.0, 1.0, 0.85))
+				# The warden's own name, so the first boss and the last boss do
+				# not both announce the Champion.
+				var label: String = "%s KNEELS" % (boss_display_name if boss_display_name != "" else "THE CHAMPION")
+				draw_string(font, Vector2(-130.0, body_radius + 26.0), label,
+					HORIZONTAL_ALIGNMENT_CENTER, 260.0, 12, Color(1.0, 1.0, 1.0, 0.85))
 			return
 		# A quick white pop instead of an enemy that simply vanishes.
 		var t: float = 1.0 - clampf(_death_left / 0.26, 0.0, 1.0)
@@ -1159,9 +1306,22 @@ func _draw() -> void:
 
 	var body: Color = colour
 
+	# --- the faint sight cone ---------------------------------------------
+	# Where this sworn is looking, drawn in its own hue at an alpha low enough
+	# to sit UNDER everything without ever competing with the fight. It is not
+	# a stealth meter and it is not a promise: the same arc that is drawn here
+	# is the arc `_in_sight()` tests, so a player who is inside the wedge can
+	# be seen (if the paint under their feet lets them be seen at all). A patch
+	# of detection opens the cone a hair, which is the only thing about it that
+	# moves; the rest of the time it is a quiet direction marker.
+	var cone_fill: float = cone_alpha + 0.04 * detection
+	_draw_wedge(sight_half_rad(), sight_range,
+		Color(body.r, body.g, body.b, cone_fill),
+		Color(body.r, body.g, body.b, cone_edge_alpha))
+
 	# --- the notice ring --------------------------------------------------
-	# THE CONE IS GONE. A knight's sight is no longer diagrammed on the floor:
-	# the oath does not need a wedge of light, it needs a warning. While a
+	# The oath does not need a wedge of light to do its work - the faint cone
+	# above is only a direction cue. THIS ring is the warning: while a
 	# knight is working out whether it has seen you, a thin ring tightens
 	# around its feet in its own hue. The moment it locks on, the ring shuts
 	# and the alarm shout goes up - which is the only "vision" the player
@@ -1276,8 +1436,25 @@ func _draw() -> void:
 	elif state == State.INVESTIGATE:
 		draw_circle(Vector2(0.0, -body_radius - 22.0), 4.0, Color(1.0, 0.85, 0.2, 0.9))
 
+	# --- the shield stance ------------------------------------------------
+	# The arc that is drawn IS the arc that blocks (shield_half_deg): a blow
+	# outside it is a blow from behind, and the picture says so before the rule
+	# is ever tested. A broken wall is drawn dim and cracked, so the opening is
+	# as readable as the wall was.
+	if has_shield_stance:
+		var half: float = deg_to_rad(shield_half_deg)
+		if shield_up:
+			draw_arc(Vector2.ZERO, body_radius + 11.0, _facing - half, _facing + half, 28,
+				Color(colour.r, colour.g, colour.b, 0.85), 6.0, true)
+			draw_arc(Vector2.ZERO, body_radius + 14.0, _facing - half, _facing + half, 28,
+				Color(1.0, 0.95, 0.82, 0.60), 2.0, true)
+		else:
+			# Broken: no wall, but the habit is still visible.
+			draw_arc(Vector2.ZERO, body_radius + 11.0, _facing - half, _facing + half, 24,
+				Color(colour.r, colour.g, colour.b, 0.18), 2.0, true)
+
 	# --- Champion of the Wheel extras ------------------------------------
-	if is_boss:
+	if is_boss and wheel_style:
 		# A ring of the whole hue wheel, spinning with the boss's hue: a visual
 		# reminder that he is the one holding the wheel.
 		var segments: int = 24
@@ -1293,10 +1470,12 @@ func _draw() -> void:
 			var pulse: float = 0.6 + 0.4 * sin(_time * 14.0)
 			draw_circle(Vector2.ZERO, body_radius + 20.0, Color(1.0, 1.0, 1.0, 0.10 * pulse))
 			draw_arc(Vector2.ZERO, body_radius + 17.0, 0.0, TAU, 40, Color(1.0, 1.0, 1.0, 0.9), 3.0, true)
-		# Phase pips above the ring: three small marks that fill as he loses
-		# ground, so the duel's shape is readable between hits.
-		for i in 3:
-			var pip: Vector2 = Vector2((float(i) - 1.0) * 12.0, -body_radius - 54.0)
+	# Phase pips above the shoulders: one mark per phase, filling as the duel
+	# escalates, so its shape is readable between hits.
+	if is_boss:
+		var span: float = float(maxi(boss_phases, 1) - 1) * 12.0
+		for i in boss_phases:
+			var pip: Vector2 = Vector2(float(i) * 12.0 - span * 0.5, -body_radius - 54.0)
 			var lit: bool = (i + 1) <= boss_phase
 			draw_circle(pip, 3.2, Color(1.0, 0.86, 0.35, 0.95) if lit else Color(0.0, 0.0, 0.0, 0.55))
 

@@ -59,8 +59,18 @@ var floor_colour: Color = ColorTheory.FLOOR_GREY
 var boss_hue: float = -1.0
 var boss_vulnerable: bool = false
 var boss_tolerance_deg: float = 25.0
-## The Champion's phase (1..3). 1 for every room without a boss.
+## The warden's phase (1..3). 1 for every room without a boss.
 var boss_phase: int = 1
+## The boss's name, subtitle, hue and vigour for the bottom bar. Empty / zero
+## when no warden is on the floor (or while he waits in the wings).
+var boss_name: String = ""
+var boss_subtitle: String = ""
+var boss_colour: Color = UiStyle.GOLD
+var boss_hp: float = 0.0
+var boss_max_hp: float = 0.0
+## True only for the Champion: the wheel's complement band and STRIKE NOW
+## prompt belong to his rotating-hue duel, not to every boss.
+var boss_wheel: bool = false
 
 var spotted: bool = false
 
@@ -185,6 +195,7 @@ func _draw() -> void:
 	_draw_top_left()
 	_draw_top_right()
 	_draw_player_panel()
+	_draw_boss_bar()
 	_draw_barks()
 	_draw_centre_messages()
 	_draw_threat_vignette()
@@ -292,7 +303,8 @@ func _draw_top_right() -> void:
 	# The Champion's phase, with three pips that fill as the duel escalates.
 	if boss_hue >= 0.0:
 		var roman: Array = ["I", "II", "III"]
-		UiStyle.text(self, UiStyle.tracked("CHAMPION  PHASE %s" % roman[clampi(boss_phase - 1, 0, 2)]),
+		var who: String = "CHAMPION" if boss_wheel else "WARDEN"
+		UiStyle.text(self, UiStyle.tracked("%s  PHASE %s" % [who, roman[clampi(boss_phase - 1, 0, 2)]]),
 			Vector2(box_x, 132.0), 13, UiStyle.GOLD, HORIZONTAL_ALIGNMENT_RIGHT, 356.0)
 		for i in 3:
 			var px: float = TOP_RIGHT_EDGE - 10.0 - float(2 - i) * 14.0
@@ -335,8 +347,29 @@ func _draw_player_panel() -> void:
 		UiStyle.text(self, "UNSEEN", Vector2(82.0, 684.0), 11, UiStyle.SAFE)
 
 
+## The warden bar: his name in his own hue, his vigour underneath. Deliberately
+## at the bottom centre and narrow, so it reads as the duel's own object and
+## never competes with the player's vigour panel. Only shown while he is
+## actually on the floor (a warden waiting in the wings has no bar).
+func _draw_boss_bar() -> void:
+	if boss_name == "" or boss_max_hp <= 0.0 or boss_hp <= 0.0:
+		return
+	var width: float = 520.0
+	var x: float = (1280.0 - width) * 0.5
+	var name_colour: Color = boss_colour
+	name_colour.a = 1.0
+	UiStyle.text(self, UiStyle.tracked(boss_name, 2), Vector2(x, 648.0), 16, name_colour,
+		HORIZONTAL_ALIGNMENT_CENTER, width)
+	var bar_rect := Rect2(x, 658.0, width, 12.0)
+	var ratio: float = clampf(boss_hp / maxf(boss_max_hp, 0.01), 0.0, 1.0)
+	UiStyle.bar(self, bar_rect, ratio, boss_colour)
+	if boss_subtitle != "":
+		UiStyle.text(self, boss_subtitle, Vector2(x, 690.0), 11, UiStyle.DIM,
+			HORIZONTAL_ALIGNMENT_CENTER, width)
+
+
 ## The 0-360 degree hue bar. Drawn as 360 thin columns: simple, exact, and it
-## cannot get out of sync with the maths because it uses the same wheel()
+## cannot go out of sync with the maths because it uses the same wheel()
 ## function the game itself uses.
 func _draw_wheel_strip(rect: Rect2) -> void:
 	var step: float = rect.size.x / 360.0
@@ -345,7 +378,8 @@ func _draw_wheel_strip(rect: Rect2) -> void:
 		draw_rect(Rect2(rect.position.x + float(i) * step, rect.position.y, step + 1.0, rect.size.y), c, true)
 
 	# The kill window: the boss must be within +/- tolerance of your complement.
-	if boss_hue >= 0.0:
+	# This is the WHEEL's rule, so it is drawn only for the wheel's boss.
+	if boss_hue >= 0.0 and boss_wheel:
 		var centre: float = fposmod(float(ColorTheory.hue_degrees(player_colour)) + 180.0, 360.0)
 		var from: float = centre - boss_tolerance_deg
 		var span: float = boss_tolerance_deg * 2.0
@@ -359,7 +393,7 @@ func _draw_wheel_strip(rect: Rect2) -> void:
 	draw_rect(Rect2(px - 1.5, rect.position.y - 7.0, 3.0, rect.size.y + 14.0), Color(1.0, 1.0, 1.0, 0.95), true)
 
 	# The boss's hue marker: a black chevron so it is never confused with yours.
-	if boss_hue >= 0.0:
+	if boss_hue >= 0.0 and boss_wheel:
 		var bx: float = rect.position.x + (fposmod(boss_hue, 360.0) / 360.0) * rect.size.x
 		var marker: Color = UiStyle.PAPER if boss_vulnerable else Color(0.05, 0.05, 0.07, 0.95)
 		draw_rect(Rect2(bx - 2.0, rect.position.y - 11.0, 4.0, rect.size.y + 22.0), marker, true)
@@ -427,7 +461,7 @@ func _draw_threat_vignette() -> void:
 		draw_rect(Rect2(1280.0 - thickness, 0.0, thickness, 720.0), c, true)
 
 	# Boss window prompt: the single most important instruction in the fight.
-	if boss_hue >= 0.0 and boss_vulnerable:
+	if boss_hue >= 0.0 and boss_vulnerable and boss_wheel:
 		var pulse2: float = 0.65 + 0.35 * sin(_time * 16.0)
 		var strike: Color = UiStyle.PAPER
 		strike.a = pulse2

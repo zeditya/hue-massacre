@@ -33,6 +33,7 @@ var _game: Node = null
 var _parry_at: Vector2 = Vector2.INF
 var _parry_staggered: bool = false
 var _step_count: int = 0
+var _boss_intro_count: int = 0
 
 
 func _ready() -> void:
@@ -1500,3 +1501,197 @@ func _test_integration() -> void:
 	_game.screens.back()
 	check(_game.state == Game.State.PLAY and not get_tree().paused, "ESC from the pause page resumes")
 	check(_game.screens.mode == Screens.Mode.NONE, "and clears the page")
+
+	# =====================================================================
+	# E. HALL I'S SUN'S WARDEN - the first true boss (§12.1)
+	# =====================================================================
+	# Hall I used to end on a heavy knight in its last wave. It now ends on a
+	# WARDEN: a shield stance that a plain blow cannot pass, a ground strike,
+	# a charge from half vigour, and a quarter of the Wheel as the reward.
+	# The counterplay is the acceptance criterion: face the wall and lose,
+	# break it with the heavy swing, go round it, or parry it open.
+	print("\n--- E. HALL I'S SUN'S WARDEN")
+	_game.start_run()
+	await _frames(3)
+
+	var hall_one: Dictionary = LevelData.ROOMS[0]
+	var warden_spec: Dictionary = {}
+	for spec in hall_one["guards"]:
+		if bool(spec.get("boss", false)):
+			warden_spec = spec
+	check(not warden_spec.is_empty(), "Hall I authors a warden boss")
+	check(str(warden_spec.get("boss_style", "")) == "shield",
+		"and his defence is a shield stance, not the Champion's turning wheel")
+	check(str(warden_spec.get("quarter", "")) == "EMBER",
+		"and he keeps the EMBER quarter of the Wheel")
+	check(_game.room.boss != null and _game.room.boss.dormant,
+		"the hall remembers him while he waits in the wings")
+	check(_game.hud.boss_name == "", "and no boss bar is shown before he steps out")
+
+	# The intro is the moment the wave room becomes a duel. It fires once, when
+	# the wave he leads actually reaches the floor.
+	_boss_intro_count = 0
+	_game.room.boss_intro.connect(func(_g: Guard) -> void: _boss_intro_count += 1)
+	_game.room.release_all_waves()
+	await _frames(3)
+	var warden: Guard = _game.room.boss
+	check(not warden.dormant, "the last wave puts the Sun's Warden on the floor")
+	check(_boss_intro_count == 1, "the herald names him exactly once")
+	check(_game.hud.boss_name == "THE SUN'S WARDEN", "the HUD boss bar carries his name")
+	check_approx(_game.hud.boss_max_hp, warden.max_hp, 0.01, "and his maximum vigour")
+	check(not _game.hud.boss_wheel, "and the wheel's kill-window band is not drawn for him")
+
+	# Freeze the rest of the hall so these checks measure the warden alone.
+	for g in _game.room.guards:
+		if is_instance_valid(g) and g != warden:
+			g.set_physics_process(false)
+	warden.set_physics_process(false)
+	warden.state = Guard.State.CHASE
+	warden.stagger_left = 0.0
+	warden.shield_up = true
+	warden.hp = warden.max_hp
+	warden.position = Vector2(760.0, 360.0)
+	warden._facing = PI
+	var p_warden: Player = _game.room.player
+	p_warden.position = warden.position + Vector2(-40.0, 0.0)
+	p_warden._facing = 0.0
+	p_warden.hitstun_left = 0.0
+	p_warden.invuln_left = 0.0
+	p_warden.hp = 100.0
+
+	# FACE THE WALL: a plain blow from the front does nothing at all.
+	var warden_hp_before: float = warden.hp
+	p_warden.strike_cooldown_left = 0.0
+	p_warden.combo_left = 0.0
+	p_warden.begin_strike(Vector2.RIGHT)
+	await _physics_frames(3)
+	check_approx(warden.hp, warden_hp_before, 0.001,
+		"a plain blow on the raised shield does nothing")
+	check(warden.shield_up, "and the wall is still standing")
+	check(warden.bark_text != "", "while he says his own word for it")
+
+	# BREAK IT: the heavy third swing is the guard-break.
+	p_warden.strike_cooldown_left = 0.0
+	p_warden.combo_left = 1.0
+	p_warden.strike_index = 1
+	p_warden.begin_strike(Vector2.RIGHT)
+	await _physics_frames(3)
+	check(warden.hp < warden_hp_before - 0.5,
+		"the heavy third swing breaks the shield and lands whole")
+	check(not warden.shield_up, "leaving the wall down for a punish window")
+
+	# GO ROUND IT: the shield faces where HE faces.
+	warden.hp = warden.max_hp
+	warden.stagger_left = 0.0
+	warden._shield_broken_left = 0.0
+	warden.shield_up = true
+	warden._facing = 0.0
+	p_warden.position = warden.position + Vector2(-40.0, 0.0)
+	p_warden.strike_cooldown_left = 0.0
+	p_warden.combo_left = 0.0
+	p_warden.begin_strike(Vector2.RIGHT)
+	await _physics_frames(3)
+	check(warden.hp < warden.max_hp - 0.5,
+		"a blow from behind the shield lands clean")
+	check(warden.shield_up, "and the wall itself was never in the way")
+
+	# PARRY IT OPEN: the room's own counterplay, and the reason to stand still
+	# on the beat instead of running from the wall.
+	warden.hp = warden.max_hp
+	warden.stagger_left = 0.0
+	warden._shield_broken_left = 0.0
+	warden.shield_up = true
+	_game.room._on_player_parried(warden.global_position)
+	await _physics_frames(1)
+	check(warden.stagger_left > 0.5, "a parry staggers the warden")
+	check(not warden.shield_up, "and knocks the shield open")
+	check(warden._shield_broken_left > 0.0, "for a real punish window, not a frame")
+
+	# PHASE II AT HALF VIGOUR: the wall comes down for good, the slam quickens
+	# and the charge unlocks. That is the duel's shape changing, not a number.
+	warden.hp = warden.max_hp
+	warden.boss_phase = 1
+	warden.has_shield_stance = true
+	warden.shield_up = true
+	var slam_cooldown_before: float = warden.slam_cooldown
+	warden.hp = warden.max_hp * 0.45
+	warden._update_boss_phase()
+	check(warden.boss_phase == 2, "at half vigour the warden enters phase II")
+	check(not warden.has_shield_stance and not warden.shield_up,
+		"the shield falls for good, as the fiction promises")
+	check(warden.slam_cooldown < slam_cooldown_before,
+		"and his ground strike comes faster")
+
+	# HUG HIM AND THE FLOOR ANSWERS: even with the shield gone, standing under
+	# him is not safe.
+	warden.set_physics_process(true)
+	warden.stagger_left = 0.0
+	warden.attack_state = Guard.Attack.NONE
+	warden._attack_left = 0.0
+	warden._attack_cooldown_left = 0.0
+	warden._slam_cooldown_left = 0.0
+	warden._charge_cooldown_left = 999.0
+	warden.state = Guard.State.CHASE
+	warden.detection = 1.0
+	p_warden.position = warden.position + Vector2(0.0, 45.0)
+	p_warden.hp = 100.0
+	p_warden.hitstun_left = 0.0
+	p_warden.invuln_left = 0.0
+	await _physics_frames(4)
+	check(warden.attack_state == Guard.Attack.SLAM,
+		"hugging the warden makes him strike the floor")
+	warden.set_physics_process(false)
+	warden.attack_state = Guard.Attack.NONE
+	p_warden.hp = 100.0
+
+	# THE DEFEAT BEAT AND THE QUARTER. Killing him kneels him, greys the hall
+	# and passes the EMBER quarter to the run.
+	_game.quarters_taken.clear()
+	warden.hp = 1.0
+	_game.room._kill_guard(warden)
+	await _frames(2)
+	check(warden.dead and warden.kneeling, "the warden kneels when his vigour runs out")
+	check(_game.room._hall_drained, "the hall starts draining as its keeper falls")
+	await get_tree().create_timer(1.0).timeout
+	check(_game.quarters_taken.has("EMBER"),
+		"and the EMBER quarter passes to the Unsworn",
+		"quarters %s" % str(_game.quarters_taken))
+	# Let the defeat beat's own awaits (and its final sound) finish before the
+	# runner tears the scene down, or pending timers/playbacks leak at exit.
+	await get_tree().create_timer(2.6).timeout
+
+	# =====================================================================
+	# F. THE FAINT SIGHT CONE
+	# =====================================================================
+	# The sworn carry a direction, so the player can read where each one is
+	# looking - but the cone is a cue, not a meter: the drawn wedge IS the arc
+	# the sight test uses (one half-angle helper serves both), and its alpha is
+	# kept low enough that it can never dominate the sand.
+	print("\n--- F. THE FAINT SIGHT CONE")
+	_game.start_run()
+	await _frames(3)
+	var cone_knight: Guard = _game.room.guards[0]
+	check_approx(cone_knight.sight_half_rad(),
+		deg_to_rad(cone_knight.sight_arc_deg * 0.5), 0.000001,
+		"the half-angle the cone is drawn with is the half-angle the rule uses")
+	check(cone_knight.cone_alpha <= 0.1,
+		"the cone is drawn faint (fill alpha at or under a tenth)",
+		"alpha %.2f" % cone_knight.cone_alpha)
+	check(cone_knight.cone_edge_alpha < 0.3,
+		"and its outline stays subtle too",
+		"edge %.2f" % cone_knight.cone_edge_alpha)
+
+	# The geometry itself: inside the drawn wedge can be seen, outside it cannot,
+	# and past the drawn reach cannot either. This is what stops the cone from
+	# ever lying about the vision it is drawn to represent.
+	cone_knight._facing = 0.0
+	var half: float = cone_knight.sight_half_rad()
+	var near: float = cone_knight.sight_range * 0.8
+	var inside: Vector2 = cone_knight.global_position + Vector2.from_angle(half * 0.98) * near
+	var outside: Vector2 = cone_knight.global_position + Vector2.from_angle(half * 1.05) * near
+	var beyond: Vector2 = cone_knight.global_position + Vector2.from_angle(0.0) * (cone_knight.sight_range + 30.0)
+	check(cone_knight._in_sight(inside), "a point inside the drawn cone is in sight")
+	check(not cone_knight._in_sight(outside), "a point outside the drawn arc is not")
+	check(not cone_knight._in_sight(beyond), "and a point past the drawn reach is not")
+	check(cone_knight._in_sight(cone_knight.global_position + Vector2(6.0, 0.0)),
+		"a knight still notices what is right on top of it")

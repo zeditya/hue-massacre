@@ -94,6 +94,16 @@ This is the grading core of the assignment, so each rule below names the real
 principle it comes from and where it lives in the code. All hue maths is in
 `scripts/color_theory.gd`.
 
+### 3.0 The faint cones — *a direction, not a meter*
+
+Every sworn knight lays a **very faint wedge** of its own hue on the sand along
+exactly the arc it can see: the fill is 6% alpha and the outline 13%, so the cone
+is readable at a glance and invisible the moment you stop looking for it. It is
+the same arc `_in_sight()` tests (one `sight_half_rad()` helper draws it and
+rules on it), which is what keeps the picture honest — but seeing the cone is not
+being seen. Standing inside a cone only means a knight *can* notice you; the paint
+under your feet still decides the rest, which is the whole point of §3.1.
+
 ### 3.1 Simultaneous contrast — *why standing in your own colour hides you*
 
 A knight can only build detection on you if you **contrast with the ground under
@@ -223,7 +233,7 @@ teaching exactly one idea:
 
 | Arena | Lesson | What it is |
 |---|---|---|
-| **01 — THE OPEN SAND** | Simultaneous contrast | A low walled ring with four gates, a concourse around the outside and two herald plinths. Nothing to hide in but your own paint. 3 waves, 6 knights. |
+| **01 — THE OPEN SAND** | Simultaneous contrast | A low walled ring with four gates, a concourse around the outside and two herald plinths. Nothing to hide in but your own paint. 3 waves, 6 knights — and the last one is **THE SUN'S WARDEN**, the hall's first true boss. |
 | **02 — THE BANNERED HALL** | Additive hue blending | A cross of four halls meeting at one open crossing, rooms in the quadrants, a lantern-lit lane around the outside under the house banners. Red walks one hall, Blue the other, and the crossing is the only place their paint can meet. 3 waves, 5 knights. |
 | **03 — THE DEEP RING** | Complementary contrast | A ring wall with four gates around a sunken pit with two altars. The smallest floor in the melee, and every route crosses every other one — here the shatter is mandatory. 2 waves, 5 knights. |
 | **04 — THE WHEEL** | Complementary cancellation | Eight pillars around a central dais, and the Champion on his circle. 3 phases; he calls two Aspirants at a third of his vigour. |
@@ -240,6 +250,25 @@ separate scripts):
 Every arena opens with **one verse for its house** (the herald's introduction,
 printed on load) followed by its lesson, so the teaching the removed intro pages
 used to do happens in the world instead of in front of it.
+
+### The wardens
+
+Halls I and IV end on a **warden**, not a wave: a boss with a name, a boss bar
+at the bottom of the screen, and a power the hall's verse promised.
+
+- **THE SUN'S WARDEN** (Hall I, the EMBER quarter) fights behind a **shield
+  stance**: a plain blow from the front is turned aside. Break it with the
+  **heavy third swing**, **parry** him on the beat, or simply **walk round it** —
+  the shield only faces where he faces. At **half vigour** the wall falls for
+  good, his ground strike quickens and his charge unlocks. He also strikes the
+  **floor** when you stand under him: the ring is unblockable, and the roll is
+  the whole answer.
+- **THE CHAMPION OF THE WHEEL** (Hall IV, the GOLD quarter) keeps the rotating
+  hue window: he is only cut while your hue sits on his complement.
+
+A fallen warden **kneels**, hands over **the quarter of his hall**, and the sand
+of that hall begins to **grey out** in `room.gd` — the story's cost, drawn on the
+floor rather than explained.
 
 Each arena is a **different kind of space**, and the architecture is doing work:
 Arena 1 is a ring you cannot hide in, Arena 2 is a crossing you have to own,
@@ -314,12 +343,15 @@ res://
 │  ├─ hud.gd              vigour, hue swatch, wheel strip, waves, Champion phase, score
 │  └─ screens.gd          pause, victory and defeat pages — that is all of them
 ├─ tests/
-│  ├─ test_runner.gd      303 automated checks
+│  ├─ test_runner.gd      385 automated checks
 │  └─ test_runner.tscn    tiny scene to run them
 └─ tools/
    ├─ make_input_map.gd    one-off generator for project.godot's input map
    ├─ make_floor_plans.gd  draws docs/level_plans.png straight from level_data.gd
-   └─ capture.gd           renders a frame of each arena, for a by-eye look
+   ├─ capture.gd           renders a frame of each arena, for a by-eye look
+   ├─ capture_melee.gd     the guard, the parry, the marked overhead, the slam
+   ├─ capture_boss.gd      Hall I's warden: stance, break, phase II, defeat
+   └─ verify_boss_captures.gd  machine-checks those frames (no eyeball required)
 ```
 
 **Almost nothing is built in the editor.** The game is one scene containing one
@@ -504,7 +536,7 @@ Stated plainly:
 - **The automated suite cannot see the screen.** The headless engine does not
   render, so `_draw()` is never executed by the tests. The rules, the maths, the
   state machine, the arena geometry, the waves and the boss phases are all
-  machine-verified (**303 checks**), but the *look* — the sand, the masonry, the
+  machine-verified (**385 checks**), but the *look* — the sand, the masonry, the
   stands, the flames, the arena sigils, the HUD layout, the pages — is verified by
   rendering frames during development and by playing it. Treat the first
   playthrough as the real art check.

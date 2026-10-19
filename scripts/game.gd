@@ -126,6 +126,10 @@ var room_index: int = 0
 var score: int = 0
 var deaths: int = 0
 var multiplier: int = 1
+## Quarters of the Wheel taken from the wardens this run. Quarters are KEYS,
+## not currency (§12.4): taking one is the unlock. The HUD's socket row reads
+## this, and the ending will too.
+var quarters_taken: Array[String] = []
 var combo_chain: int = 0
 var combo_time_left: float = 0.0
 var run_time: float = 0.0
@@ -413,6 +417,7 @@ func start_run() -> void:
 	score = 0
 	deaths = 0
 	run_time = 0.0
+	quarters_taken.clear()
 	_reset_combo()
 	screens.hide_all()
 	if hud != null:
@@ -443,6 +448,7 @@ func load_room(index: int) -> void:
 	room.room_cleared.connect(_on_room_cleared)
 	room.boss_vulnerable_changed.connect(_on_boss_vulnerable_changed)
 	room.boss_phase_changed.connect(_on_boss_phase_changed)
+	room.boss_intro.connect(_on_boss_intro)
 	room.boss_summons_spawned.connect(_on_boss_summons_spawned)
 	room.boss_charge_started.connect(_on_boss_charge_started)
 	room.strike_landed.connect(_on_strike_landed)
@@ -555,9 +561,38 @@ func _on_guard_killed(guard: Guard) -> void:
 		_boss_victory_beat()
 
 
-## Three held beats after the Champion falls, timed to land inside the 2.1 s
-## room-clear pause before the win page appears.
+## The held beats after a warden falls, timed to land inside the 2.1 s
+## room-clear pause before the next page appears.
+##
+## Hall I's warden is the first boss, so his beat is the first time the game
+## says the quarter's name out loud: the hall's colour goes out with him and
+## the quarter becomes a key. The Champion's beat keeps the naming for the
+## ending (§12.5), where it belongs.
 func _boss_victory_beat() -> void:
+	var warden: Guard = room.boss if room != null and is_instance_valid(room.boss) else null
+	var warden_colour: Color = warden.colour if warden != null else UiStyle.GOLD
+	var warden_name: String = warden.boss_display_name if warden != null and warden.boss_display_name != "" else "THE CHAMPION"
+	var quarter_name: String = warden.quarter if warden != null else ""
+	var is_wheel: bool = warden == null or warden.wheel_style
+
+	if not is_wheel:
+		# The Sun's Warden: the wall falls, then the hall loses its colour, and
+		# the quarter he kept becomes the run's first key.
+		if hud != null:
+			hud.show_banner("%s FALLS" % warden_name, "the wall comes down, and the hall with it", warden_colour, 1.5)
+		await get_tree().create_timer(0.8).timeout
+		if quarter_name != "" and not quarters_taken.has(quarter_name):
+			quarters_taken.append(quarter_name)
+			if hud != null:
+				hud.show_banner("THE %s QUARTER" % quarter_name,
+					"a key to a door the hall kept shut", warden_colour, 1.7)
+			audio.play("named")
+		await get_tree().create_timer(0.7).timeout
+		if hud != null:
+			hud.show_flash("the hall goes grey without its keeper", UiStyle.PAPER, 1.2)
+		return
+
+	# The Champion of the Wheel: kneel, remember, and name the Unsworn.
 	if hud != null:
 		hud.show_banner("THE CHAMPION KNEELS", "the crowd falls silent", UiStyle.GOLD, 1.5)
 	await get_tree().create_timer(0.9).timeout
@@ -569,22 +604,43 @@ func _boss_victory_beat() -> void:
 	audio.play("named")
 
 
+## A boss steps onto the floor for the first time: the herald names him, in his
+## own hue, and the HUD's warden bar appears. Hall I's warden leads its last
+## wave, so this is the moment the hall stops being a wave room and becomes a
+## duel.
+func _on_boss_intro(guard: Guard) -> void:
+	if guard == null or not is_instance_valid(guard):
+		return
+	audio.play("wave", 0.62)
+	crowd_excitement = minf(crowd_excitement + 0.2, 1.0)
+	if hud == null:
+		return
+	var title: String = guard.boss_display_name if guard.boss_display_name != "" else guard.unit_name()
+	var sub: String = guard.boss_subtitle if guard.boss_subtitle != "" else "the hall's keeper steps out"
+	hud.show_banner(title, sub, guard.colour, 2.6)
+
+
 ## Phase II adds the charging dash; phase III calls the Aspirants. Each is a
-## herald's line, in the same voice as the wave banners.
+## herald's line, in the same voice as the wave banners. The line is read off
+## the boss in front of the player, because Hall I's warden spends his phase II
+## dropping a shield rather than beginning a wheel turn.
 func _on_boss_phase_changed(phase: int) -> void:
 	audio.play("wave", 0.75)
-	# The wheel spins up: the Champion's own hue flares around him as he takes
-	# the next turn of it. A phase change is never a surprise.
-	if room != null:
-		for guard in room.guards:
-			if guard.is_boss:
-				room.queue_fx("magic", guard.global_position, guard.colour, 1.6)
-				break
+	var warden: Guard = room.boss if room != null and is_instance_valid(room.boss) else null
+	# The boss's own hue flares around him as he takes the next turn of the
+	# fight. A phase change is never a surprise.
+	if warden != null and room != null:
+		room.queue_fx("magic", warden.global_position, warden.colour, 1.6)
 	if hud == null:
 		return
 	var title: String = "PHASE II - THE CHARGE" if phase == 2 else "PHASE III - THE ASPIRANTS"
 	var sub: String = "he plants his feet and comes for you" if phase == 2 else "he calls the melee and spins the wheel faster"
-	hud.show_banner(title, sub, UiStyle.GOLD, 2.0)
+	if warden != null and not warden.wheel_style:
+		# The shield warden's phase II is the wall coming down: no more stance,
+		# faster ground strikes, and the charge he was saving.
+		title = "PHASE II - THE SHIELD FALLS"
+		sub = "the wall is down; now he reaches for the floor"
+	hud.show_banner(title, sub, warden.colour if warden != null else UiStyle.GOLD, 2.0)
 	if phase >= 3:
 		hud.show_flash("his hue is turning faster now", UiStyle.ALERT, 1.6)
 	# Crowd roars for phase changes
@@ -991,6 +1047,11 @@ func _sync_hud() -> void:
 		hud.boss_hue = -1.0
 		hud.boss_vulnerable = false
 		hud.boss_phase = 1
+		hud.boss_name = ""
+		hud.boss_subtitle = ""
+		hud.boss_hp = 0.0
+		hud.boss_max_hp = 0.0
+		hud.boss_wheel = false
 		hud.sigil_style = ""
 		return
 
@@ -1027,14 +1088,28 @@ func _sync_hud() -> void:
 		# under the player - colour theory as a live readout, not an assertion.
 		hud.floor_colour = room.ground_colour_at(room.player.position)
 
-	if room.boss != null and is_instance_valid(room.boss) and not room.boss.dead:
-		hud.boss_hue = float(ColorTheory.hue_degrees(room.boss.colour))
-		hud.boss_vulnerable = room.boss.vulnerable
-		hud.boss_phase = room.boss.boss_phase
+	if room.boss_active():
+		var boss: Guard = room.boss
+		hud.boss_hue = float(ColorTheory.hue_degrees(boss.colour))
+		hud.boss_vulnerable = boss.vulnerable
+		hud.boss_phase = boss.boss_phase
+		hud.boss_name = boss.boss_display_name
+		hud.boss_subtitle = boss.boss_subtitle
+		hud.boss_colour = boss.colour
+		hud.boss_hp = boss.hp
+		hud.boss_max_hp = boss.max_hp
+		hud.boss_wheel = boss.wheel_style
 	else:
+		# No warden on the floor (or he is still waiting in the wings): the
+		# wheel band, the phase readout and the bar all go away together.
 		hud.boss_hue = -1.0
 		hud.boss_vulnerable = false
 		hud.boss_phase = 1
+		hud.boss_name = ""
+		hud.boss_subtitle = ""
+		hud.boss_hp = 0.0
+		hud.boss_max_hp = 0.0
+		hud.boss_wheel = false
 
 
 # ---------------------------------------------------------------------------

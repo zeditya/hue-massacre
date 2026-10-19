@@ -1021,10 +1021,15 @@ One deliberate deviation from §10.3 as written, already documented where it
 happened: the opening's stage is **code-drawn** rather than assembled from Tiny
 Swords buildings/terrain/clouds/UI (§11.1) — pack portraits only.
 
-### 12.1 NEXT SESSION — Hall I's Sun's Warden, the first true boss
+### 12.1 DELIVERED (2026-10-19) — Hall I's Sun's Warden, the first true boss
 
-Only Hall IV declares `"boss": true` today (`scripts/level_data.gd`); Halls I–III
-end on a wave, not a boss. Build Hall I's in full as the template for the rest.
+> **Done, and logged in §13 below.** Hall I now ends on THE SUN'S WARDEN, with
+> the shield stance, phase II, the intro/defeat beats, the boss bar and the
+> EMBER quarter. What follows is the brief as it was written, kept so the
+> delivered work can be checked against it. §12.2 is the next session.
+
+Only Hall IV declared `"boss": true`; Halls I–III ended on a wave, not a boss.
+Hall I's is built in full as the template for the rest.
 
 - **Shield stance** — a raised shield a plain blow cannot pass. Break it with a
   parry or a heavy guard-break (12.4), or *get around it*: the shield faces
@@ -1168,4 +1173,184 @@ this session). `docs/STORY.md` rules; the README follows.
 
 **Rough sizing** (sessions, not hours): 12.1 = 1 big · 12.2 = 1 · 12.3 = 2 ·
 12.4 = 1–2 · 12.5 = 1 · 12.6 = 1–2 · 12.7 = 0.5 · 12.8 = 1 + editing.
+
+---
+
+## 13. Session: Hall I's warden, and the first boss bar (2026-10-19)
+
+> §12.1 is **done**. Hall I no longer ends on a heavy knight in its last wave: it
+> ends on **THE SUN'S WARDEN**, a boss with a shield stance, a phase II, an
+> arrival beat, a HUD bar in his own hue and a quarter of the Wheel to hand over.
+> The sworn also got their **faint sight cones** back (a direction cue, not a
+> meter), and the boss captures became machine-checked instead of eyeball-only.
+> Tests went **351 → 385 passed, 0 failed**.
+
+### 13.1 The warden is data, in the same file as everything else
+
+`scripts/level_data.gd`, Hall I's third wave: the purple warden that used to hold
+it is replaced by the hall's keeper. He keeps the pattern the rest of the file
+uses — a route, a hue, stats — and adds only what a boss needs:
+
+| Key | Value | What it does |
+|---|---|---|
+| `boss: true` | — | he is the room's boss: bar, phases, kneel |
+| `boss_style` | `"shield"` | his defence, *not* the Champion's wheel |
+| `boss_name` / `boss_title` | THE SUN'S WARDEN / KEEPER OF THE EMBER QUARTER | the herald's line and the bar |
+| `quarter` | `EMBER` | the reward, recorded by `game.gd` |
+| `boss_phases` | `2` | how many pips the duel draws |
+| `phase_two_ratio` | `0.5` | the wall falls at half vigour (§12.1) |
+| `slam_radius` / `slam_damage` | 170 / 28 | his quarter of the floor |
+
+The Champion's spec gained the same identity keys (`boss_style: "wheel"`, his
+name, `quarter: "GOLD"`, `boss_phases: 3`), so **the two bosses are one system
+with two defences**, and the difference is readable in one place.
+
+### 13.2 The shield stance — the fiction is the counterplay
+
+`scripts/guard.gd` gained a small, honest state machine: `has_shield_stance` is
+the authored fact, `shield_up` the live one, and `_update_shield()` is the only
+writer of `shield_up` — so the arc that is **drawn** is always the arc that
+**blocks** (`shield_half_deg`, 70° either side of his facing).
+
+- **A plain front blow does nothing.** `take_hit()` turns it, `clang()`s, and he
+  says his own word for it (*"Beat on it. Beat on it all day."*).
+- **The heavy third swing breaks it.** `heavy` (or a complement **shatter**)
+  calls `break_shield(2.5)`: the wall comes open, the blow lands whole, and the
+  stance stays down for a real punish window.
+- **A parry breaks it too.** `room._on_player_parried()` calls `break_shield()`
+  on a shield boss in addition to the stagger, because only the room knows who
+  swung — the same division of labour the parry already used.
+- **Getting around it works.** A blow outside the arc is a blow from behind: no
+  clang, no break, and the damage lands clean. He turns slowly (“turn_speed”
+  120), and moves at 55% speed while the wall is up, so walking round him is a
+  real answer rather than a formality.
+
+### 13.3 Phase II, and the wheel stays the wheel's
+
+At half vigour `_update_boss_phase()` does what the brief asked: the shield falls
+**for good** (`has_shield_stance = false`), `slam_cooldown` drops to 60% of the
+authored value (7 s → 4.2 s), and the charge unlocks — `guard.gd` already gates
+the dash on `boss_phase >= 2`, so the warden inherits it exactly as the Champion
+has it. Phase III never arrives (`phase_three_ratio: 0.0`).
+
+The important separation: `wheel_style` is now its own flag, and **everything
+that belonged to the Champion's rotating lock is gated on it** — the room's
+`_update_boss_windows()` computes no vulnerability for a shield boss,
+`room._resolve_strikes()` no longer refuses to wound a non-wheel boss, and the
+HUD's complement band and *STRIKE NOW* prompt only draw for the wheel. A shield
+warden is a wall to be broken, not a lock to be read.
+
+### 13.4 The arrival, the bar, and the defeat
+
+- **`room.gd` remembers the boss wherever he is authored.** He leads Hall I's
+  third wave, so the old `wave_num == 1` assignment would have left `room.boss`
+  null for the whole duel. He is now assigned as he is built, and `boss_active()`
+  reports only when he is actually on the floor — a boss in the wings shows no
+  bar.
+- **`boss_intro(guard)`** fires once, when his wave reaches the sand (and once
+  for a one-wave boss room): `game.gd` answers with `hud.show_banner()` in the
+  warden's own hue, and the bar appears.
+- **`hud.gd` gained `_draw_boss_bar()`**: name in his hue, vigour underneath, at
+  the bottom centre where it cannot be confused with the player's own panel. The
+  top-right phase readout now says WARDEN or CHAMPION depending on the style.
+- **The defeat beat is data-driven.** `_boss_victory_beat()` branches on
+  `wheel_style`: the Champion keeps *“THE CHAMPION KNEELS → THE UNSWORN IS
+  NAMED”*; the warden gets *“THE SUN'S WARDEN FALLS → THE EMBER QUARTER → the
+  hall goes grey without its keeper”*. The quarter is recorded in
+  `game.quarters_taken`, which is the hook §12.4's sockets will read.
+- **The hall drains.** `room.gd` sets `_hall_drained` the moment a boss dies and
+  ramps a grey veil over the sand in `_draw()`: the colour he was keeping goes
+  out with him. The kneeling label now uses his own name instead of always
+  saying “THE CHAMPION KNEELS”.
+
+### 13.5 Dev tooling
+
+| Tool | What it is for |
+|---|---|
+| `tools/capture_boss.gd` | Seven staged frames of the duel, driven through the real API: `warden_intro`, `shield_stance`, `shield_broken`, `phase_two`, `slam_windup`, `slam_landed`, `warden_kneels`. |
+| `tools/verify_boss_captures.gd` | The machine half of "look at the captures": every frame is a real 1280×720 picture, the shield arc and slam disc are on the sand in the warden's hue, the arrival frame carries the bar, and the kneel frame is not washed out by the death flash. Exits non-zero on any miss. |
+
+`tools/capture_melee.gd` was updated for the new data: Hall I now authors a
+dormant boss, so its slam frames only fall back to the Wheel when the local boss
+is genuinely inactive (`room.boss.dormant`).
+
+Two small findings worth writing down, because they were caught by looking at the
+frames rather than at the code:
+
+- **The boss-death colour flash is drawn on top of the defeat frame.** The first
+  `warden_kneels` capture was a wall of ember; the tool now waits for
+  `game.flash` to finish (frame 140) before taking the shot.
+- **A `match` with a duplicate frame number silently drops the later branch.**
+  Two `140:` cases in the capture tool meant the snapshot branch never ran and a
+  stale PNG was left on disk — the picture looked wrong for a reason that had
+  nothing to do with the game.
+
+### 13.6 Verification
+
+```bash
+flatpak run org.godotengine.Godot --headless --path . res://tests/test_runner.tscn
+#  ->  RESULT: 385 passed, 0 failed   (was 351 before this session)
+
+flatpak run org.godotengine.Godot --path . --script res://tools/capture_boss.gd
+flatpak run org.godotengine.Godot --headless --path . --script res://tools/verify_boss_captures.gd
+#  ->  RESULT: 21 passed, 0 failed
+```
+
+Section **E** of the suite is the boss's acceptance test — 27 checks, each one
+naming counterplay rather than a number: the plain front blow is turned; the
+heavy swing breaks the stance; a blow from behind lands clean; a parry opens him
+up for longer than a frame; half vigour drops the wall, quickens the ground
+strike; hugging him provokes the slam; the HUD bar carries his name and vigour
+with the wheel band off; and the kill kneels him, starts the drain and hands over
+the EMBER quarter. Section **F** (7 checks) is the cone: drawn with the same
+half-angle the sight rule uses, inside seen / outside not / past reach not, and
+fill alpha at or under a tenth. Section D also still passes, which is what proves
+the new boss keys did not disturb the wave rooms.
+
+The captures are now checked twice: by `verify_boss_captures.gd` (21 checks) and
+by measurement of the frames themselves. The kneel frame's corner reads neutral
+sand (`58, 55, 64`) instead of the ember wash it was before the timing fix, and
+the slam frame reads 32.6% ember in the boss's quadrant, which is the disc.
+
+### 13.7 Docs
+
+The counts in `README.md`, `TESTING.md`, `PROJECT_STRUCTURE.md`,
+`SUBMISSION_CHECKLIST.md`, `HOW_TO_RUN.md` and `PROGRESS_REPORT.md` were brought
+up to **385** — they had been left at 303 since before §11. That is the numeric
+half of §12.7; the rest of the README truth pass (the remaining “arena”→
+“hall” naming) is still owed.
+
+### 13.8 The faint sight cones return
+
+`guard.gd` used to say “no vision cones” — true as a RULE (the oath never needs a
+meter) and false as a picture, because the player could not tell which way a
+knight was looking. The cones are back, at an alpha chosen to be read once and
+ignored after:
+
+- **`sight_half_rad()`** is now the single half-angle, called by both
+  `_in_sight()` and the drawn wedge. The wedge the player sees is exactly the
+  wedge that can see them; there is no second copy of the geometry to drift.
+- **The cone reads at 6% fill / 13% outline of the knight's own hue**
+  (`cone_alpha` / `cone_edge_alpha`, exported and range-limited), with the fill
+  opening by at most four points as a detection meter fills. It does not fade,
+  flash or claim anything: it is a direction, not a threat display.
+- **The rule did not change.** `sight_arc_deg` still defaults to 64 wide in the
+  room (92 for the Champion, 150 for Hall I's warden); the export default was
+  corrected from a stale 130 to 64 so the documented value is the one the game
+  actually runs, and the class comment now describes the cone's role honestly.
+- `docs/STORY.md` §7 was updated in the same breath, because the stories are the
+  source of truth: the oath is still total, the cone is still a courtesy.
+
+`tools/verify_boss_captures.gd` was added in the same pass — see §13.5/§13.6 -
+so the frames the headless suite cannot render are at least checked by machine
+before a human looks at them.
+
+### 13.9 Next move
+
+**§12.2 — unit roles.** The warden now gives the halls a boss to end on; the next
+thing a hall needs is a garrison. `SWORN ARCHER` (keep 260–320 px, step back
+while winding, telegraphed line shot), a **healer behind the line** (named in
+`docs/STORY.md` first — the strings rule), and `SWORN LANCE` / `THORN-SWORN`
+holding with long reach and a leash. Then §12.3 clones §12.1's template into
+Halls II and III.
 
