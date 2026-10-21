@@ -175,6 +175,28 @@ it. So:
 - A knight that spots you **shouts** (the alarm), and the oath carries: nearby
   sworn hear it. The shout replaces the cone.
 
+### The garrison's three trades
+
+Three of the sworn do not fight with a blade at arm's length, so they do not
+speak like the line does. Each one gets a single event in `Guard.BARKS`, and
+only that event: the line's barks belong to the line.
+
+| Role | When it speaks (`event`) | What it says |
+|---|---|---|
+| **archer** — *SWORN ARCHER* | `"shot"`, as the lane is laid down and the shot is committed | *"Line up, hueless."* · *"Hold still. The hall aims."* · *"One line. That is all it takes."* |
+| **monk** — *THORN-SWORN* | `"heal"`, when the root answers and a sworn is mended | *"The root will hold."* · *"Grow again, brothers."* · *"You cannot cut us all down."* |
+| **lancer** — *SWORN LANCE* | `"hold"`, when it is dragged off its line and turns back for it | *"This line does not move."* · *"Come into the reach, hueless."* · *"HOLD. To the last."* |
+
+What each one is *for*, in one line each, because the picture has to teach it:
+
+- The **archer** keeps its distance and paints the lane before it fires. The
+  lane is a promise, not a threat: step out of it.
+- The **THORN-SWORN** does not fight at all. It mends the sworn around it, which
+  is why the back line is the first thing worth diving.
+- The **SWORN LANCE** has the longest reach in the hall and the shortest leash.
+  It will not follow you home; it will make you come to it, into the reach, on
+  the ground it chose.
+
 ## 8. The arc, beat by beat
 
 | Where | What the player reads |

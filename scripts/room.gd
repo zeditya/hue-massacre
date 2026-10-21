@@ -398,6 +398,21 @@ func _make_guard(spec: Dictionary) -> Guard:
 	guard.sight_arc_deg = float(spec.get("sight_arc", 64.0))
 	guard.turn_speed_deg = float(spec.get("turn_speed", guard.turn_speed_deg))
 	guard.hue_speed = float(spec.get("hue_speed", 0.0))
+	# The garrison's trades. A spec may name the role outright; failing that it
+	# is inferred from the armour in Guard._ready(), so "unit" is enough.
+	guard.role = str(spec.get("role", ""))
+	guard.attack_range = float(spec.get("attack_range", guard.attack_range))
+	guard.attack_reach = float(spec.get("reach", guard.attack_reach))
+	guard.keep_min = float(spec.get("keep_min", guard.keep_min))
+	guard.keep_max = float(spec.get("keep_max", guard.keep_max))
+	guard.leash_range = float(spec.get("leash", guard.leash_range))
+	guard.heal_amount = float(spec.get("heal", guard.heal_amount))
+	guard.heal_radius = float(spec.get("heal_radius", guard.heal_radius))
+	# The beat of the swing or the shot, so a role's rhythm is tuned with the
+	# rest of its numbers in level_data.gd.
+	guard.attack_windup = float(spec.get("windup", guard.attack_windup))
+	guard.attack_recover = float(spec.get("recover", guard.attack_recover))
+	guard.attack_cooldown = float(spec.get("cooldown", guard.attack_cooldown))
 	guard.hide_tolerance_deg = hide_tolerance_deg
 	# A boss's quarter-strike is authored with him, not tuned for every warden.
 	guard.slam_radius = float(spec.get("slam_radius", guard.slam_radius))
@@ -449,6 +464,7 @@ func _make_guard(spec: Dictionary) -> Guard:
 	guard.spotted.connect(_on_guard_spotted)
 	guard.perilous_started.connect(_on_guard_perilous_started)
 	guard.slam_landed.connect(_on_guard_slam_landed)
+	guard.heal_pulsed.connect(_on_guard_heal_pulsed)
 	if guard.is_boss:
 		guard.phase_changed.connect(_on_boss_phase_changed)
 		guard.summons_requested.connect(_on_boss_summons_requested)
@@ -814,6 +830,14 @@ func _on_guard_slam_landed(at: Vector2, radius: float, ring_colour: Color) -> vo
 	boss_slam.emit(at, radius, ring_colour)
 
 
+## A THORN-SWORN's root answered: one sworn was mended, and the pack's heal
+## effect rises around THEM in the healer's hue. The room paints it because the
+## body that was healed is not the body that did the healing, and the player's
+## read is "that one is being kept alive - hit that one".
+func _on_guard_heal_pulsed(at: Vector2, colour: Color) -> void:
+	queue_fx("heal", at, colour, 1.0)
+
+
 ## The Unsworn caught a blow on the blade in the parry window. The blow itself
 ## is already turned (the player did that); this is where the room hands out
 ## the reward, because only the room knows WHO swung:
@@ -1121,6 +1145,9 @@ const FX_DURATIONS: Dictionary = {
 	"splash": 0.42,
 	"dust": 0.40,
 	"lightning": 0.42,
+	# Eleven frames of rising light: long enough to read as a mending, short
+	# enough that a pulse every ~3s does not leave the hall permanently green.
+	"heal": 0.85,
 }
 
 var _combat_effects: Array = []

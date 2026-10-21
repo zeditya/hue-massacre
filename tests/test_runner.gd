@@ -442,6 +442,28 @@ func _physics_frames(count: int) -> void:
 		await get_tree().physics_frame
 
 
+## Find one sworn in a room by the armour it wears, whether it is on the floor
+## or still waiting in the wings. The garrison's roles live in later waves, so
+## a test that only looked at `room.guards` would never see them.
+func _unit_in_room(room: Room, unit_kind: String) -> Guard:
+	for g in room.guards:
+		if is_instance_valid(g) and g.unit == unit_kind and not g.dead:
+			return g
+	for wave in room._reserve:
+		for g in room._reserve[wave]:
+			if is_instance_valid(g) and g.unit == unit_kind and not g.dead:
+				return g
+	return null
+
+
+## Keep the hall's own physics out of a role test: one sworn is driven by hand
+## and everyone else stops moving, so a stray hunt cannot change the numbers.
+func _isolate(room: Room, only: Guard) -> void:
+	for g in room.guards:
+		if is_instance_valid(g) and g != only:
+			g.set_physics_process(false)
+
+
 func _test_integration() -> void:
 	# --- the character sprite system -------------------------------------
 	# The characters are real animated figures now, not coloured dots, so the
@@ -654,7 +676,9 @@ func _test_integration() -> void:
 	await _frames(2)
 	check(_game.room_index == 1, "the game advanced to room 2", "index %d" % _game.room_index)
 	check(_game.room.guards.size() == 2, "arena 2 opens with its first wave of 2")
-	check(_game.room.remaining_guard_count() == 5, "and 3 more knights wait in reserve")
+	# Hall II's garrison: the archer rides wave 2 and the lance wave 3, so the
+	# arena is five sworn rather than three (§12.2b).
+	check(_game.room.remaining_guard_count() == 7, "and 5 more sworn wait in reserve")
 
 	# --- the complement combo --------------------------------------------
 	_game.load_room(2)
@@ -663,7 +687,8 @@ func _test_integration() -> void:
 	# so pull every pack onto the floor at once before picking the pair.
 	_game.room.release_all_waves()
 	await _frames(2)
-	check(_game.room.guards.size() == 5, "room 3 has 5 guards")
+	# Five sworn plus the THORN-SWORN the garrison brought (§12.2b).
+	check(_game.room.guards.size() == 6, "room 3 has 6 guards")
 
 	# Find the exact complementary pair and kill it in the right order.
 	var yellow: Guard = null
@@ -1695,3 +1720,226 @@ func _test_integration() -> void:
 	check(not cone_knight._in_sight(beyond), "and a point past the drawn reach is not")
 	check(cone_knight._in_sight(cone_knight.global_position + Vector2(6.0, 0.0)),
 		"a knight still notices what is right on top of it")
+
+	# =====================================================================
+	# G. THE GARRISON'S THREE TRADES (§12.2b)
+	# =====================================================================
+	# Each role makes a CLAIM about spacing, and each claim is checked here as a
+	# distance and a direction, not as "it exists": the archer retreats inside
+	# its band and holds it, the healer mends only what it can reach and never
+	# itself, the lance out-reaches a knight and walks home instead of being led
+	# out of its hall. The barks are checked too - the story's small print has to
+	# come out of the mouth it belongs to.
+	print("\n--- G. THE GARRISON'S THREE TRADES")
+	_game.load_room(1)
+	await _frames(3)
+	var hall2: Room = _game.room
+	var p_roles: Player = hall2.player
+	var archer: Guard = _unit_in_room(hall2, "archer")
+	var lance: Guard = _unit_in_room(hall2, "lancer")
+	var harrier: Guard = _unit_in_room(hall2, "harrier")
+	var line_knight: Guard = null
+	for g in hall2.guards:
+		if g.unit == "knight":
+			line_knight = g
+			break
+
+	check(archer != null and lance != null and harrier != null and line_knight != null,
+		"Hall II fields an archer, a lance, a knife and a knight")
+	if archer == null or lance == null or harrier == null or line_knight == null:
+		return
+
+	# --- the role is read off the armour, not asked for -----------------
+	check(archer.role == "archer", "the archer's trade is inferred from its armour")
+	check(lance.role == "lancer", "and so is the lance's")
+	check(harrier.role == "melee", "while the crowd's knife stays ordinary line infantry")
+
+	archer.wake_for_wave()
+	archer.set_physics_process(false)
+	_isolate(hall2, archer)
+	archer.state = Guard.State.CHASE
+	p_roles.hp = p_roles.max_hp
+	p_roles.invuln_left = 0.0
+	p_roles.end_guard()
+
+	# --- 1. SPACING: the archer holds a band, it does not brawl ----------
+	archer.global_position = Vector2(640.0, 360.0)
+	p_roles.global_position = archer.global_position + Vector2(0.0, 420.0)
+	archer._attack_cooldown_left = 5.0
+	archer._do_archer(0.016, p_roles)
+	check(archer.velocity.y > 1.0,
+		"an archer outside its band walks the player down",
+		"velocity %s" % str(archer.velocity))
+
+	p_roles.global_position = archer.global_position + Vector2(0.0, archer.keep_min - 50.0)
+	archer._do_archer(0.016, p_roles)
+	check(archer.velocity.y < -1.0,
+		"and inside it, it gives ground instead of trading",
+		"velocity %s" % str(archer.velocity))
+
+	p_roles.global_position = archer.global_position + Vector2(0.0, (archer.keep_min + archer.keep_max) * 0.5)
+	archer.velocity = Vector2.ZERO
+	archer._do_archer(0.016, p_roles)
+	check(archer.velocity.length() < 1.0, "in the band itself it stands and draws")
+
+	# --- 2. THE LANE: locked at the draw, and the arrow follows it -------
+	archer._attack_cooldown_left = 0.0
+	archer.attack_state = Guard.Attack.NONE
+	p_roles.global_position = archer.global_position + Vector2(0.0, 200.0)
+	archer._do_archer(0.016, p_roles)
+	check(archer.attack_state == Guard.Attack.WINDUP, "inside the band it opens a draw")
+	check(archer.bark_text != "" and Guard.BARKS["shot"].has(archer.bark_text),
+		"saying one of the archer's own lines, not the line's",
+		"said '%s'" % archer.bark_text)
+	var aimed: Vector2 = archer._lane_dir
+	# The player steps out of the lane DURING the draw. The lane must not follow.
+	p_roles.global_position = archer.global_position + Vector2(280.0, 0.0)
+	for i in 80:
+		archer._do_archer(0.016, p_roles)
+	check(archer.arrow_flying, "the string releases a real arrow")
+	check(absf(archer.arrow_dir.angle() - aimed.angle()) < 0.001,
+		"which flies down the lane that was drawn, not at where the player moved",
+		"lane %s vs arrow %s" % [str(aimed), str(archer.arrow_dir)])
+	var flew: float = archer.arrow_pos.distance_to(archer.global_position)
+	archer._update_arrow(0.02)
+	check(archer.arrow_pos.distance_to(archer.global_position) > flew,
+		"and it travels through the hall")
+	check(archer.arrow_flying, "without hitting the player, who left the lane")
+	archer.arrow_flying = false
+
+	# Back in the lane, the same shot wounds - through the ordinary damage path,
+	# so a raised guard is still an answer to it.
+	p_roles.global_position = archer.global_position + Vector2(0.0, 200.0)
+	p_roles.hp = p_roles.max_hp
+	p_roles.invuln_left = 0.0
+	p_roles.hitstun_left = 0.0
+	archer.attack_state = Guard.Attack.NONE
+	archer._attack_cooldown_left = 0.0
+	archer._do_archer(0.016, p_roles)
+	for i in 80:
+		archer._do_archer(0.016, p_roles)
+	var hp_before_shot: float = p_roles.hp
+	for i in 40:
+		archer._update_arrow(0.02)
+	check(p_roles.hp < hp_before_shot - 0.5,
+		"an arrow down the lane wounds the Unsworn",
+		"hp %.1f -> %.1f" % [hp_before_shot, p_roles.hp])
+	check(not archer.arrow_flying, "and is spent on the hit")
+
+	# --- 3. THE LANCE: long reach, short leash ---------------------------
+	lance.wake_for_wave()
+	lance.set_physics_process(false)
+	lance.state = Guard.State.CHASE
+	check(lance.attack_range > line_knight.attack_range + 30.0,
+		"the lance reaches far past a knight's sword",
+		"lance %.0f vs knight %.0f" % [lance.attack_range, line_knight.attack_range])
+	check(lance.attack_reach > line_knight.attack_reach,
+		"and its swing really is longer, not just its trigger")
+
+	var post: Vector2 = lance.home
+	lance.global_position = post + Vector2(0.0, lance.leash_range + 80.0)
+	p_roles.global_position = lance.global_position + Vector2(700.0, 0.0)
+	lance.attack_state = Guard.Attack.NONE
+	lance._attack_cooldown_left = 0.0
+	lance.bark_left = 0.0
+	lance.velocity = Vector2.ZERO
+	lance._do_lancer(0.016, p_roles)
+	var homeward: Vector2 = (post - lance.global_position).normalized()
+	check(lance.velocity.dot(homeward) > 1.0,
+		"dragged past its leash, the lance walks home instead of following",
+		"velocity %s, home is %s" % [str(lance.velocity), str(homeward)])
+	check(Guard.BARKS["hold"].has(lance.bark_text),
+		"and says its own line about the line it will not leave",
+		"said '%s'" % lance.bark_text)
+
+	# Inside the leash it is an ordinary hunter again: it closes.
+	lance.global_position = post
+	p_roles.global_position = post + Vector2(0.0, 300.0)
+	lance._attack_cooldown_left = 0.0
+	lance.velocity = Vector2.ZERO
+	lance._facing = PI * 0.5
+	lance._do_lancer(0.016, p_roles)
+	check(lance.velocity.length() > 1.0, "inside it, it hunts like the rest of the line")
+
+	# --- 4. THE HARRIER still swarms (the garrison changed nothing here) --
+	harrier.wake_for_wave()
+	harrier.set_physics_process(false)
+	harrier.state = Guard.State.CHASE
+	harrier.global_position = Vector2(400.0, 360.0)
+	p_roles.global_position = Vector2(700.0, 360.0)
+	harrier.attack_state = Guard.Attack.NONE
+	harrier._attack_cooldown_left = 0.0
+	harrier.velocity = Vector2.ZERO
+	harrier._facing = 0.0
+	harrier._do_chase(0.016, p_roles)
+	check(harrier.velocity.x > 1.0, "the crowd's knife still runs straight at the player")
+
+	# --- 5. THE THORN-SWORN: the root, and who it reaches ----------------
+	_game.load_room(2)
+	await _frames(3)
+	var hall3: Room = _game.room
+	var p_thorn: Player = hall3.player
+	var monk: Guard = _unit_in_room(hall3, "monk")
+	var ally: Guard = null
+	for g in hall3.guards:
+		if g != monk and not g.dead:
+			ally = g
+			break
+	check(monk != null and ally != null, "Hall III brings its THORN-SWORN")
+	if monk == null or ally == null:
+		return
+	check(monk.role == "healer", "whose trade is read off the monk's armour")
+
+	monk.wake_for_wave()
+	monk.set_physics_process(false)
+	_isolate(hall3, monk)
+	monk.state = Guard.State.CHASE
+	monk.global_position = Vector2(640.0, 560.0)
+	monk._facing = 0.0
+	p_thorn.global_position = monk.global_position + Vector2(600.0, 0.0)
+	p_thorn.hp = p_thorn.max_hp
+	ally.global_position = monk.global_position + Vector2(90.0, 0.0)
+	ally.hp = ally.max_hp * 0.5
+
+	monk._heal_cooldown_left = 0.0
+	monk._do_healer(0.016, p_thorn)
+	check(monk.attack_state == Guard.Attack.WINDUP,
+		"a wounded sworn in reach opens the root's cast")
+	var ally_hp_before: float = ally.hp
+	for i in 40:
+		monk._do_healer(0.016, p_thorn)
+	check_approx(ally.hp, minf(ally_hp_before + monk.heal_amount, ally.max_hp), 0.3,
+		"and the pulse mends it by the heal the hall authored")
+	check(Guard.BARKS["heal"].has(monk.bark_text),
+		"in the THORN-SWORN's own voice",
+		"said '%s'" % monk.bark_text)
+
+	# Out of radius: nothing. The ring the player sees is the ring that works.
+	ally.global_position = monk.global_position + Vector2(monk.heal_radius + 90.0, 0.0)
+	ally.hp = ally.max_hp * 0.5
+	var out_of_reach_before: float = ally.hp
+	monk.attack_state = Guard.Attack.NONE
+	monk._heal_cooldown_left = 0.0
+	monk._heal_pulse()
+	check_approx(ally.hp, out_of_reach_before, 0.001,
+		"an ally outside the drawn radius is not mended")
+
+	# It never mends itself: with the other sworn whole, the root has no target
+	# even while the monk is bleeding.
+	for g in hall3.guards:
+		if is_instance_valid(g):
+			g.hp = g.max_hp
+	monk.hp = monk.max_hp * 0.4
+	check(monk._wounded_ally() == null, "and the heal never picks the healer itself")
+
+	# The support gives ground from the blade rather than trading with it.
+	monk.hp = monk.max_hp
+	monk._facing = 0.0
+	p_thorn.global_position = monk.global_position + Vector2(120.0, 0.0)
+	monk.velocity = Vector2.ZERO
+	monk.attack_state = Guard.Attack.NONE
+	monk._heal_cooldown_left = 99.0
+	monk._do_healer(0.016, p_thorn)
+	check(monk.velocity.x < -1.0,
+		"with the player on top of it, the healer backs away",
+		"velocity %s" % str(monk.velocity))

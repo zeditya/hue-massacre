@@ -46,6 +46,10 @@ signal perilous_started()
 ## out of the floor. The room paints the shockwave and game.gd sounds it, so the
 ## ring carries the warden's hue without the room having to guess it.
 signal slam_landed(at: Vector2, radius: float, ring_colour: Color)
+## THORN-SWORN only: the root answered, and `at` was mended. The room paints the
+## pack's heal effect there in the healer's own hue, so the player can see WHICH
+## sworn is being kept alive - which is the whole read of the back line.
+signal heal_pulsed(at: Vector2, colour: Color)
 
 enum State { PATROL, INVESTIGATE, CHASE }
 ## Swing state machine: NONE -> WINDUP -> RECOVER -> NONE. A WARDEN also has
@@ -53,6 +57,15 @@ enum State { PATROL, INVESTIGATE, CHASE }
 enum Attack { NONE, WINDUP, RECOVER, SLAM }
 ## Boss charge state machine: NONE -> WINDUP -> DASH -> RECOVER -> NONE.
 enum Charge { NONE, WINDUP, DASH, RECOVER }
+
+## What each set of armour DOES, when the room does not name a role outright.
+## The garrison's three trades are read off the art, so a room spec only has to
+## name the unit and gets the behaviour that belongs to it.
+const ROLE_BY_UNIT := {
+	"archer": "archer",
+	"monk": "healer",
+	"lancer": "lancer",
+}
 
 ## What armour a unit wears -> what the hall calls it.
 const UNIT_NAMES := {
@@ -147,6 +160,25 @@ const BARKS := {
 		"This ground is ours.",
 		"Stand there. STAND THERE.",
 	],
+	# --- the garrison's three trades (docs/STORY.md §7) ------------------
+	# One event each, and only their own: the line's barks belong to the line.
+	# An archer speaks when the lane is laid, a THORN-SWORN when the root
+	# answers, a lance when it is dragged off its post and turns back for it.
+	"shot": [
+		"Line up, hueless.",
+		"Hold still. The hall aims.",
+		"One line. That is all it takes.",
+	],
+	"heal": [
+		"The root will hold.",
+		"Grow again, brothers.",
+		"You cannot cut us all down.",
+	],
+	"hold": [
+		"This line does not move.",
+		"Come into the reach, hueless.",
+		"HOLD. To the last.",
+	],
 	# Boss only: the wait before the charging dash, and the summons.
 	"charge": [
 		"The wheel will not be denied!",
@@ -211,8 +243,39 @@ const BARKS := {
 ## Seconds knocked silly by a complement shatter (armour break).
 @export var stagger_time: float = 1.0
 
-@export_group("Perilous attack")
-## Every so many swings a knight bets everything on one overhead blow: a longer
+@export_group("Role")
+## WHAT THIS SWORN IS FOR. The line's knights all do the same job; the garrison
+## has three trades, and each one changes the fight's shape rather than its
+## numbers:
+##   "" / "melee" - the ordinary shield-and-sword line.
+##   "archer"      - keeps its distance, paints a lane, fires a real arrow.
+##   "healer"      - never swings; mends the sworn around it, so the back line
+##                   is the thing worth diving.
+##   "lancer"      - the longest reach in the hall on the shortest leash.
+## Left empty it is inferred from `unit` in _ready(), so a room spec only has
+## to name the armour (see ROLE_BY_UNIT).
+@export var role: String = ""
+## Archer: the band it tries to hold, in pixels. Closer than `keep_min` and it
+## gives ground; further than `keep_max` and it walks in; between them it stands
+## and draws. The band IS the spacing claim, so the test can assert on it.
+@export var keep_min: float = 230.0
+@export var keep_max: float = 320.0
+## Archer: how far a shot can travel, and how fast. The drawn lane is this
+## length, so the picture never promises a reach the arrow does not have.
+@export var shoot_range: float = 330.0
+@export var arrow_speed: float = 640.0
+## Healer: HP mended per pulse, the radius it reaches, and how often.
+@export var heal_amount: float = 9.0
+@export var heal_radius: float = 150.0
+@export var heal_cooldown: float = 3.2
+## Healer: inside this distance of the player it stops mending and walks away.
+## A support that stands and takes the blade is not a support, it is a target.
+@export var heal_flee_range: float = 210.0
+## Lancer: how far from the post it was given it will go. Past this it walks
+## home while still stabbing anything that comes into reach.
+@export var leash_range: float = 260.0
+
+@export_group("Perilous attack")## Every so many swings a knight bets everything on one overhead blow: a longer
 ## windup (so it stays fair), more reach and damage, and a warning mark over the
 ## head - because a HELD GUARD DOES NOT STOP IT. This is the genre's rule and
 ## the anti-turtle rule both: the player has to move on the mark. Rolling it, or
@@ -403,6 +466,27 @@ var _base_slam_cooldown: float = 0.0
 var _base_slam_radius: float = 168.0
 var _base_slam_damage: float = 30.0
 
+## Where this sworn was posted, in world px. The lancer's leash is measured
+## from here, which is what makes "it will not follow you home" true.
+var home: Vector2 = Vector2.ZERO
+
+## --- archer ------------------------------------------------------------
+## The lane the current shot is committed to. Locked when the windup opens (not
+## when the arrow leaves) so the line on the sand is exactly the line the arrow
+## takes, and stepping out of it is a real answer.
+var _lane_dir: Vector2 = Vector2.RIGHT
+var _shot_left: float = 0.0
+## The arrow in flight, if any. A real travelling body: it stops on walls, it
+## can be blocked, and it is not a hitscan pretending to be a shot.
+var arrow_flying: bool = false
+var arrow_pos: Vector2 = Vector2.ZERO
+var arrow_dir: Vector2 = Vector2.RIGHT
+var _arrow_travel: float = 0.0
+var _arrow_tex: Texture2D = null
+
+## --- healer ------------------------------------------------------------
+var _heal_cooldown_left: float = 0.0
+
 ## True while the shield is actually in front of him. Written only by
 ## _update_shield(), so the picture and the rule can never disagree.
 var shield_up: bool = false
@@ -481,6 +565,14 @@ func _ready() -> void:
 	_sprite.material = SpriteBank.tint_material(colour)
 	add_child(_sprite)
 	hp = max_hp
+	# The post it was given, and the trade it follows. Both are read here because
+	# this is the first moment the room has finished dressing the body: `unit`
+	# is already set, and so is its position.
+	home = global_position
+	if role.is_empty():
+		role = str(ROLE_BY_UNIT.get(unit, "melee"))
+	if role == "archer":
+		_arrow_tex = load("res://assets/fx/arrow.png")
 	_base_hue_speed = hue_speed
 	_base_slam_cooldown = slam_cooldown
 	_base_slam_radius = slam_radius
@@ -615,6 +707,10 @@ func _start_windup() -> void:
 func _physics_process(delta: float) -> void:
 	if dead:
 		return
+
+	# An arrow already in the air is its own body, so it keeps flying while the
+	# archer is staggered, winding up, or walking away from the line it painted.
+	_update_arrow(delta)
 
 	# --- the Champion drags the wheel around ------------------------------
 	if not is_zero_approx(hue_speed):
@@ -873,6 +969,20 @@ func _do_chase(delta: float) -> void:
 		_do_charge(delta, player)
 		return
 
+	# The garrison's three trades do not fight like the line does, so they do not
+	# walk like it either. Each has its own chase; everything below this is the
+	# line's shield-and-sword.
+	match role:
+		"archer":
+			_do_archer(delta, player)
+			return
+		"healer":
+			_do_healer(delta, player)
+			return
+		"lancer":
+			_do_lancer(delta, player)
+			return
+
 	match attack_state:
 		Attack.WINDUP:
 			# Braced for the swing: planted, and the telegraph in _draw is
@@ -926,6 +1036,251 @@ func _do_chase(delta: float) -> void:
 				velocity = Vector2.RIGHT.rotated(_facing) * chase_speed * _move_scale()
 			else:
 				velocity = Vector2.ZERO
+
+
+# ---------------------------------------------------------------------------
+# The garrison's three trades
+# ---------------------------------------------------------------------------
+
+## THE ARCHER - a sworn who keeps the line at arm's length and shoots you down
+## it. Two reads, and both are on the sand before anything happens:
+##   1. the SPACING: inside `keep_min` it gives ground, and it will never stand
+##      and trade, so cornering it is the fight;
+##   2. the LANE: the shot's direction is locked when the windup opens and drawn
+##      for its whole windup, so the arrow goes exactly where the line said it
+##      would. Stepping out of the lane during the draw is the answer.
+func _do_archer(delta: float, player: Player) -> void:
+	match attack_state:
+		Attack.WINDUP:
+			# Drawing. The feet are still free, so it backs off if you close in -
+			# but slowly, because a drawn bow is not a sprint.
+			var drawn_to: float = player.global_position.distance_to(global_position)
+			velocity = Vector2.RIGHT.rotated(_facing + PI) * chase_speed * 0.55 \
+				if drawn_to < keep_min else Vector2.ZERO
+			_attack_left = maxf(_attack_left - delta, 0.0)
+			if _attack_left <= 0.0:
+				_loose_arrow()
+			return
+		Attack.RECOVER:
+			velocity = Vector2.ZERO
+			_attack_left = maxf(_attack_left - delta, 0.0)
+			if _attack_left <= 0.0:
+				attack_state = Attack.NONE
+			return
+
+	_attack_cooldown_left = maxf(_attack_cooldown_left - delta, 0.0)
+	if player.frozen:
+		velocity = Vector2.ZERO
+		return
+
+	var to_player: Vector2 = player.global_position - global_position
+	var dist: float = to_player.length()
+	# The band: hold it. Too close and it retreats, too far and it advances.
+	if dist < keep_min:
+		velocity = -to_player.normalized() * chase_speed * 0.9 if dist > 0.001 else Vector2.ZERO
+	elif dist > keep_max:
+		velocity = to_player.normalized() * chase_speed * 0.9
+	else:
+		velocity = Vector2.ZERO
+
+	# One arrow in the air at a time: the read is the lane, not the volume.
+	if dist <= shoot_range and _attack_cooldown_left <= 0.0 and not arrow_flying:
+		_start_shot(to_player)
+
+
+## Open the draw and LOCK the lane. It points at the player as they are when the
+## windup begins and does not follow them afterwards, which is what makes
+## walking out of it work.
+func _start_shot(to_player: Vector2) -> void:
+	_lane_dir = to_player.normalized() if to_player.length() > 0.001 else Vector2.RIGHT.rotated(_facing)
+	_facing = _lane_dir.angle()
+	_windup_len = attack_windup * 1.3
+	_attack_left = _windup_len
+	_reach_now = shoot_range
+	_perilous = false
+	attack_state = Attack.WINDUP
+	_begin_attack()
+	_say("shot")
+
+
+## The string releases. The arrow is a body in the hall from here on: it is
+## stopped by walls, it can be guarded, and it can be outrun.
+func _loose_arrow() -> void:
+	attack_state = Attack.RECOVER
+	_attack_left = attack_recover
+	_attack_cooldown_left = attack_cooldown
+	_swing_flash = 1.0
+	arrow_dir = _lane_dir
+	arrow_pos = global_position + arrow_dir * (body_radius + 10.0)
+	_arrow_travel = 0.0
+	arrow_flying = true
+
+
+## Fly the arrow. Stepped in short hops so a fast arrow cannot tunnel through a
+## wall, and every hop is checked against the walls (layer 1) and the Unsworn.
+func _update_arrow(delta: float) -> void:
+	if not arrow_flying:
+		return
+	var player: Player = _player()
+	var remaining: float = arrow_speed * delta
+	var space: PhysicsDirectSpaceState2D = get_world_2d().direct_space_state
+	while remaining > 0.0:
+		var step: float = minf(remaining, 12.0)
+		var next: Vector2 = arrow_pos + arrow_dir * step
+		if space != null:
+			var query := PhysicsRayQueryParameters2D.create(arrow_pos, next, 1)
+			query.collide_with_areas = false
+			if not space.intersect_ray(query).is_empty():
+				# Into the stonework. The hall keeps its colour.
+				arrow_flying = false
+				return
+		arrow_pos = next
+		_arrow_travel += step
+		remaining -= step
+		if player != null and not player.frozen \
+				and arrow_pos.distance_to(player.global_position) <= player.body_radius + 7.0:
+			# A front blow through the ordinary path: a held guard stops it, a
+			# parry turns it, the roll's i-frames ignore it. No special case -
+			# an arrow is a blade with a longer arm.
+			player.take_damage(damage, global_position, false)
+			arrow_flying = false
+			return
+		if _arrow_travel >= shoot_range:
+			arrow_flying = false
+			return
+
+
+## THE THORN-SWORN - it does not fight. It mends the sworn around it on a slow
+## pulse, which turns the back line into the thing worth diving, and it walks
+## away from the blade instead of trading with it. Never heals itself: killing
+## the monk has to stay the answer.
+func _do_healer(delta: float, player: Player) -> void:
+	match attack_state:
+		Attack.WINDUP:
+			velocity = Vector2.ZERO
+			_attack_left = maxf(_attack_left - delta, 0.0)
+			if _attack_left <= 0.0:
+				_heal_pulse()
+			return
+		Attack.RECOVER:
+			velocity = Vector2.ZERO
+			_attack_left = maxf(_attack_left - delta, 0.0)
+			if _attack_left <= 0.0:
+				attack_state = Attack.NONE
+			return
+
+	_heal_cooldown_left = maxf(_heal_cooldown_left - delta, 0.0)
+	if player.frozen:
+		velocity = Vector2.ZERO
+		return
+
+	var dist: float = player.global_position.distance_to(global_position)
+	# Face the blade and give ground from it: the root is patient, not brave.
+	velocity = Vector2.RIGHT.rotated(_facing + PI) * chase_speed * 0.9 \
+		if dist < heal_flee_range else Vector2.ZERO
+	if _heal_cooldown_left <= 0.0 and _wounded_ally() != null:
+		_start_heal()
+
+
+func _start_heal() -> void:
+	_windup_len = attack_windup * 0.8
+	_attack_left = _windup_len
+	_perilous = false
+	attack_state = Attack.WINDUP
+	_begin_attack()
+
+
+## The root answers: every wounded sworn inside `heal_radius` with a clear path
+## is mended, and the room paints the pack's heal effect on each one. Out of the
+## radius, behind a wall, or already whole - nothing. The drawn ring during the
+## cast IS this radius.
+func _heal_pulse() -> void:
+	attack_state = Attack.RECOVER
+	_attack_left = attack_recover * 0.7
+	_heal_cooldown_left = heal_cooldown
+	var mended: int = 0
+	if room != null:
+		for other in room.guards:
+			if other == self or not is_instance_valid(other) or other.dead or other.dormant:
+				continue
+			if other.hp >= other.max_hp - 0.01:
+				continue
+			if other.global_position.distance_to(global_position) > heal_radius:
+				continue
+			if not room.has_line_of_sight(global_position, other.global_position):
+				continue
+			other.hp = minf(other.hp + heal_amount, other.max_hp)
+			heal_pulsed.emit(other.global_position, colour)
+			mended += 1
+	if mended > 0:
+		_say("heal")
+
+
+## The nearest sworn this one could actually reach: wounded, inside the radius,
+## and not behind a wall. Null when the root has nothing to do.
+func _wounded_ally() -> Guard:
+	if room == null:
+		return null
+	var best: Guard = null
+	var best_ratio: float = 0.999
+	for other in room.guards:
+		if other == self or not is_instance_valid(other) or other.dead or other.dormant:
+			continue
+		var ratio: float = other.health_ratio()
+		if ratio >= best_ratio:
+			continue
+		if other.global_position.distance_to(global_position) > heal_radius:
+			continue
+		if not room.has_line_of_sight(global_position, other.global_position):
+			continue
+		best = other
+		best_ratio = ratio
+	return best
+
+
+## THE SWORN LANCE - the longest reach in the hall on the shortest leash. It
+## plants, turns slowly and stabs a long way, so the fight is about the angle,
+## not about a queue of knights. `leash_range` is measured from the post it was
+## given: past it, the lance walks home while still stabbing anything that comes
+## into the reach, so the player can lead it, but cannot take it home.
+func _do_lancer(delta: float, player: Player) -> void:
+	match attack_state:
+		Attack.WINDUP:
+			velocity = Vector2.ZERO
+			_attack_left = maxf(_attack_left - delta, 0.0)
+			if _attack_left <= 0.0:
+				_swing(player)
+			return
+		Attack.RECOVER:
+			velocity = Vector2.ZERO
+			_attack_left = maxf(_attack_left - delta, 0.0)
+			if _attack_left <= 0.0:
+				attack_state = Attack.NONE
+			return
+
+	_attack_cooldown_left = maxf(_attack_cooldown_left - delta, 0.0)
+	var to_home: Vector2 = home - global_position
+	var leashed: bool = to_home.length() > leash_range
+	if leashed:
+		# Dragged off its line. It says so, once per bark, and turns back for
+		# the post - facing the player the whole way, because the reach is what
+		# it is retreating behind.
+		if bark_left <= 0.0:
+			_say("hold")
+		velocity = to_home.normalized() * chase_speed * 0.85
+		if not player.frozen \
+				and player.global_position.distance_to(global_position) <= attack_range \
+				and _attack_cooldown_left <= 0.0:
+			_start_windup()
+		return
+
+	var dist: float = player.global_position.distance_to(global_position)
+	if not player.frozen and dist <= attack_range and _attack_cooldown_left <= 0.0:
+		_start_windup()
+	elif dist > attack_range * 0.85:
+		velocity = Vector2.RIGHT.rotated(_facing) * chase_speed * _move_scale()
+	else:
+		velocity = Vector2.ZERO
 
 
 ## The warden commits to the ground strike. One and a quarter seconds of
@@ -1377,6 +1732,43 @@ func _draw() -> void:
 		_draw_wedge(deg_to_rad(attack_half_deg), _reach_now,
 			Color(1.0, 0.95, 0.82, 0.38 * _swing_flash),
 			Color(1.0, 1.0, 1.0, 0.55 * _swing_flash))
+	# --- the archer's lane and arrow --------------------------------------
+	# The lane is laid down as the bow is drawn and the arrow flies exactly down
+	# it: two rails, a wash of the archer's own hue, and a bright edge that runs
+	# out to the end of the shot as the draw finishes. Stepping out of the lane
+	# before the string releases is the second half of the read (the first is
+	# the archer backing away).
+	if role == "archer" and attack_state == Attack.WINDUP:
+		var lt: float = clampf(1.0 - _attack_left / maxf(_windup_len, 0.01), 0.0, 1.0)
+		var lane_end: Vector2 = _lane_dir * shoot_range
+		var rail: Vector2 = _lane_dir.orthogonal() * 6.0
+		draw_line(rail, lane_end + rail, Color(colour.r, colour.g, colour.b, 0.16 + 0.34 * lt), 2.0)
+		draw_line(-rail, lane_end - rail, Color(colour.r, colour.g, colour.b, 0.16 + 0.34 * lt), 2.0)
+		# The wash fills out from the bow along the lane the arrow will take.
+		var reach: float = shoot_range * lt
+		var pts: PackedVector2Array = PackedVector2Array([
+			-_lane_dir.orthogonal() * 5.0,
+			_lane_dir.orthogonal() * 5.0,
+			_lane_dir * reach + _lane_dir.orthogonal() * 5.0,
+			_lane_dir * reach - _lane_dir.orthogonal() * 5.0,
+		])
+		draw_colored_polygon(pts, Color(colour.r, colour.g, colour.b, 0.05 + 0.09 * lt))
+	if role == "archer" and arrow_flying and _arrow_tex != null:
+		# The pack's own arrow, turned along its flight and painted in the
+		# archer's hue. Drawn in local space because _draw() is local to the body.
+		draw_set_transform(arrow_pos - global_position, arrow_dir.angle(), Vector2.ONE)
+		draw_texture_rect(_arrow_tex, Rect2(-32.0, -32.0, 64.0, 64.0), false,
+			Color(colour.r, colour.g, colour.b, 0.95))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+	# --- the healer's ring -------------------------------------------------
+	# The circle drawn during the cast is exactly `heal_radius`, so "who is going
+	# to be mended" is never a guess. It closes in as the root answers.
+	if role == "healer" and attack_state == Attack.WINDUP:
+		var ht: float = clampf(1.0 - _attack_left / maxf(_windup_len, 0.01), 0.0, 1.0)
+		draw_arc(Vector2.ZERO, heal_radius * (1.0 - 0.12 * ht), 0.0, TAU, 48,
+			Color(colour.r, colour.g, colour.b, 0.10 + 0.22 * ht), 1.0 + 1.5 * ht, true)
+
 	# --- the warden's ground strike ---------------------------------------
 	# A disc of the hall's own colour, drawn at exactly the radius that hurts,
 	# filling up as the warden reaches for the floor. The read is spatial, not

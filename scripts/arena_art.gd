@@ -651,6 +651,11 @@ const FX: Dictionary = {
 	"splash": { "path": "res://assets/fx/splash.png", "frames": 9, "cell": 64.0, "scale": 1.0 },
 	"dust": { "path": "res://assets/fx/dust.png", "frames": 8, "cell": 32.0, "scale": 1.0 },
 	"lightning": { "path": "res://assets/fx/lightning.png", "frames": 7, "cell": 64.0, "scale": 1.0 },
+	# The THORN-SWORN's root answering: the pack's own Heal_Effect, eleven frames
+	# of a bowl of light rising around whoever was mended. Greyed in the bake, so
+	# it is painted in the healer's hue - the player can tell which sworn's
+	# support is keeping which ally alive.
+	"heal": { "path": "res://assets/fx/heal.png", "frames": 11, "cell": 96.0, "scale": 1.0 },
 }
 
 static var _fx_textures: Dictionary = {}

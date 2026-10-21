@@ -435,6 +435,27 @@ const ROOMS: Array = [
 				"wave": 2,
 			},
 			{
+				# §12.2b: the garrison arrives. An ARCHER holds the west mouth of
+				# the east-west hall, where the corridor IS the lane it paints -
+				# wave 2 is the straggler wave, so the archer is what makes it a
+				# fight instead of a walk. Shoot down the corridor, or spend the
+				# wave getting close to it on purpose.
+				"unit": "archer",
+				"color": Color(0.0, 1.0, 1.0),
+				"pos": Vector2(150.0, 360.0),
+				"path": [Vector2(150.0, 360.0), Vector2(330.0, 360.0)],
+				"speed": 80.0,
+				"chase": 150.0,
+				"hp": 45.0,
+				"damage": 14.0,
+				"radius": 12.0,
+				"sight": 330.0,
+				"windup": 0.70,
+				"recover": 0.70,
+				"cooldown": 2.2,
+				"wave": 2,
+			},
+			{
 				# A HARRIER in the top-left room.
 				"color": Color(0.0, 1.0, 0.0),
 				"pos": Vector2(200.0, 110.0),
@@ -460,6 +481,28 @@ const ROOMS: Array = [
 				"damage": 25.0,
 				"radius": 16.0,
 				"sight": 320.0,
+				"wave": 3,
+			},
+			{
+				# §12.2b: the SWORN LANCE beside the warden - the wall the last
+				# wave needs. Long reach, slow turn, and a leash measured from
+				# where it was posted: it will not be led out of its room, it
+				# will make you come into the reach on its ground.
+				"unit": "lancer",
+				"color": Color(0.30, 0.50, 1.0),
+				"pos": Vector2(1080.0, 655.0),
+				"path": [Vector2(1080.0, 655.0), Vector2(900.0, 655.0)],
+				"speed": 60.0,
+				"chase": 120.0,
+				"hp": 90.0,
+				"damage": 18.0,
+				"radius": 14.0,
+				"sight": 320.0,
+				"turn_speed": 90.0,
+				"attack_range": 110.0,
+				"reach": 132.0,
+				"leash": 260.0,
+				"cooldown": 1.4,
 				"wave": 3,
 			},
 		],
@@ -592,6 +635,26 @@ const ROOMS: Array = [
 				"path": [Vector2(300.0, 120.0), Vector2(300.0, 600.0)],
 				"speed": 84.0,
 				"sight": 300.0,
+				"wave": 2,
+			},
+			{
+				# §12.2b: the THORN-SWORN, out on the ring's east side, behind
+				# the YELLOW lane. It never swings a weapon: it mends whatever
+				# sworn is near it, so wave 2's exact complement pair stops being
+				# a puzzle about order and becomes a question about position -
+				# dive the healer first, or kill through it.
+				"unit": "monk",
+				"color": Color(0.0, 0.55, 0.35),
+				"pos": Vector2(1000.0, 430.0),
+				"path": [Vector2(1000.0, 430.0), Vector2(900.0, 430.0)],
+				"speed": 70.0,
+				"chase": 140.0,
+				"hp": 55.0,
+				"damage": 8.0,
+				"radius": 12.0,
+				"sight": 300.0,
+				"heal": 9.0,
+				"heal_radius": 150.0,
 				"wave": 2,
 			},
 		],

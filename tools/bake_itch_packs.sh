@@ -133,6 +133,24 @@ grey "$SL/Lancer_Down_Attack.png"  "$OUT/units/lancer/attack1.png" 37.5%
 grey "$SL/Lancer_Down_Defence.png" "$OUT/units/lancer/guard.png"   37.5%
 
 # ---------------------------------------------------------------------------
+# 3c. THE GARRISON'S OWN EFFECTS - what the two support roles PUT ON THE SAND.
+#
+#     heal.png  the pack's Monk/Heal_Effect: eleven frames of a bowl of light
+#               rising around whoever was mended. 192px cells cut to 96 (50%),
+#               because a heal has to read AROUND a knight, not beside one. It
+#               replaces the Super Pixel Effects heal that was baked here
+#               before and never registered in ArenaArt.FX - this one belongs
+#               to the sworn, so it is the one that gets the name.
+#     arrow.png the pack's Archer/Arrow: a SINGLE 64px sprite pointing right,
+#               not a strip. Kept at native size (the shaft is 43px long, which
+#               is the length that reads at camera zoom 2) and greyed so the
+#               archer's own hue is the only colour on it.
+# ---------------------------------------------------------------------------
+echo "garrison effects (Tiny Swords Monk heal / Archer arrow):"
+grey "$MO/Heal_Effect.png" "$OUT/fx/heal.png"  50%
+grey "$AR/Arrow.png"       "$OUT/fx/arrow.png" 100%
+
+# ---------------------------------------------------------------------------
 # 4. THE STANDING STONES - Zerie's Soldier and Orc as STATUES.
 #    Their cells are 100x100 and the figures are tiny (17x21), so a 2x bake
 #    lands them at knight scale. Greyed and darkened at runtime: they are
